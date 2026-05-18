@@ -1,0 +1,31 @@
+{
+  "name": "@loopnest/bizcore-db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LoopNest Core DB clients integration",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prisma": "prisma",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "drizzle:generate": "drizzle-kit generate:pg",
+    "drizzle:migrate": "drizzle-kit migrate",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.11.0",
+    "drizzle-orm": "^0.30.10",
+    "pg": "^8.13.0",
+    "kysely": "^0.27.3",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.6",
+    "@types/node": "^22.0.0",
+    "drizzle-kit": "^0.20.14",
+    "prisma": "^5.11.0",
+    "typescript": "^5.6.0"
+  }
+}

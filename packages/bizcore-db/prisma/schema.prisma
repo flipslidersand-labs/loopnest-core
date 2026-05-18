@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// core.organizations (組織マスタ)
+// ============================================
+model Organization {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(200)
+  type      String   @db.VarChar(50) // 'company' / 'department' / 'division'
+  parentId  String?  @map("parent_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("organizations")
+  @@schema("core")
+}
+
+// ============================================
+// core.users (スタッフマスタ)
+// ============================================
+model User {
+  id             String   @id @default(uuid())
+  name           String   @db.VarChar(100)
+  nameEn         String?  @map("name_en") @db.VarChar(100)
+  email          String   @unique @db.VarChar(200)
+  organizationId String   @map("organization_id")
+  role           String   @db.VarChar(50) // 'director' / 'manager' / 'senior' / 'sales_rep'
+  profile        Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("users")
+  @@schema("core")
+}
+
+// ============================================
+// core.customers (顧客マスタ)
+// ============================================
+model Customer {
+  id                 String   @id @default(uuid())
+  name               String   @db.VarChar(200)
+  nameKana           String?  @map("name_kana") @db.VarChar(200)
+  registrationNumber String?  @map("registration_number") @db.VarChar(20)
+  postalCode         String?  @map("postal_code") @db.VarChar(10)
+  address            String?  @db.Text
+  phone              String?  @db.VarChar(20)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("customers")
+  @@schema("core")
+}
+
+// ============================================
+// core.products (商品マスタ)
+// ============================================
+model Product {
+  id            String   @id @default(uuid())
+  sku           String   @unique @db.VarChar(50)
+  name          String   @db.VarChar(200)
+  category      String   @db.VarChar(100) // 'laptop' / 'desktop' / 'server' / 'network'
+  unitPrice     Decimal  @map("unit_price") @db.Numeric(12, 2)
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("products")
+  @@schema("core")
+}
