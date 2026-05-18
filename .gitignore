@@ -1,0 +1,29 @@
+# Node
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# Database
+postgres-data/
+redis-data/
+
+# Test
+coverage/
+.nyc_output/
+
+# Misc
+*.tsbuildinfo
+.turbo/
