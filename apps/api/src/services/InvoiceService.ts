@@ -39,7 +39,7 @@ export class InvoiceService {
 
     if (quote.status !== 'approved') {
       throw new ApiErrorResponse(
-        400,
+        409,
         'INVALID_STATUS',
         `Cannot create invoice from quote with status ${quote.status}. Must be approved.`
       );

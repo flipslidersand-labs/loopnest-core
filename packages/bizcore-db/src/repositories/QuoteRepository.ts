@@ -148,6 +148,33 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     return this.mapToQuote(quote);
   }
 
+  /**
+   * Atomic conditional status transition.
+   * Updates only if current status matches expectedStatus.
+   * Returns the updated quote, or null if the precondition failed (race condition lost).
+   */
+  async transitionStatus(
+    id: string,
+    expectedStatus: QuoteEntity['status'],
+    newStatus: QuoteEntity['status'],
+    extraData?: { notes?: string }
+  ): Promise<QuoteEntity | null> {
+    const result = await this.prisma.quote.updateMany({
+      where: { id, status: expectedStatus },
+      data: {
+        status: newStatus,
+        ...(extraData?.notes !== undefined && { notes: extraData.notes }),
+      },
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    const updated = await this.prisma.quote.findUnique({ where: { id } });
+    return updated ? this.mapToQuote(updated) : null;
+  }
+
   async delete(id: string): Promise<boolean> {
     await this.prisma.quote.delete({ where: { id } });
     return true;

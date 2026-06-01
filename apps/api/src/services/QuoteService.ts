@@ -12,26 +12,49 @@ export class QuoteService {
   constructor(private repos: RepositoryContainer) {}
 
   /**
+   * Atomic state transition with race-safe error handling.
+   * Uses conditional UPDATE (WHERE id=? AND status=?) so that exactly one
+   * concurrent caller wins; losers see the current status and get a precise error.
+   */
+  private async atomicTransition(
+    quoteId: string,
+    expectedStatus: QuoteEntity['status'],
+    newStatus: QuoteEntity['status'],
+    operation: string,
+    extraData?: { notes?: string }
+  ): Promise<QuoteEntity> {
+    const updated = await this.repos.quotes.transitionStatus(
+      quoteId,
+      expectedStatus,
+      newStatus,
+      extraData
+    );
+
+    if (updated) {
+      return updated;
+    }
+
+    const current = await this.repos.quotes.findById(quoteId);
+    if (!current) {
+      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+    }
+    throw new ApiErrorResponse(
+      409,
+      'INVALID_STATUS',
+      `Cannot ${operation} quote with status ${current.status}. Must be ${expectedStatus}.`
+    );
+  }
+
+  /**
    * Submit quote for approval (draft → pending_approval)
    */
   async submitForApproval(quoteId: string, userId: string): Promise<QuoteEntity> {
-    const quote = await this.repos.quotes.findById(quoteId);
-
-    if (!quote) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-    }
-
-    if (quote.status !== 'draft') {
-      throw new ApiErrorResponse(
-        400,
-        'INVALID_STATUS',
-        `Cannot submit quote with status ${quote.status}. Must be draft.`
-      );
-    }
-
-    const updated = await this.repos.quotes.update(quoteId, {
-      status: 'pending_approval',
-    });
+    const updated = await this.atomicTransition(
+      quoteId,
+      'draft',
+      'pending_approval',
+      'submit'
+    );
 
     await this.repos.outbox.publish('quote_submitted', quoteId, { userId });
 
@@ -42,24 +65,13 @@ export class QuoteService {
    * Approve quote (pending_approval → approved)
    */
   async approve(quoteId: string, userId: string, notes?: string): Promise<QuoteEntity> {
-    const quote = await this.repos.quotes.findById(quoteId);
-
-    if (!quote) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-    }
-
-    if (quote.status !== 'pending_approval') {
-      throw new ApiErrorResponse(
-        400,
-        'INVALID_STATUS',
-        `Cannot approve quote with status ${quote.status}. Must be pending_approval.`
-      );
-    }
-
-    const updated = await this.repos.quotes.update(quoteId, {
-      status: 'approved',
-      notes: notes || quote.notes,
-    });
+    const updated = await this.atomicTransition(
+      quoteId,
+      'pending_approval',
+      'approved',
+      'approve',
+      notes === undefined ? undefined : { notes }
+    );
 
     await this.repos.outbox.publish('quote_approved', quoteId, { userId, notes });
 
@@ -70,24 +82,13 @@ export class QuoteService {
    * Reject quote (pending_approval → rejected)
    */
   async reject(quoteId: string, userId: string, reason: string): Promise<QuoteEntity> {
-    const quote = await this.repos.quotes.findById(quoteId);
-
-    if (!quote) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-    }
-
-    if (quote.status !== 'pending_approval') {
-      throw new ApiErrorResponse(
-        400,
-        'INVALID_STATUS',
-        `Cannot reject quote with status ${quote.status}. Must be pending_approval.`
-      );
-    }
-
-    const updated = await this.repos.quotes.update(quoteId, {
-      status: 'rejected',
-      notes: `Rejected: ${reason}`,
-    });
+    const updated = await this.atomicTransition(
+      quoteId,
+      'pending_approval',
+      'rejected',
+      'reject',
+      { notes: `Rejected: ${reason}` }
+    );
 
     await this.repos.outbox.publish('quote_rejected', quoteId, { userId, reason });
 
@@ -95,32 +96,10 @@ export class QuoteService {
   }
 
   /**
-   * Convert approved quote to invoice
+   * Convert approved quote to invoice (approved → invoiced)
    */
   async convertToInvoice(quoteId: string, userId: string): Promise<QuoteEntity> {
-    const quote = await this.repos.quotes.findById(quoteId);
-
-    if (!quote) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-    }
-
-    if (quote.status !== 'approved') {
-      throw new ApiErrorResponse(
-        400,
-        'INVALID_STATUS',
-        `Cannot invoice quote with status ${quote.status}. Must be approved.`
-      );
-    }
-
-    // Update quote status
-    const updated = await this.repos.quotes.update(quoteId, {
-      status: 'invoiced',
-    });
-
-    // TODO: Create corresponding invoice in finance schema
-    // This would use InvoiceRepository when available
-
-    return updated;
+    return await this.atomicTransition(quoteId, 'approved', 'invoiced', 'invoice');
   }
 
   /**
