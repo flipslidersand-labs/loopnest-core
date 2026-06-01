@@ -9,6 +9,7 @@ import { quoteRoutes } from './routes/quotes.js';
 import { userRoutes } from './routes/users.js';
 import { workflowRoutes } from './routes/workflow.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { idempotencyMiddleware } from './middleware/idempotency.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,8 +42,8 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use('/api/quotes', quoteRoutes(dbServices.repos));
   app.use('/api/users', userRoutes(dbServices.repos));
 
-  // Business Logic Routes (Workflow operations)
-  app.use('/api/workflow', workflowRoutes(serviceContainer));
+  // Business Logic Routes (Workflow operations) — protected by idempotency keys
+  app.use('/api/workflow', idempotencyMiddleware, workflowRoutes(serviceContainer));
 
   // Error handler
   app.use(errorHandler);
