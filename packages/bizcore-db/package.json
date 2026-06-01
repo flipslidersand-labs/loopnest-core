@@ -4,6 +4,14 @@
   "private": true,
   "description": "LoopNest Core DB clients integration",
   "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "types": "./dist/src/index.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -12,7 +20,8 @@
     "prisma:generate": "prisma generate",
     "drizzle:generate": "drizzle-kit generate:pg",
     "drizzle:migrate": "drizzle-kit migrate",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:repos": "node --loader ts-node/esm src/test-repositories.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.11.0",

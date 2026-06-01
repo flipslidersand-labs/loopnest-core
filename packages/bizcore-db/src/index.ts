@@ -8,5 +8,14 @@ export { redis, closeRedis } from './clients/redis-client.js';
 // Export types
 export * from './types/kysely-database.js';
 
-// Export Drizzle schema and types
-export * from '../drizzle/schema.js';
+// Export Drizzle schema and types (selectively to avoid conflicts)
+export { outboxEvents, invoices, approvalRequests, approvalSteps } from '../drizzle/schema.js';
+export type { OutboxEventInsert, ApprovalRequest, ApprovalRequestInsert, ApprovalStep, ApprovalStepInsert } from '../drizzle/schema.js';
+
+// Export repositories
+export { BaseRepository, OrganizationRepository, CustomerRepository, ProductRepository, QuoteRepository, UserRepository, InvoiceRepository, OutboxRepository, RepositoryContainer } from './repositories/index.js';
+export type { FindOptions, CreateInput, UpdateInput, Organization, Customer, Product, QuoteEntity, QuoteWithItems, User, InvoiceRecord, OutboxEvent } from './repositories/index.js';
+
+// Export factory
+export { initializeDatabaseServices, getRepositoryContainer } from './factory.js';
+export type { DatabaseServices } from './factory.js';

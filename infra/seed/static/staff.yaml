@@ -1,0 +1,676 @@
+# LoopNest Core - スタッフマスタ（法人営業部 38名）
+# 作成: 2026-05-18
+# 対象: M01 初期 seed データ
+
+staff:
+  # ============================================
+  # 部長 (1名)
+  # ============================================
+  - id: user_tanaka_kenji
+    name: 田中 健司
+    name_en: Kenji Tanaka
+    email: k.tanaka@loopnest.example
+    organization_id: org_sales_dept
+    role: director
+    age: 45
+    tenure_years: 7
+    speed: 0.9
+    accuracy: 0.95
+    habits:
+      leaves_notes_empty: 0.7
+      uses_short_company_names: true
+      typo_rate: 0.005
+      digit_error_rate: 0.005
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: month_end_heavy
+    specialties:
+      - negotiation
+      - high_value_sales
+
+  # ============================================
+  # 第1課長 (大手企業担当)
+  # ============================================
+  - id: user_suzuki_naomi
+    name: 鈴木 直美
+    name_en: Naomi Suzuki
+    email: n.suzuki@loopnest.example
+    organization_id: org_sales_1
+    role: manager
+    age: 38
+    tenure_years: 4
+    speed: 0.8
+    accuracy: 0.92
+    habits:
+      leaves_notes_empty: 0.4
+      uses_short_company_names: false
+      typo_rate: 0.015
+      digit_error_rate: 0.01
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: month_end_heavy
+    customer_segment: large
+    specialties:
+      - large_enterprise
+      - contract_negotiation
+
+  # ============================================
+  # 第2課長 (中堅企業担当)
+  # ============================================
+  - id: user_sato_kenichi
+    name: 佐藤 健一
+    name_en: Kenichi Sato
+    email: k.sato@loopnest.example
+    organization_id: org_sales_2
+    role: manager
+    age: 36
+    tenure_years: 3
+    speed: 0.78
+    accuracy: 0.90
+    habits:
+      leaves_notes_empty: 0.5
+      uses_short_company_names: false
+      typo_rate: 0.018
+      digit_error_rate: 0.012
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: month_end_heavy
+    customer_segment: mid
+    specialties:
+      - mid_market
+      - relationship_building
+
+  # ============================================
+  # 第3課長 (新規開拓担当)
+  # ============================================
+  - id: user_yamamoto_misaki
+    name: 山本 美咲
+    name_en: Misaki Yamamoto
+    email: m.yamamoto@loopnest.example
+    organization_id: org_sales_3
+    role: manager
+    age: 34
+    tenure_years: 2.5
+    speed: 0.85
+    accuracy: 0.88
+    habits:
+      leaves_notes_empty: 0.55
+      uses_short_company_names: true
+      typo_rate: 0.02
+      digit_error_rate: 0.015
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: month_end_heavy
+    customer_segment: startup
+    specialties:
+      - new_business_development
+      - fast_closing
+
+  # ============================================
+  # 第4課長 (既存顧客深耕担当)
+  # ============================================
+  - id: user_ito_takashi
+    name: 伊藤 隆
+    name_en: Takashi Ito
+    email: t.ito@loopnest.example
+    organization_id: org_sales_4
+    role: manager
+    age: 41
+    tenure_years: 5
+    speed: 0.75
+    accuracy: 0.92
+    habits:
+      leaves_notes_empty: 0.3
+      uses_short_company_names: false
+      typo_rate: 0.012
+      digit_error_rate: 0.008
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+    specialties:
+      - account_management
+      - customer_retention
+
+  # ============================================
+  # 第5課長 (海外営業 / LoopNest Global 担当)
+  # ============================================
+  - id: user_hayashi_kevin
+    name: 林 ケビン
+    name_en: Kevin Hayashi
+    email: k.hayashi@loopnest.example
+    organization_id: org_sales_5
+    role: manager
+    age: 35
+    tenure_years: 2
+    speed: 0.8
+    accuracy: 0.9
+    habits:
+      leaves_notes_empty: 0.5
+      uses_short_company_names: false
+      typo_rate: 0.015
+      digit_error_rate: 0.01
+    active_hours: [8, 21]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+    languages:
+      - ja
+      - en
+      - zh
+    specialties:
+      - cross_border
+      - asia_pacific
+    certifications:
+      - trade_advisor
+      - toeic_950
+
+  # ============================================
+  # 主任 (7名) - 各課から1名 + 新人サポート
+  # ============================================
+  - id: user_tanaka_yuki
+    name: 田中 ユキ
+    name_en: Yuki Tanaka
+    email: y.tanaka@loopnest.example
+    organization_id: org_sales_1
+    role: senior
+    age: 32
+    tenure_years: 3
+    speed: 0.7
+    accuracy: 0.85
+    habits:
+      leaves_notes_empty: 0.35
+      uses_short_company_names: false
+      typo_rate: 0.025
+      digit_error_rate: 0.018
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: month_end_heavy
+
+  - id: user_nakamura_hiroshi
+    name: 中村 ひろし
+    name_en: Hiroshi Nakamura
+    email: h.nakamura@loopnest.example
+    organization_id: org_sales_2
+    role: senior
+    age: 30
+    tenure_years: 2
+    speed: 0.68
+    accuracy: 0.82
+    habits:
+      leaves_notes_empty: 0.4
+      uses_short_company_names: false
+      typo_rate: 0.03
+      digit_error_rate: 0.02
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_kobayashi_tomoko
+    name: 小林 友子
+    name_en: Tomoko Kobayashi
+    email: t.kobayashi@loopnest.example
+    organization_id: org_sales_3
+    role: senior
+    age: 28
+    tenure_years: 1.5
+    speed: 0.65
+    accuracy: 0.80
+    habits:
+      leaves_notes_empty: 0.45
+      uses_short_company_names: true
+      typo_rate: 0.035
+      digit_error_rate: 0.025
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_watanabe_shinji
+    name: 渡辺 信二
+    name_en: Shinji Watanabe
+    email: s.watanabe@loopnest.example
+    organization_id: org_sales_4
+    role: senior
+    age: 35
+    tenure_years: 2.5
+    speed: 0.72
+    accuracy: 0.86
+    habits:
+      leaves_notes_empty: 0.3
+      uses_short_company_names: false
+      typo_rate: 0.02
+      digit_error_rate: 0.015
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_yoshida_akiko
+    name: 吉田 秋子
+    name_en: Akiko Yoshida
+    email: a.yoshida@loopnest.example
+    organization_id: org_sales_5
+    role: senior
+    age: 31
+    tenure_years: 1.8
+    speed: 0.7
+    accuracy: 0.83
+    habits:
+      leaves_notes_empty: 0.4
+      uses_short_company_names: false
+      typo_rate: 0.028
+      digit_error_rate: 0.02
+    active_hours: [8, 20]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+    languages:
+      - ja
+      - en
+
+  - id: user_matsumoto_jiro
+    name: 松本 次郎
+    name_en: Jiro Matsumoto
+    email: j.matsumoto@loopnest.example
+    organization_id: org_sales_1
+    role: senior
+    age: 29
+    tenure_years: 1.2
+    speed: 0.65
+    accuracy: 0.80
+    habits:
+      leaves_notes_empty: 0.35
+      uses_short_company_names: false
+      typo_rate: 0.032
+      digit_error_rate: 0.022
+    active_hours: [8, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_inoue_keiko
+    name: 井上 圭子
+    name_en: Keiko Inoue
+    email: k.inoue@loopnest.example
+    organization_id: org_sales_3
+    role: senior
+    age: 27
+    tenure_years: 1
+    speed: 0.6
+    accuracy: 0.78
+    habits:
+      leaves_notes_empty: 0.3
+      uses_short_company_names: false
+      typo_rate: 0.04
+      digit_error_rate: 0.028
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  # ============================================
+  # 一般 - 中堅 (12名)
+  # ============================================
+  - id: user_saito_daichi
+    name: 斎藤 大地
+    name_en: Daichi Saito
+    email: d.saito@loopnest.example
+    organization_id: org_sales_1
+    role: sales_rep
+    age: 28
+    tenure_years: 2
+    speed: 0.65
+    accuracy: 0.82
+    habits:
+      leaves_notes_empty: 0.35
+      uses_short_company_names: false
+      typo_rate: 0.035
+      digit_error_rate: 0.025
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_endo_sachiko
+    name: 遠藤 幸子
+    name_en: Sachiko Endo
+    email: s.endo@loopnest.example
+    organization_id: org_sales_2
+    role: sales_rep
+    age: 26
+    tenure_years: 1.5
+    speed: 0.6
+    accuracy: 0.78
+    habits:
+      leaves_notes_empty: 0.4
+      uses_short_company_names: false
+      typo_rate: 0.04
+      digit_error_rate: 0.03
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_fujita_naoki
+    name: 藤田 尚希
+    name_en: Naoki Fujita
+    email: n.fujita@loopnest.example
+    organization_id: org_sales_1
+    role: sales_rep
+    age: 29
+    tenure_years: 2.5
+    speed: 0.68
+    accuracy: 0.84
+    habits:
+      leaves_notes_empty: 0.32
+      uses_short_company_names: false
+      typo_rate: 0.03
+      digit_error_rate: 0.02
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_goto_yumiko
+    name: 後藤 由美子
+    name_en: Yumiko Goto
+    email: y.goto@loopnest.example
+    organization_id: org_sales_4
+    role: sales_rep
+    age: 27
+    tenure_years: 1.8
+    speed: 0.62
+    accuracy: 0.80
+    habits:
+      leaves_notes_empty: 0.38
+      uses_short_company_names: false
+      typo_rate: 0.038
+      digit_error_rate: 0.028
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_hasegawa_daichi
+    name: 長谷川 大智
+    name_en: Daichi Hasegawa
+    email: d.hasegawa@loopnest.example
+    organization_id: org_sales_2
+    role: sales_rep
+    age: 25
+    tenure_years: 1
+    speed: 0.58
+    accuracy: 0.76
+    habits:
+      leaves_notes_empty: 0.42
+      uses_short_company_names: false
+      typo_rate: 0.045
+      digit_error_rate: 0.032
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_iida_akari
+    name: 飯田 朱莉
+    name_en: Akari Iida
+    email: a.iida@loopnest.example
+    organization_id: org_sales_3
+    role: sales_rep
+    age: 26
+    tenure_years: 1.3
+    speed: 0.61
+    accuracy: 0.79
+    habits:
+      leaves_notes_empty: 0.37
+      uses_short_company_names: false
+      typo_rate: 0.04
+      digit_error_rate: 0.03
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_jounai_takeshi
+    name: 城内 武
+    name_en: Takeshi Jounai
+    email: t.jounai@loopnest.example
+    organization_id: org_sales_4
+    role: sales_rep
+    age: 28
+    tenure_years: 2.2
+    speed: 0.66
+    accuracy: 0.83
+    habits:
+      leaves_notes_empty: 0.33
+      uses_short_company_names: false
+      typo_rate: 0.032
+      digit_error_rate: 0.024
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_kaito_yuuki
+    name: 海藤 勇気
+    name_en: Yuuki Kaito
+    email: y.kaito@loopnest.example
+    organization_id: org_sales_5
+    role: sales_rep
+    age: 27
+    tenure_years: 1.5
+    speed: 0.63
+    accuracy: 0.81
+    habits:
+      leaves_notes_empty: 0.39
+      uses_short_company_names: false
+      typo_rate: 0.036
+      digit_error_rate: 0.026
+    active_hours: [9, 19]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+    languages:
+      - ja
+      - en
+
+  - id: user_marui_natsuki
+    name: 丸井 夏樹
+    name_en: Natsuki Marui
+    email: n.marui@loopnest.example
+    organization_id: org_sales_2
+    role: sales_rep
+    age: 24
+    tenure_years: 0.8
+    speed: 0.55
+    accuracy: 0.74
+    habits:
+      leaves_notes_empty: 0.45
+      uses_short_company_names: false
+      typo_rate: 0.048
+      digit_error_rate: 0.035
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_nakano_mio
+    name: 中野 美央
+    name_en: Mio Nakano
+    email: m.nakano@loopnest.example
+    organization_id: org_sales_1
+    role: sales_rep
+    age: 25
+    tenure_years: 1.1
+    speed: 0.59
+    accuracy: 0.77
+    habits:
+      leaves_notes_empty: 0.41
+      uses_short_company_names: false
+      typo_rate: 0.043
+      digit_error_rate: 0.031
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_okada_haruto
+    name: 岡田 陽翔
+    name_en: Haruto Okada
+    email: h.okada@loopnest.example
+    organization_id: org_sales_3
+    role: sales_rep
+    age: 27
+    tenure_years: 1.7
+    speed: 0.64
+    accuracy: 0.81
+    habits:
+      leaves_notes_empty: 0.36
+      uses_short_company_names: false
+      typo_rate: 0.037
+      digit_error_rate: 0.027
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  # ============================================
+  # 一般 - 新人 (8名)
+  # ============================================
+  - id: user_sato_yuki
+    name: 佐藤 ゆき
+    name_en: Yuki Sato
+    email: y.sato@loopnest.example
+    organization_id: org_sales_3
+    role: sales_rep
+    age: 23
+    tenure_years: 0.5
+    speed: 0.4
+    accuracy: 0.65
+    habits:
+      leaves_notes_empty: 0.1
+      uses_short_company_names: false
+      typo_rate: 0.07
+      digit_error_rate: 0.04
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_suzuki_taro
+    name: 鈴木 太郎
+    name_en: Taro Suzuki
+    email: t.suzuki@loopnest.example
+    organization_id: org_sales_1
+    role: sales_rep
+    age: 22
+    tenure_years: 0.4
+    speed: 0.38
+    accuracy: 0.62
+    habits:
+      leaves_notes_empty: 0.12
+      uses_short_company_names: false
+      typo_rate: 0.075
+      digit_error_rate: 0.045
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_tanaka_sakura
+    name: 田中 桜
+    name_en: Sakura Tanaka
+    email: s.tanaka@loopnest.example
+    organization_id: org_sales_2
+    role: sales_rep
+    age: 23
+    tenure_years: 0.5
+    speed: 0.42
+    accuracy: 0.66
+    habits:
+      leaves_notes_empty: 0.11
+      uses_short_company_names: false
+      typo_rate: 0.068
+      digit_error_rate: 0.042
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_watanabe_shota
+    name: 渡辺 翔太
+    name_en: Shota Watanabe
+    email: sh.watanabe@loopnest.example
+    organization_id: org_sales_4
+    role: sales_rep
+    age: 24
+    tenure_years: 0.6
+    speed: 0.43
+    accuracy: 0.67
+    habits:
+      leaves_notes_empty: 0.13
+      uses_short_company_names: false
+      typo_rate: 0.065
+      digit_error_rate: 0.04
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_yamada_hina
+    name: 山田 陽菜
+    name_en: Hina Yamada
+    email: h.yamada@loopnest.example
+    organization_id: org_sales_3
+    role: sales_rep
+    age: 22
+    tenure_years: 0.45
+    speed: 0.39
+    accuracy: 0.63
+    habits:
+      leaves_notes_empty: 0.14
+      uses_short_company_names: false
+      typo_rate: 0.073
+      digit_error_rate: 0.044
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_nakamura_ryo
+    name: 中村 涼
+    name_en: Ryo Nakamura
+    email: r.nakamura@loopnest.example
+    organization_id: org_sales_5
+    role: sales_rep
+    age: 24
+    tenure_years: 0.5
+    speed: 0.41
+    accuracy: 0.64
+    habits:
+      leaves_notes_empty: 0.12
+      uses_short_company_names: false
+      typo_rate: 0.07
+      digit_error_rate: 0.043
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+    languages:
+      - ja
+      - en
+
+  - id: user_ito_aiko
+    name: 伊藤 愛子
+    name_en: Aiko Ito
+    email: a.ito@loopnest.example
+    organization_id: org_sales_2
+    role: sales_rep
+    age: 23
+    tenure_years: 0.52
+    speed: 0.4
+    accuracy: 0.65
+    habits:
+      leaves_notes_empty: 0.11
+      uses_short_company_names: false
+      typo_rate: 0.069
+      digit_error_rate: 0.041
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat
+
+  - id: user_kobayashi_kenta
+    name: 小林 健太
+    name_en: Kenta Kobayashi
+    email: k.kobayashi@loopnest.example
+    organization_id: org_sales_4
+    role: sales_rep
+    age: 25
+    tenure_years: 0.7
+    speed: 0.45
+    accuracy: 0.68
+    habits:
+      leaves_notes_empty: 0.12
+      uses_short_company_names: false
+      typo_rate: 0.063
+      digit_error_rate: 0.038
+    active_hours: [9, 18]
+    active_weekdays: [1, 2, 3, 4, 5]
+    monthly_load_curve: flat

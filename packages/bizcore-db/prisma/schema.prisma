@@ -1,75 +1,107 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma schema - Master tables only (schema separation via raw SQL migrations)
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["core", "workflow", "finance", "events", "audit"]
 }
 
-// ============================================
-// core.organizations (組織マスタ)
-// ============================================
+// Master table: Organization hierarchy
 model Organization {
-  id        String   @id @default(uuid())
-  name      String   @db.VarChar(200)
-  type      String   @db.VarChar(50) // 'company' / 'department' / 'division'
-  parentId  String?  @map("parent_id")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(255)
+  type      String   @db.VarChar(50) // 'company', 'department', 'division'
+  parentId  String?  @map("parent_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("organizations")
   @@schema("core")
+  @@index([parentId])
 }
 
-// ============================================
-// core.users (スタッフマスタ)
-// ============================================
-model User {
-  id             String   @id @default(uuid())
-  name           String   @db.VarChar(100)
-  nameEn         String?  @map("name_en") @db.VarChar(100)
-  email          String   @unique @db.VarChar(200)
-  organizationId String   @map("organization_id")
-  role           String   @db.VarChar(50) // 'director' / 'manager' / 'senior' / 'sales_rep'
-  profile        Json?
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
-
-  @@map("users")
-  @@schema("core")
-}
-
-// ============================================
-// core.customers (顧客マスタ)
-// ============================================
+// Master table: Customers
 model Customer {
-  id                 String   @id @default(uuid())
-  name               String   @db.VarChar(200)
-  nameKana           String?  @map("name_kana") @db.VarChar(200)
-  registrationNumber String?  @map("registration_number") @db.VarChar(20)
-  postalCode         String?  @map("postal_code") @db.VarChar(10)
-  address            String?  @db.Text
-  phone              String?  @db.VarChar(20)
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id             String   @id @default(dbgenerated("gen_random_uuid()"))
+  name           String   @db.VarChar(255)
+  phone          String?  @db.VarChar(20)
+  address        String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("customers")
   @@schema("core")
 }
 
-// ============================================
-// core.products (商品マスタ)
-// ============================================
+// Master table: Products
 model Product {
-  id            String   @id @default(uuid())
-  sku           String   @unique @db.VarChar(50)
-  name          String   @db.VarChar(200)
-  category      String   @db.VarChar(100) // 'laptop' / 'desktop' / 'server' / 'network'
-  unitPrice     Decimal  @map("unit_price") @db.Numeric(12, 2)
-  stockQuantity Int      @default(0) @map("stock_quantity")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku       String   @db.VarChar(100)
+  name      String   @db.VarChar(255)
+  category  String   @db.VarChar(100)
+  unitPrice Decimal  @map("unit_price") @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("products")
+  @@schema("core")
+  @@unique([sku])
+  @@index([category])
+}
+
+// Master table: Quotes
+model Quote {
+  id              String      @id @default(dbgenerated("gen_random_uuid()"))
+  quoteNumber     String      @unique @map("quote_number") @db.VarChar(50)
+  quoteRequestId  String?     @map("quote_request_id") @db.Uuid
+  customerId      String      @map("customer_id") @db.Uuid
+  subtotalAmount  Decimal?    @map("subtotal_amount") @db.Decimal(12, 2)
+  taxAmount       Decimal?    @map("tax_amount") @db.Decimal(12, 2)
+  totalAmount     Decimal?    @map("total_amount") @db.Decimal(12, 2)
+  status          String      @db.VarChar(50) @default("draft")
+  notes           String?     @db.Text
+  createdBy       String      @map("created_by") @db.VarChar(255)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  quoteItems      QuoteItem[] @relation("quoteToItems")
+
+  @@map("quotes")
+  @@schema("core")
+  @@index([customerId])
+  @@index([status])
+}
+
+// Master table: Quote Items
+model QuoteItem {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId   String   @map("quote_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  quantity  Int
+  unitPrice Decimal  @map("unit_price") @db.Decimal(10, 2)
+  lineTotal Decimal  @map("line_total") @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  quote     Quote    @relation("quoteToItems", fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
+  @@schema("core")
+  @@index([quoteId])
+  @@index([productId])
+}
+
+// Master table: Users
+model User {
+  id             String   @id @default(dbgenerated("gen_random_uuid()"))
+  email          String   @db.VarChar(255) @unique
+  name           String   @db.VarChar(255)
+  nameEn         String?  @map("name_en") @db.VarChar(255)
+  organizationId String   @map("organization_id") @db.Uuid
+  role           String   @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("users")
   @@schema("core")
 }

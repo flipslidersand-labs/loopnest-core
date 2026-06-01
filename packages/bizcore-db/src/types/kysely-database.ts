@@ -117,6 +117,24 @@ export type NewAccountingExport = Insertable<AccountingExportTable>;
 export type AccountingExportUpdate = Updateable<AccountingExportTable>;
 
 // ============================================
+// events.outbox_events
+// ============================================
+export interface OutboxEventTable {
+  id: string;
+  event_type: string;
+  aggregate_id: string;
+  payload: any; // JSONB
+  status: string;
+  created_at: Generated<Date>;
+  processed_at: Date | null;
+  retry_count: number;
+}
+
+export type OutboxEvent = Selectable<OutboxEventTable>;
+export type NewOutboxEvent = Insertable<OutboxEventTable>;
+export type OutboxEventUpdate = Updateable<OutboxEventTable>;
+
+// ============================================
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
@@ -126,4 +144,5 @@ export interface KyselyDatabase {
   'finance.invoices': InvoiceTable;
   'finance.invoice_items': InvoiceItemTable;
   'finance.accounting_exports': AccountingExportTable;
+  'events.outbox_events': OutboxEventTable;
 }

@@ -1,0 +1,619 @@
+# LoopNest Core - 商品マスタ (50 SKU)
+# 作成: 2026-05-18
+# 対象: M01 初期 seed データ
+
+products:
+  # ============================================
+  # Enterprise Software Licenses (10 SKUs)
+  # ============================================
+  - id: prod_erp_enterprise
+    sku: "LOOPNEST-ERP-001"
+    name: LoopNest ERP Enterprise Edition
+    description: Full enterprise resource planning suite
+    category: software_license
+    unit_price: 50000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_crm_enterprise
+    sku: "LOOPNEST-CRM-001"
+    name: LoopNest CRM Pro
+    description: Advanced customer relationship management
+    category: software_license
+    unit_price: 30000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_scm_enterprise
+    sku: "LOOPNEST-SCM-001"
+    name: LoopNest Supply Chain Manager
+    description: Supply chain optimization platform
+    category: software_license
+    unit_price: 40000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_analytics_pro
+    sku: "LOOPNEST-ANA-001"
+    name: LoopNest Analytics Pro
+    description: Business intelligence and reporting
+    category: software_license
+    unit_price: 25000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_hr_system
+    sku: "LOOPNEST-HR-001"
+    name: LoopNest Human Resources
+    description: Human resources management system
+    category: software_license
+    unit_price: 20000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_accounting
+    sku: "LOOPNEST-ACC-001"
+    name: LoopNest Accounting Suite
+    description: Complete accounting and financial management
+    category: software_license
+    unit_price: 18000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_compliance
+    sku: "LOOPNEST-CMP-001"
+    name: LoopNest Compliance Manager
+    description: Regulatory compliance tracking
+    category: software_license
+    unit_price: 15000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_doc_mgmt
+    sku: "LOOPNEST-DOC-001"
+    name: LoopNest Document Management
+    description: Enterprise document management system
+    category: software_license
+    unit_price: 12000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_api_platform
+    sku: "LOOPNEST-API-001"
+    name: LoopNest API Platform
+    description: REST and GraphQL API management
+    category: software_license
+    unit_price: 22000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_integration_hub
+    sku: "LOOPNEST-INT-001"
+    name: LoopNest Integration Hub
+    description: System integration and middleware platform
+    category: software_license
+    unit_price: 35000000
+    unit: license_annual
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: true
+
+  # ============================================
+  # Cloud Services (10 SKUs)
+  # ============================================
+  - id: prod_cloud_storage
+    sku: "LOOPNEST-CLD-001"
+    name: LoopNest Cloud Storage Pro
+    description: Enterprise cloud storage (1TB base)
+    category: cloud_service
+    unit_price: 2000000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_compute
+    sku: "LOOPNEST-CLD-002"
+    name: LoopNest Compute Instance
+    description: Scalable compute resources
+    category: cloud_service
+    unit_price: 3000000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_db
+    sku: "LOOPNEST-CLD-003"
+    name: LoopNest Database as a Service
+    description: Managed database hosting
+    category: cloud_service
+    unit_price: 2500000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_backup
+    sku: "LOOPNEST-CLD-004"
+    name: LoopNest Backup and Recovery
+    description: Automated backup services
+    category: cloud_service
+    unit_price: 1500000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_security
+    sku: "LOOPNEST-CLD-005"
+    name: LoopNest Security Suite (Cloud)
+    description: Cloud-based security monitoring
+    category: cloud_service
+    unit_price: 3500000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_analytics
+    sku: "LOOPNEST-CLD-006"
+    name: LoopNest Cloud Analytics
+    description: Real-time analytics platform
+    category: cloud_service
+    unit_price: 2800000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_ai
+    sku: "LOOPNEST-CLD-007"
+    name: LoopNest AI Services
+    description: Machine learning and AI APIs
+    category: cloud_service
+    unit_price: 4000000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_network
+    sku: "LOOPNEST-CLD-008"
+    name: LoopNest Network CDN
+    description: Global content delivery network
+    category: cloud_service
+    unit_price: 1800000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_email
+    sku: "LOOPNEST-CLD-009"
+    name: LoopNest Email Services
+    description: Enterprise email hosting
+    category: cloud_service
+    unit_price: 1000000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_cloud_mobile
+    sku: "LOOPNEST-CLD-010"
+    name: LoopNest Mobile Backend
+    description: Mobile app backend services
+    category: cloud_service
+    unit_price: 2200000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  # ============================================
+  # Professional Services (10 SKUs)
+  # ============================================
+  - id: prod_consulting_strategic
+    sku: "LOOPNEST-SVC-001"
+    name: Strategic Consulting
+    description: Executive-level strategy consulting
+    category: professional_service
+    unit_price: 2000000
+    unit: per_day
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_consulting_implementation
+    sku: "LOOPNEST-SVC-002"
+    name: Implementation Consulting
+    description: System implementation and integration
+    category: professional_service
+    unit_price: 1500000
+    unit: per_day
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_training_enterprise
+    sku: "LOOPNEST-SVC-003"
+    name: Enterprise Training Program
+    description: On-site staff training (per person)
+    category: professional_service
+    unit_price: 300000
+    unit: per_person
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_support_premium
+    sku: "LOOPNEST-SVC-004"
+    name: Premium Support Package
+    description: 24/7 premium technical support
+    category: professional_service
+    unit_price: 5000000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_migration_service
+    sku: "LOOPNEST-SVC-005"
+    name: Data Migration Service
+    description: Legacy system data migration
+    category: professional_service
+    unit_price: 3000000
+    unit: per_project
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_audit_service
+    sku: "LOOPNEST-SVC-006"
+    name: System Audit Service
+    description: Comprehensive system audit
+    category: professional_service
+    unit_price: 2500000
+    unit: per_project
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_optimization
+    sku: "LOOPNEST-SVC-007"
+    name: Performance Optimization
+    description: System performance tuning
+    category: professional_service
+    unit_price: 2000000
+    unit: per_day
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_customization
+    sku: "LOOPNEST-SVC-008"
+    name: Custom Development
+    description: Custom feature development
+    category: professional_service
+    unit_price: 1800000
+    unit: per_day
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_testing_qa
+    sku: "LOOPNEST-SVC-009"
+    name: QA and Testing Services
+    description: Quality assurance and testing
+    category: professional_service
+    unit_price: 1200000
+    unit: per_day
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_support_standard
+    sku: "LOOPNEST-SVC-010"
+    name: Standard Support Package
+    description: Business hours technical support
+    category: professional_service
+    unit_price: 2500000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  # ============================================
+  # Hardware & Appliances (10 SKUs)
+  # ============================================
+  - id: prod_appliance_server
+    sku: "LOOPNEST-HW-001"
+    name: LoopNest Server Appliance (2U)
+    description: Pre-configured server hardware
+    category: hardware
+    unit_price: 15000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 25
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_appliance_edge
+    sku: "LOOPNEST-HW-002"
+    name: LoopNest Edge Appliance
+    description: Edge computing device
+    category: hardware
+    unit_price: 5000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 8
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_network_switch
+    sku: "LOOPNEST-HW-003"
+    name: LoopNest Enterprise Switch (48-port)
+    description: Enterprise network switch
+    category: hardware
+    unit_price: 3000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 12
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_security_appliance
+    sku: "LOOPNEST-HW-004"
+    name: LoopNest Security Gateway
+    description: Security and firewall appliance
+    category: hardware
+    unit_price: 4000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 10
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_storage_appliance
+    sku: "LOOPNEST-HW-005"
+    name: LoopNest Storage Array (24TB)
+    description: Enterprise storage system
+    category: hardware
+    unit_price: 8000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 20
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_backup_appliance
+    sku: "LOOPNEST-HW-006"
+    name: LoopNest Backup Appliance
+    description: Dedicated backup solution
+    category: hardware
+    unit_price: 6000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 18
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_camera_system
+    sku: "LOOPNEST-HW-007"
+    name: LoopNest Camera System Kit
+    description: IP camera surveillance system (4 cameras)
+    category: hardware
+    unit_price: 1500000
+    unit: kit
+    tax_rate: 0.10
+    weight_kg: 5
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_access_control
+    sku: "LOOPNEST-HW-008"
+    name: LoopNest Access Control System
+    description: Card-based access control
+    category: hardware
+    unit_price: 2000000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 3
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_print_system
+    sku: "LOOPNEST-HW-009"
+    name: LoopNest Managed Print Solution
+    description: Managed printer fleet (per device)
+    category: hardware
+    unit_price: 800000
+    unit: per_device
+    tax_rate: 0.10
+    weight_kg: 30
+    is_taxable: true
+    requires_installation: true
+
+  - id: prod_phone_system
+    sku: "LOOPNEST-HW-010"
+    name: LoopNest VoIP Phone System
+    description: Enterprise VoIP infrastructure
+    category: hardware
+    unit_price: 3500000
+    unit: unit
+    tax_rate: 0.10
+    weight_kg: 8
+    is_taxable: true
+    requires_installation: true
+
+  # ============================================
+  # Support & Maintenance (10 SKUs)
+  # ============================================
+  - id: prod_support_gold
+    sku: "LOOPNEST-SUP-001"
+    name: Gold Support Contract
+    description: Premium 24/7 support with 4-hour response
+    category: support_maintenance
+    unit_price: 8000000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_support_silver
+    sku: "LOOPNEST-SUP-002"
+    name: Silver Support Contract
+    description: Business hours support with 8-hour response
+    category: support_maintenance
+    unit_price: 4000000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_support_bronze
+    sku: "LOOPNEST-SUP-003"
+    name: Bronze Support Contract
+    description: Email support with 24-hour response
+    category: support_maintenance
+    unit_price: 1500000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_maintenance_standard
+    sku: "LOOPNEST-SUP-004"
+    name: Standard Maintenance
+    description: Regular system maintenance and updates
+    category: support_maintenance
+    unit_price: 3000000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_maintenance_extended
+    sku: "LOOPNEST-SUP-005"
+    name: Extended Maintenance
+    description: Extended warranty and maintenance (3 years)
+    category: support_maintenance
+    unit_price: 7000000
+    unit: per_unit
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_patch_management
+    sku: "LOOPNEST-SUP-006"
+    name: Patch Management Service
+    description: Automated patch and update management
+    category: support_maintenance
+    unit_price: 2000000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_monitoring_service
+    sku: "LOOPNEST-SUP-007"
+    name: System Monitoring Service
+    description: 24/7 proactive system monitoring
+    category: support_maintenance
+    unit_price: 3500000
+    unit: per_month
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_disaster_recovery
+    sku: "LOOPNEST-SUP-008"
+    name: Disaster Recovery Plan
+    description: DR plan development and testing
+    category: support_maintenance
+    unit_price: 5000000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_health_check
+    sku: "LOOPNEST-SUP-009"
+    name: System Health Check
+    description: Quarterly comprehensive system health assessment
+    category: support_maintenance
+    unit_price: 1500000
+    unit: per_quarter
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false
+
+  - id: prod_capacity_planning
+    sku: "LOOPNEST-SUP-010"
+    name: Capacity Planning Service
+    description: Growth and capacity planning consultation
+    category: support_maintenance
+    unit_price: 2500000
+    unit: per_year
+    tax_rate: 0.10
+    weight_kg: 0
+    is_taxable: true
+    requires_installation: false

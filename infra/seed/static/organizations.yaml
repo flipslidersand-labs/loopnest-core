@@ -1,0 +1,45 @@
+# LoopNest Core - 組織構成
+# 作成: 2026-05-18
+
+organizations:
+  # Root: LoopNest Tech 株式会社
+  - id: org_loopnest_tech
+    name: LoopNest Tech 株式会社
+    type: company
+    parent_id: null
+
+  # 法人営業部 (直下)
+  - id: org_sales_dept
+    name: 法人営業部
+    type: department
+    parent_id: org_loopnest_tech
+
+  # 第1課 - 大手企業担当
+  - id: org_sales_1
+    name: 第1課（大手企業担当）
+    type: division
+    parent_id: org_sales_dept
+
+  # 第2課 - 中堅企業担当
+  - id: org_sales_2
+    name: 第2課（中堅企業担当）
+    type: division
+    parent_id: org_sales_dept
+
+  # 第3課 - 新規開拓担当
+  - id: org_sales_3
+    name: 第3課（新規開拓担当）
+    type: division
+    parent_id: org_sales_dept
+
+  # 第4課 - 既存顧客深耕担当
+  - id: org_sales_4
+    name: 第4課（既存顧客深耕担当）
+    type: division
+    parent_id: org_sales_dept
+
+  # 第5課 - 海外営業
+  - id: org_sales_5
+    name: 第5課（海外営業 / LoopNest Global 担当）
+    type: division
+    parent_id: org_sales_dept
