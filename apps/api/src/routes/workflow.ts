@@ -2,6 +2,17 @@ import { Router, Request, Response } from 'express';
 import { ServiceContainer } from '../services/index.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 
+const isValidUUID = (id: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
+
+const validateQuoteId = (id: string): void => {
+  if (!isValidUUID(id)) {
+    throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+  }
+};
+
 export function workflowRoutes(services: ServiceContainer) {
   const router = Router();
 
@@ -13,6 +24,7 @@ export function workflowRoutes(services: ServiceContainer) {
   router.post(
     '/quotes/:id/submit',
     asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
       const { userId } = req.body;
 
       if (!userId) {
@@ -33,6 +45,7 @@ export function workflowRoutes(services: ServiceContainer) {
   router.post(
     '/quotes/:id/approve',
     asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
       const { userId, notes } = req.body;
 
       if (!userId) {
@@ -53,6 +66,7 @@ export function workflowRoutes(services: ServiceContainer) {
   router.post(
     '/quotes/:id/reject',
     asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
       const { userId, reason } = req.body;
 
       if (!userId || !reason) {
@@ -77,6 +91,7 @@ export function workflowRoutes(services: ServiceContainer) {
   router.post(
     '/quotes/:id/invoice',
     asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
       const { userId } = req.body;
 
       if (!userId) {
@@ -101,6 +116,7 @@ export function workflowRoutes(services: ServiceContainer) {
   router.get(
     '/quotes/:id/status',
     asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
       const status = await services.quotes.getWorkflowStatus(req.params.id);
 
       res.json({
