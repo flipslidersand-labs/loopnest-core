@@ -39,13 +39,13 @@ model Customer {
 
 // Master table: Products
 model Product {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sku       String   @db.VarChar(100)
-  name      String   @db.VarChar(255)
-  category  String   @db.VarChar(100)
-  unitPrice Decimal  @map("unit_price") @db.Decimal(10, 2)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku           String   @db.VarChar(100)
+  name          String   @db.VarChar(255)
+  category      String   @db.VarChar(100)
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(10, 2)
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   @@map("products")
   @@schema("core")

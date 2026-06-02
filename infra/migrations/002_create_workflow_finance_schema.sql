@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS finance.invoices (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Monotonic, collision-free source for invoice numbers (INV-YYYYMM-NNNNNN).
+CREATE SEQUENCE IF NOT EXISTS finance.invoice_number_seq START 1;
+
 CREATE INDEX idx_invoices_quote ON finance.invoices(quote_id);
 CREATE INDEX idx_invoices_customer ON finance.invoices(customer_id);
 CREATE INDEX idx_invoices_status ON finance.invoices(status);

@@ -15,16 +15,17 @@ export class InvoiceService {
   constructor(private repos: RepositoryContainer) {}
 
   /**
-   * Generate invoice number (format: INV-YYYYMM-XXXXX)
+   * Generate invoice number (format: INV-YYYYMM-NNNNNN).
+   * The numeric suffix comes from a Postgres sequence, so it is unique and
+   * monotonic even under heavy concurrency.
    */
-  private generateInvoiceNumber(): string {
+  private async generateInvoiceNumber(): Promise<string> {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const random = Math.floor(Math.random() * 100000)
-      .toString()
-      .padStart(5, '0');
-    return `INV-${year}${month}-${random}`;
+    const seq = await this.repos.invoices.nextSequenceValue();
+    const suffix = String(seq).padStart(6, '0');
+    return `INV-${year}${month}-${suffix}`;
   }
 
   /**
@@ -46,7 +47,7 @@ export class InvoiceService {
     }
 
     const invoiceId = uuidv4();
-    const invoiceNumber = this.generateInvoiceNumber();
+    const invoiceNumber = await this.generateInvoiceNumber();
     const subtotal = quote.subtotalAmount || 0;
     const taxAmount = this.calculateTax(subtotal);
     const totalAmount = subtotal + taxAmount;

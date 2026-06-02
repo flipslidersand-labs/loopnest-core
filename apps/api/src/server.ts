@@ -17,6 +17,18 @@ import { renderMetrics } from './observability/metrics.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const intEnv = (name: string, fallback: number): number => {
+  const v = process.env[name];
+  const n = v ? parseInt(v, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+// Rate limits are env-tunable so they can be relaxed for load tests and
+// hardened per environment without a code change.
+const GLOBAL_RATE_MAX = intEnv('RATE_LIMIT_GLOBAL_MAX', 300);
+const WORKFLOW_RATE_MAX = intEnv('RATE_LIMIT_WORKFLOW_MAX', 60);
+const RATE_WINDOW_SECONDS = intEnv('RATE_LIMIT_WINDOW_SECONDS', 60);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -69,7 +81,10 @@ initializeDatabaseServices().then((dbServices: any) => {
   });
 
   // Global rate limit across the API surface
-  app.use('/api', rateLimit({ bucket: 'global', windowSeconds: 60, max: 300 }));
+  app.use(
+    '/api',
+    rateLimit({ bucket: 'global', windowSeconds: RATE_WINDOW_SECONDS, max: GLOBAL_RATE_MAX })
+  );
 
   // Data Access Routes (CRUD operations)
   app.use('/api/organizations', organizationRoutes(dbServices.repos));
@@ -81,7 +96,7 @@ initializeDatabaseServices().then((dbServices: any) => {
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
   app.use(
     '/api/workflow',
-    rateLimit({ bucket: 'workflow', windowSeconds: 60, max: 60 }),
+    rateLimit({ bucket: 'workflow', windowSeconds: RATE_WINDOW_SECONDS, max: WORKFLOW_RATE_MAX }),
     idempotencyMiddleware,
     workflowRoutes(serviceContainer)
   );

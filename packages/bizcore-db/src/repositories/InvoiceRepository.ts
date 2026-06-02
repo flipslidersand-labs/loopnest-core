@@ -27,6 +27,19 @@ export interface InvoiceInput {
 export class InvoiceRepository {
   constructor(private db: any) {}
 
+  /**
+   * Atomically fetch the next invoice sequence value. Backed by a Postgres
+   * sequence so it is collision-free under concurrency (unlike a random
+   * suffix, which suffers birthday-paradox collisions under load).
+   */
+  async nextSequenceValue(): Promise<number> {
+    const { sql } = await import('kysely');
+    const result = await sql<{
+      nextval: string;
+    }>`SELECT nextval('finance.invoice_number_seq') AS nextval`.execute(this.db);
+    return Number(result.rows[0].nextval);
+  }
+
   async create(data: InvoiceInput): Promise<InvoiceRecord> {
     const id = randomUUID();
     const result = await this.db
