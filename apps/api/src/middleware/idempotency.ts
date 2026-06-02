@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { redis } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from './errorHandler.js';
+import { withRedisTimeout } from './redisTimeout.js';
 
 const IDEMPOTENCY_HEADER = 'idempotency-key';
 const KEY_PREFIX = 'idempotency:';
@@ -50,8 +51,7 @@ export const idempotencyMiddleware = (
   const key = `${KEY_PREFIX}${rawKey}`;
   const fingerprint = computeFingerprint(req);
 
-  redis
-    .get(key)
+  withRedisTimeout(redis.get(key))
     .then(async (existing) => {
       if (existing) {
         const cached = JSON.parse(existing) as CachedResponse;
@@ -77,12 +77,8 @@ export const idempotencyMiddleware = (
       }
 
       const placeholder: CachedResponse = { status: 'processing', fingerprint };
-      const acquired = await redis.set(
-        key,
-        JSON.stringify(placeholder),
-        'EX',
-        IN_FLIGHT_TTL_SECONDS,
-        'NX'
+      const acquired = await withRedisTimeout(
+        redis.set(key, JSON.stringify(placeholder), 'EX', IN_FLIGHT_TTL_SECONDS, 'NX')
       );
 
       if (acquired !== 'OK') {
@@ -113,5 +109,15 @@ export const idempotencyMiddleware = (
 
       next();
     })
-    .catch(next);
+    .catch((err) => {
+      // Intentional idempotency outcomes (409/422) must reach the client.
+      if (err instanceof ApiErrorResponse) {
+        next(err);
+        return;
+      }
+      // Any other failure (Redis down/timeout, JSON parse) fails open: process
+      // the request without idempotency protection rather than blocking it.
+      console.error('Idempotency check failed, proceeding without it:', err);
+      next();
+    });
 };

@@ -10,6 +10,7 @@ import { userRoutes } from './routes/users.js';
 import { workflowRoutes } from './routes/workflow.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
+import { rateLimit } from './middleware/rateLimit.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,9 @@ initializeDatabaseServices().then((dbServices: any) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  // Global rate limit across the API surface
+  app.use('/api', rateLimit({ bucket: 'global', windowSeconds: 60, max: 300 }));
+
   // Data Access Routes (CRUD operations)
   app.use('/api/organizations', organizationRoutes(dbServices.repos));
   app.use('/api/customers', customerRoutes(dbServices.repos));
@@ -42,8 +46,13 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use('/api/quotes', quoteRoutes(dbServices.repos));
   app.use('/api/users', userRoutes(dbServices.repos));
 
-  // Business Logic Routes (Workflow operations) — protected by idempotency keys
-  app.use('/api/workflow', idempotencyMiddleware, workflowRoutes(serviceContainer));
+  // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
+  app.use(
+    '/api/workflow',
+    rateLimit({ bucket: 'workflow', windowSeconds: 60, max: 60 }),
+    idempotencyMiddleware,
+    workflowRoutes(serviceContainer)
+  );
 
   // Error handler
   app.use(errorHandler);
