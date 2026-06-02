@@ -69,7 +69,7 @@ DIR="$(dirname "$0")"
 if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
-  SUITES=(e2e_workflow error_scenarios concurrency idempotency rate_limit)
+  SUITES=(observability e2e_workflow error_scenarios concurrency idempotency rate_limit)
 fi
 
 TOTAL_FAIL=0

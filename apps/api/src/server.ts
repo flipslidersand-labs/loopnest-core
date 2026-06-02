@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { initializeDatabaseServices } from '@loopnest/bizcore-db';
+import { initializeDatabaseServices, redis } from '@loopnest/bizcore-db';
 import { ServiceContainer } from './services/index.js';
 import { organizationRoutes } from './routes/organizations.js';
 import { customerRoutes } from './routes/customers.js';
@@ -11,6 +11,8 @@ import { workflowRoutes } from './routes/workflow.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rateLimit.js';
+import { requestMetrics } from './middleware/requestMetrics.js';
+import { renderMetrics } from './observability/metrics.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,9 +33,39 @@ initializeDatabaseServices().then((dbServices: any) => {
   serviceContainer.eventWorker.start(5000);
   console.log('🔄 EventWorker started');
 
-  // Health check endpoint
+  // Observability: correlation id, metrics, structured access log (all routes)
+  app.use(requestMetrics({ pgPool: dbServices.pgPool, sampleRate: 0.1 }));
+
+  // Liveness: process is up. Cheap, no dependencies.
   app.get('/health', (req: any, res: any) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // Readiness: dependencies reachable. Used by orchestrators to gate traffic.
+  app.get('/ready', async (req: any, res: any) => {
+    const checks: Record<string, 'ok' | 'fail'> = { postgres: 'fail', redis: 'fail' };
+    await Promise.all([
+      dbServices.pgPool
+        .query('SELECT 1')
+        .then(() => {
+          checks.postgres = 'ok';
+        })
+        .catch(() => undefined),
+      redis
+        .ping()
+        .then(() => {
+          checks.redis = 'ok';
+        })
+        .catch(() => undefined),
+    ]);
+    const ready = checks.postgres === 'ok' && checks.redis === 'ok';
+    res.status(ready ? 200 : 503).json({ ready, checks });
+  });
+
+  // Prometheus metrics scrape endpoint.
+  app.get('/metrics', (req: any, res: any) => {
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+    res.send(renderMetrics());
   });
 
   // Global rate limit across the API surface

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { redis } from '@loopnest/bizcore-db';
 import { withRedisTimeout } from './redisTimeout.js';
+import { rateLimitRejectionsTotal } from '../observability/metrics.js';
 
 export interface RateLimitOptions {
   /** Time window in seconds. */
@@ -65,6 +66,7 @@ export const rateLimit = (options: RateLimitOptions) => {
           // This request put us over the cap — remove our own marker so we
           // don't penalize the window further, then reject.
           redis.zrem(key, member).catch(() => undefined);
+          rateLimitRejectionsTotal.inc({ bucket });
           res.setHeader('Retry-After', Math.ceil(windowSeconds));
           res.status(429).json({
             error: {
