@@ -23,11 +23,11 @@ CREATE TABLE IF NOT EXISTS finance.invoices (
 -- Monotonic, collision-free source for invoice numbers (INV-YYYYMM-NNNNNN).
 CREATE SEQUENCE IF NOT EXISTS finance.invoice_number_seq START 1;
 
-CREATE INDEX idx_invoices_quote ON finance.invoices(quote_id);
-CREATE INDEX idx_invoices_customer ON finance.invoices(customer_id);
-CREATE INDEX idx_invoices_status ON finance.invoices(status);
-CREATE INDEX idx_invoices_invoice_number ON finance.invoices(invoice_number);
-CREATE INDEX idx_invoices_issue_date ON finance.invoices(issue_date);
+CREATE INDEX IF NOT EXISTS idx_invoices_quote ON finance.invoices(quote_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer ON finance.invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON finance.invoices(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON finance.invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_issue_date ON finance.invoices(issue_date);
 
 -- finance.invoice_items (請求書明細)
 CREATE TABLE IF NOT EXISTS finance.invoice_items (
@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS finance.invoice_items (
   notes TEXT
 );
 
-CREATE INDEX idx_invoice_items_invoice ON finance.invoice_items(invoice_id);
-CREATE INDEX idx_invoice_items_product ON finance.invoice_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON finance.invoice_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_product ON finance.invoice_items(product_id);
 
 -- workflow.approval_requests (承認依頼)
 CREATE TABLE IF NOT EXISTS workflow.approval_requests (
@@ -54,9 +54,9 @@ CREATE TABLE IF NOT EXISTS workflow.approval_requests (
   completed_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_approval_requests_quote ON workflow.approval_requests(quote_id);
-CREATE INDEX idx_approval_requests_status ON workflow.approval_requests(status);
-CREATE INDEX idx_approval_requests_route_type ON workflow.approval_requests(route_type);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_quote ON workflow.approval_requests(quote_id);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON workflow.approval_requests(status);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_route_type ON workflow.approval_requests(route_type);
 
 -- workflow.approval_steps (承認ステップ)
 CREATE TABLE IF NOT EXISTS workflow.approval_steps (
@@ -69,6 +69,6 @@ CREATE TABLE IF NOT EXISTS workflow.approval_steps (
   comment TEXT
 );
 
-CREATE INDEX idx_approval_steps_request ON workflow.approval_steps(approval_request_id);
-CREATE INDEX idx_approval_steps_approver ON workflow.approval_steps(approver_id);
-CREATE INDEX idx_approval_steps_status ON workflow.approval_steps(status);
+CREATE INDEX IF NOT EXISTS idx_approval_steps_request ON workflow.approval_steps(approval_request_id);
+CREATE INDEX IF NOT EXISTS idx_approval_steps_approver ON workflow.approval_steps(approver_id);
+CREATE INDEX IF NOT EXISTS idx_approval_steps_status ON workflow.approval_steps(status);

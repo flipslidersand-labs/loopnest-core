@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS events.outbox_events (
   retry_count INT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_outbox_events_status ON events.outbox_events(status);
-CREATE INDEX idx_outbox_events_created_at ON events.outbox_events(created_at);
-CREATE INDEX idx_outbox_events_status_created ON events.outbox_events(status, created_at);
-CREATE INDEX idx_outbox_events_aggregate_id ON events.outbox_events(aggregate_id);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_status ON events.outbox_events(status);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_created_at ON events.outbox_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_status_created ON events.outbox_events(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_aggregate_id ON events.outbox_events(aggregate_id);

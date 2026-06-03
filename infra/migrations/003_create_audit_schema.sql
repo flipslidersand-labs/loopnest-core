@@ -14,11 +14,11 @@ CREATE TABLE IF NOT EXISTS audit.audit_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_logs_actor ON audit.audit_logs(actor_id);
-CREATE INDEX idx_audit_logs_action ON audit.audit_logs(action);
-CREATE INDEX idx_audit_logs_resource_type ON audit.audit_logs(resource_type);
-CREATE INDEX idx_audit_logs_correlation ON audit.audit_logs(correlation_id);
-CREATE INDEX idx_audit_logs_created_at ON audit.audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit.audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit.audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource_type ON audit.audit_logs(resource_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_correlation ON audit.audit_logs(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit.audit_logs(created_at DESC);
 
 -- audit.request_logs (リクエストログ)
 CREATE TABLE IF NOT EXISTS audit.request_logs (
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS audit.request_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_request_logs_correlation ON audit.request_logs(correlation_id);
-CREATE INDEX idx_request_logs_method_path ON audit.request_logs(method, path);
-CREATE INDEX idx_request_logs_status_code ON audit.request_logs(status_code);
-CREATE INDEX idx_request_logs_created_at ON audit.request_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_request_logs_correlation ON audit.request_logs(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_request_logs_method_path ON audit.request_logs(method, path);
+CREATE INDEX IF NOT EXISTS idx_request_logs_status_code ON audit.request_logs(status_code);
+CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON audit.request_logs(created_at DESC);

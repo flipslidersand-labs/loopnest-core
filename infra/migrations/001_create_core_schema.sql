@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS core.organizations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_organizations_parent ON core.organizations(parent_id);
+CREATE INDEX IF NOT EXISTS idx_organizations_parent ON core.organizations(parent_id);
 
 -- core.users (スタッフマスタ)
 CREATE TABLE IF NOT EXISTS core.users (
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS core.users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_users_email ON core.users(email);
-CREATE INDEX idx_users_organization ON core.users(organization_id);
-CREATE INDEX idx_users_role ON core.users(role);
+CREATE INDEX IF NOT EXISTS idx_users_email ON core.users(email);
+CREATE INDEX IF NOT EXISTS idx_users_organization ON core.users(organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_role ON core.users(role);
 
 -- core.customers (顧客マスタ)
 CREATE TABLE IF NOT EXISTS core.customers (
@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS core.customers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_customers_name ON core.customers(name);
-CREATE INDEX idx_customers_registration ON core.customers(registration_number);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON core.customers(name);
+CREATE INDEX IF NOT EXISTS idx_customers_registration ON core.customers(registration_number);
 
 -- core.products (商品マスタ)
 CREATE TABLE IF NOT EXISTS core.products (
@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS core.products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_products_sku ON core.products(sku);
-CREATE INDEX idx_products_category ON core.products(category);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON core.products(sku);
+CREATE INDEX IF NOT EXISTS idx_products_category ON core.products(category);
 
 -- core.quote_requests (見積依頼)
 CREATE TABLE IF NOT EXISTS core.quote_requests (
@@ -71,9 +71,9 @@ CREATE TABLE IF NOT EXISTS core.quote_requests (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_quote_requests_customer ON core.quote_requests(customer_id);
-CREATE INDEX idx_quote_requests_status ON core.quote_requests(status);
-CREATE INDEX idx_quote_requests_created_by ON core.quote_requests(created_by);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_customer ON core.quote_requests(customer_id);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_status ON core.quote_requests(status);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_created_by ON core.quote_requests(created_by);
 
 -- core.quotes (見積)
 CREATE TABLE IF NOT EXISTS core.quotes (
@@ -91,10 +91,10 @@ CREATE TABLE IF NOT EXISTS core.quotes (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_quotes_customer ON core.quotes(customer_id);
-CREATE INDEX idx_quotes_status ON core.quotes(status);
-CREATE INDEX idx_quotes_created_by ON core.quotes(created_by);
-CREATE INDEX idx_quotes_quote_number ON core.quotes(quote_number);
+CREATE INDEX IF NOT EXISTS idx_quotes_customer ON core.quotes(customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON core.quotes(status);
+CREATE INDEX IF NOT EXISTS idx_quotes_created_by ON core.quotes(created_by);
+CREATE INDEX IF NOT EXISTS idx_quotes_quote_number ON core.quotes(quote_number);
 
 -- core.quote_items (見積明細)
 CREATE TABLE IF NOT EXISTS core.quote_items (
@@ -107,8 +107,8 @@ CREATE TABLE IF NOT EXISTS core.quote_items (
   notes TEXT
 );
 
-CREATE INDEX idx_quote_items_quote ON core.quote_items(quote_id);
-CREATE INDEX idx_quote_items_product ON core.quote_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON core.quote_items(quote_id);
+CREATE INDEX IF NOT EXISTS idx_quote_items_product ON core.quote_items(product_id);
 
 -- core.accounting_exports (会計連携記録)
 CREATE TABLE IF NOT EXISTS finance.accounting_exports (
@@ -121,5 +121,5 @@ CREATE TABLE IF NOT EXISTS finance.accounting_exports (
   error_message TEXT
 );
 
-CREATE INDEX idx_accounting_exports_invoice ON finance.accounting_exports(invoice_id);
-CREATE INDEX idx_accounting_exports_status ON finance.accounting_exports(status);
+CREATE INDEX IF NOT EXISTS idx_accounting_exports_invoice ON finance.accounting_exports(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_accounting_exports_status ON finance.accounting_exports(status);

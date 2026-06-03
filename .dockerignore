@@ -1,0 +1,24 @@
+# Never copy installed deps or build output into the image context — the
+# Dockerfile installs and builds fresh inside the build stage.
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+**/build
+
+# VCS / editor / local
+.git
+.gitignore
+**/*.log
+.vscode
+.idea
+
+# Tests and docs are not needed in the runtime image
+tests
+**/*.md
+!apps/api/README.md
+
+# Local env files — secrets must come from the runtime environment
+**/.env
+**/.env.*
+env/

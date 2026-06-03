@@ -33,6 +33,11 @@ ensure_containers() {
   done
 }
 
+apply_migrations() {
+  echo "Applying migrations (idempotent)..."
+  DATABASE_URL="$DATABASE_URL" bash "$ROOT/infra/migrations/run.sh" >/dev/null
+}
+
 SERVER_PID=""
 start_server() {
   # Already up?
@@ -56,6 +61,7 @@ cleanup() { [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null; }
 trap cleanup EXIT
 
 ensure_containers
+apply_migrations
 
 if [ "${SKIP_BUILD:-0}" != "1" ]; then
   echo "Building..."
