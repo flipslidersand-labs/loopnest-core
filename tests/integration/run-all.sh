@@ -81,7 +81,7 @@ if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
   # outbox_dispatch must precede rate_limit (which saturates the workflow bucket).
-  SUITES=(observability e2e_workflow outbox_dispatch error_scenarios concurrency idempotency rate_limit)
+  SUITES=(observability e2e_workflow outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit)
 fi
 
 TOTAL_FAIL=0

@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS workflow.approval_requests (
   quote_id UUID NOT NULL REFERENCES core.quotes(id),
   total_amount NUMERIC(12, 2) NOT NULL,
   route_type VARCHAR(50) NOT NULL CHECK (route_type IN ('standard', 'high_value')),
-  status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+  status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at TIMESTAMPTZ
 );
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS workflow.approval_steps (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   approval_request_id UUID NOT NULL REFERENCES workflow.approval_requests(id) ON DELETE CASCADE,
   step_order INT NOT NULL,
-  approver_id UUID NOT NULL REFERENCES core.users(id),
+  approver_id VARCHAR(255) NOT NULL,
   status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
   approved_at TIMESTAMPTZ,
   comment TEXT

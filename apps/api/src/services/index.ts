@@ -24,10 +24,12 @@ export class ServiceContainer {
   constructor(
     repos: RepositoryContainer,
     pgPool: any,
-    drizzleDb: any
+    kyselyDb: any
   ) {
     this.quotes = new QuoteService(repos);
-    this.approvals = new ApprovalService(repos, drizzleDb);
+    // ApprovalService uses Kysely (schema-qualified table names), matching the
+    // rest of the data layer.
+    this.approvals = new ApprovalService(repos, kyselyDb);
     this.invoices = new InvoiceService(repos);
     this.audit = new AuditService(pgPool);
     this.eventWorker = new EventWorker(repos, pgPool);

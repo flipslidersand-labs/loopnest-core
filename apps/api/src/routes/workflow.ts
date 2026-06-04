@@ -208,15 +208,61 @@ export function workflowRoutes(services: ServiceContainer) {
     })
   );
 
-  // GET /api/workflow/approvals/:id/status - Get approval status
-  router.get(
-    '/approvals/:id/status',
+  // POST /api/workflow/approvals/:requestId/steps/:stepId/approve - Approve a step
+  router.post(
+    '/approvals/:requestId/steps/:stepId/approve',
     asyncHandler(async (req: Request, res: Response) => {
-      const status = await services.approvals.getApprovalStatus(req.params.id);
+      const { userId, notes } = req.body;
+      if (!userId) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      }
+      const step = await services.approvals.approveStep(
+        req.params.requestId,
+        req.params.stepId,
+        userId,
+        notes
+      );
+      res.json({ data: step, message: 'Approval step approved' });
+    })
+  );
 
-      res.json({
-        data: status,
-      });
+  // POST /api/workflow/approvals/:requestId/steps/:stepId/reject - Reject a step
+  router.post(
+    '/approvals/:requestId/steps/:stepId/reject',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { userId, reason } = req.body;
+      if (!userId || !reason) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId and reason are required');
+      }
+      const step = await services.approvals.rejectStep(
+        req.params.requestId,
+        req.params.stepId,
+        userId,
+        reason
+      );
+      res.json({ data: step, message: 'Approval step rejected' });
+    })
+  );
+
+  // POST /api/workflow/approvals/:requestId/cancel - Cancel an approval request
+  router.post(
+    '/approvals/:requestId/cancel',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { userId } = req.body;
+      if (!userId) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      }
+      await services.approvals.cancelApprovalRequest(req.params.requestId, userId);
+      res.json({ message: 'Approval request cancelled' });
+    })
+  );
+
+  // GET /api/workflow/approvals/quote/:quoteId/status - Approval status for a quote
+  router.get(
+    '/approvals/quote/:quoteId/status',
+    asyncHandler(async (req: Request, res: Response) => {
+      const status = await services.approvals.getApprovalStatus(req.params.quoteId);
+      res.json({ data: status });
     })
   );
 

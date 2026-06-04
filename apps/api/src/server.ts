@@ -39,7 +39,7 @@ let server: any;
 
 initializeDatabaseServices().then((dbServices: any) => {
   services = dbServices;
-  const serviceContainer = new ServiceContainer(dbServices.repos, dbServices.pgPool, dbServices.drizzleDb);
+  const serviceContainer = new ServiceContainer(dbServices.repos, dbServices.pgPool, dbServices.kyselyDb);
 
   // Start EventWorker
   // Interval comes from EVENT_WORKER_INTERVAL_MS (default 5000) inside start().
