@@ -35,7 +35,15 @@ SKIP_BUILD=1 tests/integration/run-all.sh rate_limit
 
 ## Requirements
 
-`node`, `jq`, `uuidgen`, `docker`, `curl`.
+`node`, `jq`, `uuidgen`, `curl`, and a reachable Postgres + Redis.
+
+- **Locally**, the runner starts the named `loopnest-postgres` / `loopnest-redis`
+  containers if they exist and waits for them.
+- **In CI** (`.github/workflows/ci.yml`), Postgres/Redis are provided as service
+  containers; set `MANAGE_CONTAINERS=no` so the runner skips `docker start` and
+  just waits for `DATABASE_URL` / `REDIS_URL` connectivity.
+
+Run via the workspace script: `npm run test:integration`.
 
 ## Notes
 

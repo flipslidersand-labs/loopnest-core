@@ -9,7 +9,8 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "migrate": "pnpm --filter @loopnest/migrations migrate",
+    "migrate": "bash infra/migrations/run.sh",
+    "test:integration": "bash tests/integration/run-all.sh",
     "db:reset": "docker compose down -v && docker compose up -d"
   },
   "devDependencies": {

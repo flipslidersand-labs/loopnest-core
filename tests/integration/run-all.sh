@@ -18,19 +18,37 @@ export BASE_URL="${BASE_URL:-http://localhost:3000/api}"
 
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
+# Parse host:port out of DATABASE_URL / REDIS_URL for connectivity checks.
+PG_HOST="$(printf '%s' "$DATABASE_URL" | sed -E 's#.*@([^:/]+):?([0-9]*)/.*#\1#')"
+PG_PORT="$(printf '%s' "$DATABASE_URL" | sed -E 's#.*@[^:/]+:([0-9]+)/.*#\1#')"; PG_PORT="${PG_PORT:-5432}"
+REDIS_HOST="$(printf '%s' "$REDIS_URL" | sed -E 's#redis://([^:/]+):?([0-9]*).*#\1#')"
+REDIS_PORT="$(printf '%s' "$REDIS_URL" | sed -E 's#redis://[^:/]+:([0-9]+).*#\1#')"; REDIS_PORT="${REDIS_PORT:-6379}"
+
+wait_tcp() { # host port label
+  local waited=0
+  until (exec 3<>"/dev/tcp/$1/$2") 2>/dev/null; do
+    exec 3>&- 2>/dev/null || true
+    waited=$((waited + 1))
+    [ "$waited" -ge 60 ] && { echo "Timed out waiting for $3 ($1:$2)"; exit 1; }
+    sleep 1
+  done
+  exec 3>&- 2>/dev/null || true
+}
+
+# Local dev runs against named docker containers we can start; CI provides
+# postgres/redis as service containers already listening on localhost. Manage
+# the named containers when present, otherwise just wait for connectivity.
 ensure_containers() {
-  for c in loopnest-postgres loopnest-redis; do
-    if [ -z "$(docker ps -q -f name="$c")" ]; then
-      echo -e "${YELLOW}Starting $c...${NC}"
-      docker start "$c" >/dev/null 2>&1
-    fi
-  done
-  # Wait for health.
-  for c in loopnest-postgres loopnest-redis; do
-    until [ "$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null)" = "healthy" ]; do
-      sleep 1
+  if [ "${MANAGE_CONTAINERS:-auto}" != "no" ] && command -v docker >/dev/null 2>&1; then
+    for c in loopnest-postgres loopnest-redis; do
+      if docker inspect "$c" >/dev/null 2>&1 && [ -z "$(docker ps -q -f name="$c")" ]; then
+        echo -e "${YELLOW}Starting $c...${NC}"
+        docker start "$c" >/dev/null 2>&1
+      fi
     done
-  done
+  fi
+  wait_tcp "$PG_HOST" "$PG_PORT" postgres
+  wait_tcp "$REDIS_HOST" "$REDIS_PORT" redis
 }
 
 apply_migrations() {
