@@ -87,15 +87,23 @@ export class OutboxRepository {
       .execute();
   }
 
-  async markFailed(id: string, increment: boolean = true): Promise<void> {
-    const updates: any = { status: 'failed' };
-    if (increment) {
-      updates.retry_count = this.db.raw('retry_count + 1');
-    }
-    await this.db
-      .updateTable('events.outbox_events')
-      .set(updates)
-      .where((eb: any) => eb('id', '=', id))
-      .execute();
+  /**
+   * Record a failed dispatch. Increments retry_count and either re-queues the
+   * event ('pending', picked up on the next poll) or dead-letters it ('failed')
+   * once it has exhausted maxRetries. This gives at-least-once delivery with a
+   * bounded number of attempts instead of losing the event on first failure.
+   *
+   * Done in one SQL statement so the decision is atomic w.r.t. the current
+   * retry_count.
+   */
+  async markFailed(id: string, maxRetries: number = 5): Promise<void> {
+    const { sql } = await import('kysely');
+    await sql`
+      UPDATE events.outbox_events
+      SET retry_count = retry_count + 1,
+          status = CASE WHEN retry_count + 1 >= ${maxRetries} THEN 'failed' ELSE 'pending' END,
+          processed_at = NULL
+      WHERE id = ${id}
+    `.execute(this.db);
   }
 }

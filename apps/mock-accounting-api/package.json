@@ -1,0 +1,10 @@
+{
+  "name": "@loopnest/mock-accounting-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency mock of an external accounting system for Outbox export testing",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

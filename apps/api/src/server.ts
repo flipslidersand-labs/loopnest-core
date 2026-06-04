@@ -42,7 +42,8 @@ initializeDatabaseServices().then((dbServices: any) => {
   const serviceContainer = new ServiceContainer(dbServices.repos, dbServices.pgPool, dbServices.drizzleDb);
 
   // Start EventWorker
-  serviceContainer.eventWorker.start(5000);
+  // Interval comes from EVENT_WORKER_INTERVAL_MS (default 5000) inside start().
+  serviceContainer.eventWorker.start();
   console.log('🔄 EventWorker started');
 
   // Observability: correlation id, metrics, structured access log (all routes)

@@ -1,12 +1,29 @@
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import { randomUUID } from 'node:crypto';
 
+/**
+ * Polls the transactional outbox and dispatches events to their side effects.
+ *
+ * Delivery is at-least-once: a successful dispatch marks the event `processed`;
+ * a failed dispatch goes through OutboxRepository.markFailed, which re-queues it
+ * (`pending`) for retry until it exhausts its budget and is dead-lettered
+ * (`failed`). Handlers must therefore be idempotent on the downstream side.
+ */
 export class EventWorker {
   private timer: NodeJS.Timeout | null = null;
   private isProcessing = false;
+  private readonly accountingApiUrl: string;
+  private readonly maxRetries: number;
 
-  constructor(private repos: RepositoryContainer) {}
+  constructor(
+    private repos: RepositoryContainer,
+    private pgPool: { query: (text: string, params?: unknown[]) => Promise<any> }
+  ) {
+    this.accountingApiUrl = process.env.MOCK_ACCOUNTING_API_URL || 'http://localhost:3991';
+    this.maxRetries = Number(process.env.OUTBOX_MAX_RETRIES || 5);
+  }
 
-  start(intervalMs: number = 5000): void {
+  start(intervalMs: number = Number(process.env.EVENT_WORKER_INTERVAL_MS) || 5000): void {
     console.log(`🔄 EventWorker started (interval: ${intervalMs}ms)`);
     this.timer = setInterval(() => this.processBatch(), intervalMs);
   }
@@ -36,7 +53,8 @@ export class EventWorker {
           await this.repos.outbox.markProcessed(event.id);
         } catch (error) {
           console.error(`❌ Failed to dispatch event ${event.id}:`, error);
-          await this.repos.outbox.markFailed(event.id);
+          // Re-queues for retry, or dead-letters after maxRetries.
+          await this.repos.outbox.markFailed(event.id, this.maxRetries);
         }
       }
     } catch (error) {
@@ -51,13 +69,13 @@ export class EventWorker {
 
     switch (eventType) {
       case 'quote_submitted':
-        await this.handleQuoteSubmitted(aggregateId, payload);
+        console.log(`✅ Quote submitted: ${aggregateId}`);
         break;
       case 'quote_approved':
-        await this.handleQuoteApproved(aggregateId, payload);
+        console.log(`✅ Quote approved: ${aggregateId}`);
         break;
       case 'quote_rejected':
-        await this.handleQuoteRejected(aggregateId, payload);
+        console.log(`❌ Quote rejected: ${aggregateId}`);
         break;
       case 'invoice_created':
         await this.handleInvoiceCreated(aggregateId, payload);
@@ -67,40 +85,74 @@ export class EventWorker {
     }
   }
 
-  private async handleQuoteSubmitted(quoteId: string, payload: any): Promise<void> {
-    console.log(`✅ Quote submitted: ${quoteId}`);
-  }
-
-  private async handleQuoteApproved(quoteId: string, payload: any): Promise<void> {
-    console.log(`✅ Quote approved: ${quoteId}`);
-  }
-
-  private async handleQuoteRejected(quoteId: string, payload: any): Promise<void> {
-    console.log(`❌ Quote rejected: ${quoteId}`);
-  }
-
+  /**
+   * Export an invoice to the (mock) accounting system and record the outcome in
+   * finance.accounting_exports. Throws on failure so the outbox retries — this
+   * is the reliability contract: a failed export must NOT be silently dropped.
+   */
   private async handleInvoiceCreated(quoteId: string, payload: any): Promise<void> {
-    console.log(`✅ Invoice created for quote: ${quoteId}`, payload);
+    const requestPayload = {
+      quoteId,
+      invoiceId: payload.invoiceId,
+      invoiceNumber: payload.invoiceNumber,
+      customerId: payload.customerId,
+      totalAmount: payload.totalAmount,
+      exportedAt: new Date().toISOString(),
+    };
 
+    let response: Response;
     try {
-      const mockAccountingApiUrl = process.env.MOCK_ACCOUNTING_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${mockAccountingApiUrl}/api/exports`, {
+      response = await fetch(`${this.accountingApiUrl}/api/exports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quoteId,
-          invoiceId: payload.invoiceId,
-          invoiceNumber: payload.invoiceNumber,
-          customerId: payload.customerId,
-          totalAmount: payload.totalAmount,
-          exportedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(requestPayload),
       });
-      if (response.ok) {
-        console.log(`📤 Exported to accounting API for invoice ${payload.invoiceNumber}`);
-      }
-    } catch (error) {
-      console.warn(`⚠️  Could not export to accounting API:`, error);
+    } catch (err) {
+      await this.recordExport(payload.invoiceId, 'failed', requestPayload, null, String(err));
+      throw new Error(`accounting API unreachable: ${err}`);
+    }
+
+    const responseBody = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      await this.recordExport(
+        payload.invoiceId,
+        'failed',
+        requestPayload,
+        responseBody,
+        `accounting API returned ${response.status}`
+      );
+      throw new Error(`accounting API returned ${response.status}`);
+    }
+
+    await this.recordExport(payload.invoiceId, 'success', requestPayload, responseBody, null);
+    console.log(`📤 Exported invoice ${payload.invoiceNumber} to accounting API`);
+  }
+
+  private async recordExport(
+    invoiceId: string,
+    status: 'success' | 'failed',
+    requestPayload: unknown,
+    responsePayload: unknown,
+    errorMessage: string | null
+  ): Promise<void> {
+    try {
+      await this.pgPool.query(
+        `INSERT INTO finance.accounting_exports
+           (id, invoice_id, exported_at, status, request_payload, response_payload, error_message)
+         VALUES ($1, $2, NOW(), $3, $4, $5, $6)`,
+        [
+          randomUUID(),
+          invoiceId,
+          status,
+          JSON.stringify(requestPayload),
+          responsePayload ? JSON.stringify(responsePayload) : null,
+          errorMessage,
+        ]
+      );
+    } catch (err) {
+      // Recording the export must not mask the dispatch result; just log.
+      console.error('Failed to record accounting_export:', err);
     }
   }
 }

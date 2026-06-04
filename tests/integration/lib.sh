@@ -59,3 +59,22 @@ make_quote() {
     -d "{\"quoteNumber\":\"$qn\",\"customerId\":\"$customer_id\",\"subtotalAmount\":$subtotal,\"taxAmount\":$tax,\"totalAmount\":$total,\"createdBy\":\"user1\"}" \
     | jq -r '.data.id'
 }
+
+# Drive a quote all the way to invoiced, echo the invoiceId.
+make_invoice() {
+  local customer_id qid invoice
+  customer_id=$(make_customer "Outbox Corp")
+  qid=$(make_quote "$customer_id")
+  curl -s -X POST "$BASE_URL/workflow/quotes/$qid/submit" \
+    -H "Content-Type: application/json" -d '{"userId":"user1"}' > /dev/null
+  curl -s -X POST "$BASE_URL/workflow/quotes/$qid/approve" \
+    -H "Content-Type: application/json" -d '{"userId":"approver1","notes":"ok"}' > /dev/null
+  invoice=$(curl -s -X POST "$BASE_URL/workflow/quotes/$qid/invoice" \
+    -H "Content-Type: application/json" -d '{"userId":"user1"}')
+  # echo "<quoteId> <invoiceId>"
+  echo "$qid $(echo "$invoice" | jq -r '.data.invoice.invoiceId')"
+}
+
+# Run a query against the app database; echoes a single scalar.
+PSQL_URL="${DATABASE_URL:-postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local}"
+db_scalar() { psql "$PSQL_URL" -tA -c "$1" 2>/dev/null; }

@@ -46,7 +46,12 @@ start_server() {
     return
   fi
   echo "Starting API server..."
-  node apps/api/dist/src/server.js > /tmp/loopnest-itest-server.log 2>&1 &
+  # Fast outbox polling + point exports at the mock accounting API the
+  # outbox_dispatch suite manages on :3001.
+  EVENT_WORKER_INTERVAL_MS="${EVENT_WORKER_INTERVAL_MS:-1000}" \
+  MOCK_ACCOUNTING_API_URL="${MOCK_ACCOUNTING_API_URL:-http://localhost:3991}" \
+  OUTBOX_MAX_RETRIES="${OUTBOX_MAX_RETRIES:-50}" \
+    node apps/api/dist/src/server.js > /tmp/loopnest-itest-server.log 2>&1 &
   SERVER_PID=$!
   until curl -s -m 2 -o /dev/null "http://localhost:3000/health"; do
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then
@@ -75,7 +80,8 @@ DIR="$(dirname "$0")"
 if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
-  SUITES=(observability e2e_workflow error_scenarios concurrency idempotency rate_limit)
+  # outbox_dispatch must precede rate_limit (which saturates the workflow bucket).
+  SUITES=(observability e2e_workflow outbox_dispatch error_scenarios concurrency idempotency rate_limit)
 fi
 
 TOTAL_FAIL=0

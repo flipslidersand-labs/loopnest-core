@@ -30,7 +30,7 @@ export class ServiceContainer {
     this.approvals = new ApprovalService(repos, drizzleDb);
     this.invoices = new InvoiceService(repos);
     this.audit = new AuditService(pgPool);
-    this.eventWorker = new EventWorker(repos);
+    this.eventWorker = new EventWorker(repos, pgPool);
   }
 
   async close(): Promise<void> {
