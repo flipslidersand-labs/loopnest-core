@@ -15,6 +15,7 @@ cd "$ROOT"
 export DATABASE_URL="${DATABASE_URL:-postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 export BASE_URL="${BASE_URL:-http://localhost:3000/api}"
+export JWT_SECRET="${JWT_SECRET:-loopnest_dev_secret}"
 
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
@@ -83,6 +84,11 @@ start_server() {
 cleanup() { [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null; }
 trap cleanup EXIT
 
+# Generate a long-lived admin token for the test run.
+# All suites source lib.sh which injects it via the curl() wrapper.
+export AUTH_TOKEN
+AUTH_TOKEN=$(node "$ROOT/tests/integration/gen-token.mjs" itest-admin admin 7200)
+
 ensure_containers
 apply_migrations
 
@@ -98,8 +104,8 @@ DIR="$(dirname "$0")"
 if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
-  # outbox_dispatch must precede rate_limit (which saturates the workflow bucket).
-  SUITES=(observability e2e_workflow outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit)
+  # auth runs first (no rate-limit exposure); outbox_dispatch before rate_limit.
+  SUITES=(observability auth e2e_workflow outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit)
 fi
 
 TOTAL_FAIL=0

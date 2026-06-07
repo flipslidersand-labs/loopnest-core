@@ -47,6 +47,7 @@ jobs:
       REDIS_PORT: '6379'
       # No named docker containers in CI — services are already up on localhost.
       MANAGE_CONTAINERS: 'no'
+      JWT_SECRET: loopnest_dev_secret
 
     steps:
       - uses: actions/checkout@v4

@@ -1,22 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
+import { requireRole } from '../middleware/auth.js';
 
 export function userRoutes(repos: RepositoryContainer) {
   const router = Router();
 
-  // GET /api/users - List all users
   router.get(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = parseInt(req.query.skip as string) || 0;
-      const take = parseInt(req.query.take as string) || 10;
+      const skip = Number.parseInt(req.query.skip as string) || 0;
+      const take = Number.parseInt(req.query.take as string) || 10;
       const role = req.query.role as string;
       const organizationId = req.query.organizationId as string;
-
-      let users;
-      let count;
-
+      let users, count;
       if (organizationId) {
         users = await repos.users.findByOrganization(organizationId, { skip, take });
         count = await repos.users.count({ organizationId } as any);
@@ -27,98 +24,57 @@ export function userRoutes(repos: RepositoryContainer) {
         users = await repos.users.findAll({ skip, take });
         count = await repos.users.count();
       }
-
-      res.json({
-        data: users,
-        pagination: { skip, take, total: count },
-        filter: { role, organizationId },
-      });
+      res.json({ data: users, pagination: { skip, take, total: count }, filter: { role, organizationId } });
     })
   );
 
-  // GET /api/users/:id - Get user by ID
-  router.get(
-    '/:id',
-    asyncHandler(async (req: Request, res: Response) => {
-      const user = await repos.users.findById(req.params.id);
-
-      if (!user) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
-      }
-
-      res.json({ data: user });
-    })
-  );
-
-  // GET /api/users/email/:email - Get user by email
   router.get(
     '/email/:email',
     asyncHandler(async (req: Request, res: Response) => {
       const user = await repos.users.findByEmail(req.params.email);
-
-      if (!user) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
-      }
-
+      if (!user) throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
       res.json({ data: user });
     })
   );
 
-  // POST /api/users - Create user
+  router.get(
+    '/:id',
+    asyncHandler(async (req: Request, res: Response) => {
+      const user = await repos.users.findById(req.params.id);
+      if (!user) throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
+      res.json({ data: user });
+    })
+  );
+
   router.post(
     '/',
+    requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { name, nameEn, email, organizationId, role, profile } = req.body;
-
       if (!name || !email || !organizationId || !role) {
-        throw new ApiErrorResponse(
-          400,
-          'VALIDATION_ERROR',
-          'name, email, organizationId, and role are required'
-        );
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'name, email, organizationId, and role are required');
       }
-
-      const user = await repos.users.create({
-        name,
-        nameEn,
-        email,
-        organizationId,
-        role,
-        profile,
-      });
-
+      const user = await repos.users.create({ name, nameEn, email, organizationId, role, profile });
       res.status(201).json({ data: user });
     })
   );
 
-  // PATCH /api/users/:id - Update user
   router.patch(
     '/:id',
+    requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { name, email, organizationId, role, profile } = req.body;
-
-      const user = await repos.users.update(req.params.id, {
-        name,
-        email,
-        organizationId,
-        role,
-        profile,
-      });
-
+      const user = await repos.users.update(req.params.id, { name, email, organizationId, role, profile });
       res.json({ data: user });
     })
   );
 
-  // DELETE /api/users/:id - Delete user
   router.delete(
     '/:id',
+    requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const success = await repos.users.delete(req.params.id);
-
-      if (!success) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
-      }
-
+      if (!success) throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
       res.json({ data: { success: true } });
     })
   );

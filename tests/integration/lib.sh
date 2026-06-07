@@ -4,6 +4,17 @@
 
 BASE_URL="${BASE_URL:-http://localhost:3000/api}"
 
+# Transparently inject the auth token into every curl call.
+# auth.sh bypasses this for specific token scenarios using `command curl`.
+AUTH_TOKEN="${AUTH_TOKEN:-}"
+curl() {
+  if [ -n "$AUTH_TOKEN" ]; then
+    command curl -H "Authorization: Bearer $AUTH_TOKEN" "$@"
+  else
+    command curl "$@"
+  fi
+}
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

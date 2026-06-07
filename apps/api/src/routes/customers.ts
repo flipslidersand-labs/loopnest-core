@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
+import { requireRole } from '../middleware/auth.js';
 
 export function customerRoutes(repos: RepositoryContainer) {
   const router = Router();
@@ -39,6 +40,7 @@ export function customerRoutes(repos: RepositoryContainer) {
   // POST /api/customers - Create customer
   router.post(
     '/',
+    requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { name, address, phone } = req.body;
 
@@ -59,6 +61,7 @@ export function customerRoutes(repos: RepositoryContainer) {
   // PATCH /api/customers/:id - Update customer
   router.patch(
     '/:id',
+    requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { name, address, phone } = req.body;
 
@@ -75,6 +78,7 @@ export function customerRoutes(repos: RepositoryContainer) {
   // DELETE /api/customers/:id - Delete customer
   router.delete(
     '/:id',
+    requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const success = await repos.customers.delete(req.params.id);
 

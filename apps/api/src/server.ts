@@ -9,6 +9,7 @@ import { quoteRoutes } from './routes/quotes.js';
 import { userRoutes } from './routes/users.js';
 import { workflowRoutes } from './routes/workflow.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { requestMetrics } from './middleware/requestMetrics.js';
@@ -90,6 +91,9 @@ initializeDatabaseServices().then((dbServices: any) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(swaggerHtml);
   });
+
+  // Authentication: all /api/* routes require a valid JWT.
+  app.use('/api', authenticate);
 
   // Global rate limit across the API surface
   app.use(
