@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 
+export type InvoiceStatus = 'issued' | 'sent' | 'paid' | 'cancelled';
+
 export interface InvoiceRecord {
   id: string;
   quoteId: string;
@@ -8,7 +10,8 @@ export interface InvoiceRecord {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
-  status: 'issued' | 'paid' | 'overdue';
+  status: InvoiceStatus;
+  paidAt: Date | null;
   createdBy: string | null;
   createdAt: Date;
 }
@@ -24,19 +27,27 @@ export interface InvoiceInput {
   createdBy?: string;
 }
 
+export interface InvoiceFilter {
+  status?: string;
+  customerId?: string;
+  skip?: number;
+  take?: number;
+}
+
+const COLS = [
+  'id', 'quote_id', 'invoice_number', 'customer_id',
+  'subtotal_amount', 'tax_amount', 'total_amount',
+  'status', 'paid_at', 'created_by', 'created_at',
+] as const;
+
 export class InvoiceRepository {
   constructor(private db: any) {}
 
-  /**
-   * Atomically fetch the next invoice sequence value. Backed by a Postgres
-   * sequence so it is collision-free under concurrency (unlike a random
-   * suffix, which suffers birthday-paradox collisions under load).
-   */
   async nextSequenceValue(): Promise<number> {
     const { sql } = await import('kysely');
-    const result = await sql<{
-      nextval: string;
-    }>`SELECT nextval('finance.invoice_number_seq') AS nextval`.execute(this.db);
+    const result = await sql<{ nextval: string }>`
+      SELECT nextval('finance.invoice_number_seq') AS nextval
+    `.execute(this.db);
     return Number(result.rows[0].nextval);
   }
 
@@ -56,63 +67,115 @@ export class InvoiceRepository {
         created_by: data.createdBy,
         created_at: new Date(),
       })
-      .returning([
-        'id',
-        'quote_id',
-        'invoice_number',
-        'customer_id',
-        'subtotal_amount',
-        'tax_amount',
-        'total_amount',
-        'status',
-        'created_by',
-        'created_at',
-      ])
+      .returning(COLS)
       .executeTakeFirst();
-
-    return this.mapToInvoice(result);
+    return this.map(result);
   }
 
-  async findByQuoteId(quoteId: string): Promise<InvoiceRecord | null> {
-    const result = await this.db
+  async findAll(filter: InvoiceFilter = {}): Promise<InvoiceRecord[]> {
+    let q = this.db
       .selectFrom('finance.invoices')
       .selectAll()
-      .where((eb: any) => eb('quote_id', '=', quoteId))
-      .executeTakeFirst();
+      .orderBy('created_at', 'desc')
+      .limit(filter.take ?? 20)
+      .offset(filter.skip ?? 0);
+    if (filter.status)     q = q.where('status', '=', filter.status);
+    if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
+    const rows = await q.execute();
+    return rows.map((r: any) => this.map(r));
+  }
 
-    return result ? this.mapToInvoice(result) : null;
+  async count(filter: Pick<InvoiceFilter, 'status' | 'customerId'> = {}): Promise<number> {
+    let q = this.db
+      .selectFrom('finance.invoices')
+      .select((eb: any) => eb.fn.countAll().as('n'));
+    if (filter.status)     q = q.where('status', '=', filter.status);
+    if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
+    const result = await q.executeTakeFirst();
+    return Number(result?.n ?? 0);
   }
 
   async findById(id: string): Promise<InvoiceRecord | null> {
-    const result = await this.db
+    const r = await this.db
       .selectFrom('finance.invoices')
       .selectAll()
-      .where((eb: any) => eb('id', '=', id))
+      .where('id', '=', id)
       .executeTakeFirst();
-
-    return result ? this.mapToInvoice(result) : null;
+    return r ? this.map(r) : null;
   }
 
-  async updateStatus(id: string, status: string): Promise<void> {
-    await this.db
+  async findByNumber(invoiceNumber: string): Promise<InvoiceRecord | null> {
+    const r = await this.db
+      .selectFrom('finance.invoices')
+      .selectAll()
+      .where('invoice_number', '=', invoiceNumber)
+      .executeTakeFirst();
+    return r ? this.map(r) : null;
+  }
+
+  async findByQuoteId(quoteId: string): Promise<InvoiceRecord | null> {
+    const r = await this.db
+      .selectFrom('finance.invoices')
+      .selectAll()
+      .where('quote_id', '=', quoteId)
+      .executeTakeFirst();
+    return r ? this.map(r) : null;
+  }
+
+  // issued → sent
+  async markSent(id: string): Promise<InvoiceRecord | null> {
+    const r = await this.db
       .updateTable('finance.invoices')
-      .set({ status })
-      .where((eb: any) => eb('id', '=', id))
-      .execute();
+      .set({ status: 'sent' })
+      .where('id', '=', id)
+      .where('status', '=', 'issued')
+      .returning(COLS)
+      .executeTakeFirst();
+    return r ? this.map(r) : null;
   }
 
-  private mapToInvoice(record: any): InvoiceRecord {
+  // issued | sent → paid
+  async markPaid(id: string, paidAt = new Date()): Promise<InvoiceRecord | null> {
+    const r = await this.db
+      .updateTable('finance.invoices')
+      .set({ status: 'paid', paid_at: paidAt })
+      .where('id', '=', id)
+      .where('status', 'in', ['issued', 'sent'])
+      .returning(COLS)
+      .executeTakeFirst();
+    return r ? this.map(r) : null;
+  }
+
+  // issued | sent → cancelled
+  async cancelInvoice(id: string): Promise<InvoiceRecord | null> {
+    const r = await this.db
+      .updateTable('finance.invoices')
+      .set({ status: 'cancelled' })
+      .where('id', '=', id)
+      .where('status', 'in', ['issued', 'sent'])
+      .returning(COLS)
+      .executeTakeFirst();
+    return r ? this.map(r) : null;
+  }
+
+  // Legacy helper kept for compatibility.
+  async updateStatus(id: string, status: string): Promise<void> {
+    await this.db.updateTable('finance.invoices').set({ status }).where('id', '=', id).execute();
+  }
+
+  private map(r: any): InvoiceRecord {
     return {
-      id: record.id,
-      quoteId: record.quote_id,
-      invoiceNumber: record.invoice_number,
-      customerId: record.customer_id,
-      subtotal: parseFloat(record.subtotal_amount.toString()),
-      taxAmount: parseFloat(record.tax_amount.toString()),
-      totalAmount: parseFloat(record.total_amount.toString()),
-      status: record.status,
-      createdBy: record.created_by,
-      createdAt: record.created_at,
+      id: r.id,
+      quoteId: r.quote_id,
+      invoiceNumber: r.invoice_number,
+      customerId: r.customer_id,
+      subtotal: parseFloat(r.subtotal_amount.toString()),
+      taxAmount: parseFloat(r.tax_amount.toString()),
+      totalAmount: parseFloat(r.total_amount.toString()),
+      status: r.status,
+      paidAt: r.paid_at ?? null,
+      createdBy: r.created_by,
+      createdAt: r.created_at,
     };
   }
 }

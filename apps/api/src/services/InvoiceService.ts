@@ -1,6 +1,5 @@
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
-import { v4 as uuidv4 } from 'uuid';
 
 export interface InvoiceCreationResult {
   invoiceId: string;
@@ -46,13 +45,12 @@ export class InvoiceService {
       );
     }
 
-    const invoiceId = uuidv4();
     const invoiceNumber = await this.generateInvoiceNumber();
     const subtotal = quote.subtotalAmount || 0;
     const taxAmount = this.calculateTax(subtotal);
     const totalAmount = subtotal + taxAmount;
 
-    await this.repos.invoices.create({
+    const invoice = await this.repos.invoices.create({
       quoteId,
       invoiceNumber,
       customerId: quote.customerId,
@@ -62,6 +60,8 @@ export class InvoiceService {
       status: 'issued',
       createdBy: userId,
     });
+
+    const invoiceId = invoice.id;
 
     await this.repos.outbox.publish('invoice_created', quoteId, {
       invoiceId,
@@ -77,7 +77,7 @@ export class InvoiceService {
       quoteId,
       customerId: quote.customerId,
       totalAmount,
-      createdAt: new Date(),
+      createdAt: invoice.createdAt,
     };
   }
 

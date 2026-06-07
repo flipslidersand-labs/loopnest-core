@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { ServiceContainer } from '../services/index.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { RepositoryContainer } from '@loopnest/bizcore-db';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -9,7 +10,7 @@ const validateQuoteId = (id: string): void => {
   if (!UUID_RE.test(id)) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
 };
 
-export function workflowRoutes(services: ServiceContainer) {
+export function workflowRoutes(services: ServiceContainer, repos: RepositoryContainer) {
   const router = Router();
 
   // ── Quote state machine ──────────────────────────────────────────────────
@@ -177,6 +178,57 @@ export function workflowRoutes(services: ServiceContainer) {
     asyncHandler(async (req: Request, res: Response) => {
       const approvals = await services.approvals.getPendingApprovalsForUser(req.params.userId);
       res.json({ data: approvals, count: approvals.length });
+    })
+  );
+
+  // ── Invoice lifecycle ────────────────────────────────────────────────────
+
+  const requireInvoice = asyncHandler(async (req: Request, _res: Response, next: any) => {
+    const inv = await repos.invoices.findById(req.params.id);
+    if (!inv) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+    next();
+  });
+
+  // issued → sent
+  router.post(
+    '/invoices/:id/send',
+    requireRole('editor', 'admin'),
+    requireInvoice,
+    asyncHandler(async (req: Request, res: Response) => {
+      const invoice = await repos.invoices.markSent(req.params.id);
+      if (!invoice) {
+        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice must be in issued status to mark as sent');
+      }
+      res.json({ data: invoice, message: 'Invoice marked as sent' });
+    })
+  );
+
+  // issued | sent → paid
+  router.post(
+    '/invoices/:id/mark-paid',
+    requireRole('editor', 'admin'),
+    requireInvoice,
+    asyncHandler(async (req: Request, res: Response) => {
+      const paidAt = req.body.paidAt ? new Date(req.body.paidAt) : new Date();
+      const invoice = await repos.invoices.markPaid(req.params.id, paidAt);
+      if (!invoice) {
+        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice must be issued or sent to mark as paid');
+      }
+      res.json({ data: invoice, message: 'Invoice marked as paid' });
+    })
+  );
+
+  // issued | sent → cancelled (admin only)
+  router.post(
+    '/invoices/:id/cancel',
+    requireRole('admin'),
+    requireInvoice,
+    asyncHandler(async (req: Request, res: Response) => {
+      const invoice = await repos.invoices.cancelInvoice(req.params.id);
+      if (!invoice) {
+        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Only issued or sent invoices can be cancelled');
+      }
+      res.json({ data: invoice, message: 'Invoice cancelled' });
     })
   );
 

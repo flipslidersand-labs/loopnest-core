@@ -8,6 +8,7 @@ import { productRoutes } from './routes/products.js';
 import { quoteRoutes } from './routes/quotes.js';
 import { userRoutes } from './routes/users.js';
 import { workflowRoutes } from './routes/workflow.js';
+import { invoiceRoutes } from './routes/invoices.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -107,13 +108,14 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use('/api/products', productRoutes(dbServices.repos));
   app.use('/api/quotes', quoteRoutes(dbServices.repos));
   app.use('/api/users', userRoutes(dbServices.repos));
+  app.use('/api/invoices', invoiceRoutes(dbServices.repos));
 
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
   app.use(
     '/api/workflow',
     rateLimit({ bucket: 'workflow', windowSeconds: RATE_WINDOW_SECONDS, max: WORKFLOW_RATE_MAX }),
     idempotencyMiddleware,
-    workflowRoutes(serviceContainer)
+    workflowRoutes(serviceContainer, dbServices.repos)
   );
 
   // Error handler
