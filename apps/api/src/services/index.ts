@@ -2,6 +2,7 @@ export { QuoteService, type QuoteWorkflowAction } from './QuoteService.js';
 export { ApprovalService, type ApprovalRequest, type ApprovalStep } from './ApprovalService.js';
 export { InvoiceService, type InvoiceCreationResult } from './InvoiceService.js';
 export { AuditService, type AuditLogEntry } from './AuditService.js';
+export { ReportingService } from './ReportingService.js';
 export { EventWorker } from './EventWorker.js';
 
 import { RepositoryContainer } from '@loopnest/bizcore-db';
@@ -9,16 +10,15 @@ import { QuoteService } from './QuoteService.js';
 import { ApprovalService } from './ApprovalService.js';
 import { InvoiceService } from './InvoiceService.js';
 import { AuditService } from './AuditService.js';
+import { ReportingService } from './ReportingService.js';
 import { EventWorker } from './EventWorker.js';
 
-/**
- * Service container - provides all business logic services
- */
 export class ServiceContainer {
   readonly quotes: QuoteService;
   readonly approvals: ApprovalService;
   readonly invoices: InvoiceService;
   readonly audit: AuditService;
+  readonly reporting: ReportingService;
   readonly eventWorker: EventWorker;
 
   constructor(
@@ -27,11 +27,10 @@ export class ServiceContainer {
     kyselyDb: any
   ) {
     this.quotes = new QuoteService(repos);
-    // ApprovalService uses Kysely (schema-qualified table names), matching the
-    // rest of the data layer.
     this.approvals = new ApprovalService(repos, kyselyDb);
     this.invoices = new InvoiceService(repos);
     this.audit = new AuditService(pgPool);
+    this.reporting = new ReportingService(pgPool);
     this.eventWorker = new EventWorker(repos, pgPool);
   }
 

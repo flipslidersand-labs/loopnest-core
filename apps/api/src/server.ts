@@ -10,6 +10,7 @@ import { userRoutes } from './routes/users.js';
 import { workflowRoutes } from './routes/workflow.js';
 import { invoiceRoutes } from './routes/invoices.js';
 import { auditRoutes } from './routes/audit.js';
+import { reportRoutes } from './routes/reports.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -111,6 +112,7 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use('/api/users', userRoutes(dbServices.repos));
   app.use('/api/invoices', invoiceRoutes(dbServices.repos));
   app.use('/api/audit', auditRoutes(serviceContainer.audit));
+  app.use('/api/reports', reportRoutes(serviceContainer.reporting));
 
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
   app.use(
