@@ -104,8 +104,8 @@ DIR="$(dirname "$0")"
 if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
-  # auth runs first (no rate-limit exposure); outbox_dispatch before rate_limit.
-  SUITES=(observability auth e2e_workflow outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit)
+  # auth runs first; quote_items before workflow suites; outbox_dispatch before rate_limit.
+  SUITES=(observability auth e2e_workflow quote_items outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit)
 fi
 
 TOTAL_FAIL=0

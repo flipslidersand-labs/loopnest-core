@@ -88,5 +88,72 @@ export function quoteRoutes(repos: RepositoryContainer) {
     })
   );
 
+  // ── Line items sub-resource (/api/quotes/:id/items) ───────────────────────
+
+  const requireDraftQuote = asyncHandler(async (req: Request, _res: Response, next: any) => {
+    const quote = await repos.quotes.findById(req.params.id);
+    if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+    if (quote.status !== 'draft') {
+      throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Quote must be in draft status to modify items');
+    }
+    next();
+  });
+
+  router.get(
+    '/:id/items',
+    asyncHandler(async (req: Request, res: Response) => {
+      const quote = await repos.quotes.findById(req.params.id);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      const items = await repos.quoteItems.findByQuote(req.params.id);
+      res.json({ data: items, quoteId: req.params.id, count: items.length });
+    })
+  );
+
+  router.post(
+    '/:id/items',
+    requireRole('editor', 'admin'),
+    requireDraftQuote,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { productId, quantity, unitPrice } = req.body;
+      if (!productId || quantity == null || unitPrice == null) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'productId, quantity, and unitPrice are required');
+      }
+      if (quantity <= 0) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'quantity must be positive');
+      if (unitPrice < 0) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'unitPrice must be non-negative');
+
+      const item = await repos.quoteItems.addItem(req.params.id, { productId, quantity, unitPrice });
+      const quote = await repos.quotes.findById(req.params.id);
+      res.status(201).json({ data: item, quoteTotals: { subtotalAmount: quote?.subtotalAmount, taxAmount: quote?.taxAmount, totalAmount: quote?.totalAmount } });
+    })
+  );
+
+  router.patch(
+    '/:id/items/:itemId',
+    requireRole('editor', 'admin'),
+    requireDraftQuote,
+    asyncHandler(async (req: Request, res: Response) => {
+      const { quantity, unitPrice } = req.body;
+      if (quantity !== undefined && quantity <= 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'quantity must be positive');
+      }
+      const item = await repos.quoteItems.updateItem(req.params.itemId, req.params.id, { quantity, unitPrice });
+      if (!item) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Item not found');
+      const quote = await repos.quotes.findById(req.params.id);
+      res.json({ data: item, quoteTotals: { subtotalAmount: quote?.subtotalAmount, taxAmount: quote?.taxAmount, totalAmount: quote?.totalAmount } });
+    })
+  );
+
+  router.delete(
+    '/:id/items/:itemId',
+    requireRole('editor', 'admin'),
+    requireDraftQuote,
+    asyncHandler(async (req: Request, res: Response) => {
+      const removed = await repos.quoteItems.removeItem(req.params.itemId, req.params.id);
+      if (!removed) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Item not found');
+      const quote = await repos.quotes.findById(req.params.id);
+      res.json({ data: { success: true }, quoteTotals: { subtotalAmount: quote?.subtotalAmount, taxAmount: quote?.taxAmount, totalAmount: quote?.totalAmount } });
+    })
+  );
+
   return router;
 }

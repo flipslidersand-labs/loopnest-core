@@ -3,6 +3,7 @@ import { OrganizationRepository } from './OrganizationRepository.js';
 import { CustomerRepository } from './CustomerRepository.js';
 import { ProductRepository } from './ProductRepository.js';
 import { QuoteRepository } from './QuoteRepository.js';
+import { QuoteItemRepository } from './QuoteItemRepository.js';
 import { UserRepository } from './UserRepository.js';
 import { InvoiceRepository } from './InvoiceRepository.js';
 import { OutboxRepository } from './OutboxRepository.js';
@@ -12,6 +13,7 @@ export class RepositoryContainer {
   private readonly customerRepo: CustomerRepository;
   private readonly productRepo: ProductRepository;
   private readonly quoteRepo: QuoteRepository;
+  private readonly quoteItemRepo: QuoteItemRepository;
   private readonly userRepo: UserRepository;
   private readonly invoiceRepo: InvoiceRepository;
   private readonly outboxRepo: OutboxRepository;
@@ -24,6 +26,7 @@ export class RepositoryContainer {
     this.customerRepo = new CustomerRepository(prisma);
     this.productRepo = new ProductRepository(prisma);
     this.quoteRepo = new QuoteRepository(db, prisma);
+    this.quoteItemRepo = new QuoteItemRepository(prisma);
     this.userRepo = new UserRepository(prisma);
     this.invoiceRepo = new InvoiceRepository(db);
     this.outboxRepo = new OutboxRepository(db);
@@ -43,6 +46,10 @@ export class RepositoryContainer {
 
   get quotes(): QuoteRepository {
     return this.quoteRepo;
+  }
+
+  get quoteItems(): QuoteItemRepository {
+    return this.quoteItemRepo;
   }
 
   get users(): UserRepository {

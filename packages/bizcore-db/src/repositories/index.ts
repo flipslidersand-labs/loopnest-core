@@ -8,6 +8,8 @@ export { ProductRepository } from './ProductRepository.js';
 export type { Product } from './ProductRepository.js';
 export { QuoteRepository } from './QuoteRepository.js';
 export type { QuoteEntity, QuoteWithItems } from './QuoteRepository.js';
+export { QuoteItemRepository } from './QuoteItemRepository.js';
+export type { QuoteItemEntity, QuoteItemInput } from './QuoteItemRepository.js';
 export { UserRepository } from './UserRepository.js';
 export type { User } from './UserRepository.js';
 export { InvoiceRepository } from './InvoiceRepository.js';

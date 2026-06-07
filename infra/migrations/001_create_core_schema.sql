@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS core.quote_items (
   quantity INT NOT NULL,
   unit_price NUMERIC(12, 2) NOT NULL,
   line_total NUMERIC(12, 2) NOT NULL,
-  notes TEXT
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON core.quote_items(quote_id);

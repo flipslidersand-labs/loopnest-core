@@ -60,6 +60,16 @@ make_customer() {
     | jq -r '.data.id'
 }
 
+# make_product [name] [unitPrice] -> echoes product id
+make_product() {
+  local name="${1:-Test Product}" price="${2:-10000}"
+  local sku="SKU-$(date +%s)-$RANDOM"
+  curl -s -X POST "$BASE_URL/products" \
+    -H "Content-Type: application/json" \
+    -d "{\"sku\":\"$sku\",\"name\":\"$name\",\"category\":\"laptop\",\"unitPrice\":$price}" \
+    | jq -r '.data.id'
+}
+
 # make_quote <customerId> [subtotal] [tax] [total]  -> echoes quote id
 make_quote() {
   local customer_id=$1
