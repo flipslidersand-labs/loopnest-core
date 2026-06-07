@@ -7,16 +7,24 @@ export interface Product {
   name: string;
   category: string;
   unitPrice: number;
+  organizationId?: string;
   createdAt: Date;
 }
 
+export interface ProductFilter extends FindOptions {
+  organizationId?: string;
+  category?: string;
+}
+
 export class ProductRepository extends BaseRepository<Product> {
-  constructor(private prisma: PrismaClient) {
+  constructor(private readonly prisma: PrismaClient) {
     super();
   }
 
-  async findById(id: string): Promise<Product | null> {
-    const product = await this.prisma.product.findUnique({ where: { id } });
+  async findById(id: string, organizationId?: string): Promise<Product | null> {
+    const product = organizationId
+      ? await this.prisma.product.findFirst({ where: { id, organizationId } })
+      : await this.prisma.product.findUnique({ where: { id } });
     return product ? this.mapToProduct(product) : null;
   }
 
@@ -25,11 +33,15 @@ export class ProductRepository extends BaseRepository<Product> {
     return product ? this.mapToProduct(product) : null;
   }
 
-  async findAll(options?: FindOptions): Promise<Product[]> {
+  async findAll(options?: ProductFilter): Promise<Product[]> {
+    const where: any = {};
+    if (options?.organizationId) where.organizationId = options.organizationId;
+    if ((options as any)?.category) where.category = (options as any).category;
     const products = await this.prisma.product.findMany({
       skip: options?.skip,
       take: options?.take,
       orderBy: options?.orderBy || { name: 'asc' },
+      where: Object.keys(where).length ? where : undefined,
     });
     return products.map((p: any) => this.mapToProduct(p));
   }
@@ -44,9 +56,12 @@ export class ProductRepository extends BaseRepository<Product> {
     return product ? this.mapToProduct(product) : null;
   }
 
-  async findByCategory(category: string, options?: FindOptions): Promise<Product[]> {
+  async findByCategory(category: string, options?: ProductFilter): Promise<Product[]> {
     const products = await this.prisma.product.findMany({
-      where: { category },
+      where: {
+        category,
+        ...(options?.organizationId && { organizationId: options.organizationId }),
+      },
       skip: options?.skip,
       take: options?.take,
       orderBy: options?.orderBy || { name: 'asc' },
@@ -61,6 +76,7 @@ export class ProductRepository extends BaseRepository<Product> {
         name: data.name,
         category: data.category,
         unitPrice: data.unitPrice,
+        organizationId: data.organizationId,
       },
     });
     return this.mapToProduct(product);
@@ -83,10 +99,13 @@ export class ProductRepository extends BaseRepository<Product> {
     return true;
   }
 
-  async count(where?: Partial<Product>): Promise<number> {
-    return this.prisma.product.count(
-      where?.category ? { where: { category: where.category } } : undefined
-    );
+  async count(where?: { organizationId?: string; category?: string }): Promise<number> {
+    const filter: any = {};
+    if (where?.organizationId) filter.organizationId = where.organizationId;
+    if (where?.category) filter.category = where.category;
+    return this.prisma.product.count({
+      where: Object.keys(filter).length ? filter : undefined,
+    });
   }
 
   private mapToProduct(product: any): Product {
@@ -95,7 +114,8 @@ export class ProductRepository extends BaseRepository<Product> {
       sku: product.sku,
       name: product.name,
       category: product.category,
-      unitPrice: parseFloat(product.unitPrice.toString()),
+      unitPrice: Number.parseFloat(product.unitPrice.toString()),
+      organizationId: product.organizationId ?? undefined,
       createdAt: product.createdAt,
     };
   }

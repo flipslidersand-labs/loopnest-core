@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS core.organizations (
   name VARCHAR(200) NOT NULL,
   type VARCHAR(50) NOT NULL CHECK (type IN ('company', 'department', 'division')),
   parent_id UUID REFERENCES core.organizations(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_organizations_parent ON core.organizations(parent_id);

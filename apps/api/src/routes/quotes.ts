@@ -13,16 +13,17 @@ export function quoteRoutes(repos: RepositoryContainer) {
       const take = Number.parseInt(req.query.take as string) || 10;
       const status = req.query.status as string;
       const customerId = req.query.customerId as string;
+      const orgId = req.user?.orgId;
       let quotes, count;
       if (customerId) {
-        quotes = await repos.quotes.findByCustomer(customerId, { skip, take });
-        count = await repos.quotes.count({ customerId } as any);
+        quotes = await repos.quotes.findByCustomer(customerId, { skip, take, organizationId: orgId });
+        count = await repos.quotes.count({ customerId, organizationId: orgId });
       } else if (status) {
-        quotes = await repos.quotes.findByStatus(status as any, { skip, take });
-        count = await repos.quotes.count({ status } as any);
+        quotes = await repos.quotes.findByStatus(status as any, { skip, take, organizationId: orgId });
+        count = await repos.quotes.count({ status, organizationId: orgId });
       } else {
-        quotes = await repos.quotes.findAll({ skip, take });
-        count = await repos.quotes.count();
+        quotes = await repos.quotes.findAll({ skip, take, organizationId: orgId });
+        count = await repos.quotes.count({ organizationId: orgId });
       }
       res.json({ data: quotes, pagination: { skip, take, total: count }, filter: { status, customerId } });
     })
@@ -40,7 +41,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
   router.get(
     '/:id',
     asyncHandler(async (req: Request, res: Response) => {
-      const quote = await repos.quotes.findWithItems(req.params.id);
+      const quote = await repos.quotes.findWithItems(req.params.id, req.user?.orgId);
       if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
       res.json({ data: quote });
     })
@@ -62,6 +63,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
         taxAmount: taxAmount || 0,
         totalAmount: totalAmount || 0,
         status: 'draft',
+        organizationId: req.user?.orgId,
         createdBy,
       });
       res.status(201).json({ data: quote });
@@ -91,7 +93,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
   // ── Line items sub-resource (/api/quotes/:id/items) ───────────────────────
 
   const requireDraftQuote = asyncHandler(async (req: Request, _res: Response, next: any) => {
-    const quote = await repos.quotes.findById(req.params.id);
+    const quote = await repos.quotes.findById(req.params.id, req.user?.orgId);
     if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
     if (quote.status !== 'draft') {
       throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Quote must be in draft status to modify items');
@@ -102,7 +104,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
   router.get(
     '/:id/items',
     asyncHandler(async (req: Request, res: Response) => {
-      const quote = await repos.quotes.findById(req.params.id);
+      const quote = await repos.quotes.findById(req.params.id, req.user?.orgId);
       if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
       const items = await repos.quoteItems.findByQuote(req.params.id);
       res.json({ data: items, quoteId: req.params.id, count: items.length });

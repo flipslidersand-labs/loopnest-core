@@ -6,24 +6,32 @@ export interface Customer {
   name: string;
   address?: string;
   phone?: string;
+  organizationId?: string;
   createdAt: Date;
 }
 
+export interface CustomerFilter extends FindOptions {
+  organizationId?: string;
+}
+
 export class CustomerRepository extends BaseRepository<Customer> {
-  constructor(private prisma: PrismaClient) {
+  constructor(private readonly prisma: PrismaClient) {
     super();
   }
 
-  async findById(id: string): Promise<Customer | null> {
-    const customer = await this.prisma.customer.findUnique({ where: { id } });
+  async findById(id: string, organizationId?: string): Promise<Customer | null> {
+    const customer = organizationId
+      ? await this.prisma.customer.findFirst({ where: { id, organizationId } })
+      : await this.prisma.customer.findUnique({ where: { id } });
     return customer ? this.mapToCustomer(customer) : null;
   }
 
-  async findAll(options?: FindOptions): Promise<Customer[]> {
+  async findAll(options?: CustomerFilter): Promise<Customer[]> {
     const customers = await this.prisma.customer.findMany({
       skip: options?.skip,
       take: options?.take,
       orderBy: options?.orderBy || { name: 'asc' },
+      where: options?.organizationId ? { organizationId: options.organizationId } : undefined,
     });
     return customers.map((c: any) => this.mapToCustomer(c));
   }
@@ -41,6 +49,7 @@ export class CustomerRepository extends BaseRepository<Customer> {
         name: data.name,
         address: data.address,
         phone: data.phone,
+        organizationId: data.organizationId,
       },
     });
     return this.mapToCustomer(customer);
@@ -63,8 +72,10 @@ export class CustomerRepository extends BaseRepository<Customer> {
     return true;
   }
 
-  async count(where?: Partial<Customer>): Promise<number> {
-    return this.prisma.customer.count();
+  async count(where?: { organizationId?: string }): Promise<number> {
+    return this.prisma.customer.count({
+      where: where?.organizationId ? { organizationId: where.organizationId } : undefined,
+    });
   }
 
   private mapToCustomer(customer: any): Customer {
@@ -73,6 +84,7 @@ export class CustomerRepository extends BaseRepository<Customer> {
       name: customer.name,
       address: customer.address,
       phone: customer.phone,
+      organizationId: customer.organizationId ?? undefined,
       createdAt: customer.createdAt,
     };
   }

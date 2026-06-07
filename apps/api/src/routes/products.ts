@@ -12,13 +12,14 @@ export function productRoutes(repos: RepositoryContainer) {
       const skip = Number.parseInt(req.query.skip as string) || 0;
       const take = Number.parseInt(req.query.take as string) || 10;
       const category = req.query.category as string;
+      const orgId = req.user?.orgId;
       let products, count;
       if (category) {
-        products = await repos.products.findByCategory(category, { skip, take });
-        count = await repos.products.count({ category } as any);
+        products = await repos.products.findByCategory(category, { skip, take, organizationId: orgId });
+        count = await repos.products.count({ category, organizationId: orgId });
       } else {
-        products = await repos.products.findAll({ skip, take });
-        count = await repos.products.count();
+        products = await repos.products.findAll({ skip, take, organizationId: orgId });
+        count = await repos.products.count({ organizationId: orgId });
       }
       res.json({ data: products, pagination: { skip, take, total: count }, filter: category ? { category } : undefined });
     })
@@ -36,7 +37,7 @@ export function productRoutes(repos: RepositoryContainer) {
   router.get(
     '/:id',
     asyncHandler(async (req: Request, res: Response) => {
-      const product = await repos.products.findById(req.params.id);
+      const product = await repos.products.findById(req.params.id, req.user?.orgId);
       if (!product) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Product not found');
       res.json({ data: product });
     })
@@ -50,7 +51,7 @@ export function productRoutes(repos: RepositoryContainer) {
       if (!sku || !name || !category || unitPrice === undefined) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'SKU, name, category, and unitPrice are required');
       }
-      const product = await repos.products.create({ sku, name, category, unitPrice });
+      const product = await repos.products.create({ sku, name, category, unitPrice, organizationId: req.user?.orgId });
       res.status(201).json({ data: product });
     })
   );

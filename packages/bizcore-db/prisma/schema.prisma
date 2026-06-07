@@ -31,26 +31,30 @@ model Customer {
   name           String   @db.VarChar(255)
   phone          String?  @db.VarChar(20)
   address        String?  @db.Text
+  organizationId String?  @map("organization_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("customers")
   @@schema("core")
+  @@index([organizationId])
 }
 
 // Master table: Products
 model Product {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sku           String   @db.VarChar(100)
-  name          String   @db.VarChar(255)
-  category      String   @db.VarChar(100)
-  unitPrice     Decimal  @map("unit_price") @db.Decimal(10, 2)
-  stockQuantity Int      @default(0) @map("stock_quantity")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku            String   @db.VarChar(100)
+  name           String   @db.VarChar(255)
+  category       String   @db.VarChar(100)
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(10, 2)
+  stockQuantity  Int      @default(0) @map("stock_quantity")
+  organizationId String?  @map("organization_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("products")
   @@schema("core")
   @@unique([sku])
   @@index([category])
+  @@index([organizationId])
 }
 
 // Master table: Quotes
@@ -64,6 +68,7 @@ model Quote {
   totalAmount     Decimal?    @map("total_amount") @db.Decimal(12, 2)
   status          String      @db.VarChar(50) @default("draft")
   notes           String?     @db.Text
+  organizationId  String?     @map("organization_id") @db.Uuid
   createdBy       String      @map("created_by") @db.VarChar(255)
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
@@ -73,6 +78,7 @@ model Quote {
   @@schema("core")
   @@index([customerId])
   @@index([status])
+  @@index([organizationId])
 }
 
 // Master table: Quote Items

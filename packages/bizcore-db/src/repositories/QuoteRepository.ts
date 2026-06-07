@@ -11,6 +11,7 @@ export interface QuoteEntity {
   totalAmount: number;
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'invoiced';
   notes?: string;
+  organizationId?: string;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +27,12 @@ export interface QuoteWithItems extends QuoteEntity {
   }>;
 }
 
+export interface QuoteFilter extends FindOptions {
+  organizationId?: string;
+  status?: string;
+  customerId?: string;
+}
+
 export class QuoteRepository extends BaseRepository<QuoteEntity> {
   constructor(
     private readonly db: any,
@@ -34,25 +41,26 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     super();
   }
 
-  async findById(id: string): Promise<QuoteEntity | null> {
-    const quote = await this.prisma.quote.findUnique({
-      where: { id },
-    });
+  async findById(id: string, organizationId?: string): Promise<QuoteEntity | null> {
+    const quote = organizationId
+      ? await this.prisma.quote.findFirst({ where: { id, organizationId } })
+      : await this.prisma.quote.findUnique({ where: { id } });
     return quote ? this.mapToQuote(quote) : null;
   }
 
   async findByNumber(quoteNumber: string): Promise<QuoteEntity | null> {
-    const quote = await this.prisma.quote.findUnique({
-      where: { quoteNumber },
-    });
+    const quote = await this.prisma.quote.findUnique({ where: { quoteNumber } });
     return quote ? this.mapToQuote(quote) : null;
   }
 
-  async findAll(options?: FindOptions): Promise<QuoteEntity[]> {
+  async findAll(options?: QuoteFilter): Promise<QuoteEntity[]> {
+    const where: any = {};
+    if (options?.organizationId) where.organizationId = options.organizationId;
     const quotes = await this.prisma.quote.findMany({
       skip: options?.skip,
       take: options?.take,
       orderBy: options?.orderBy || { createdAt: 'desc' },
+      where: Object.keys(where).length ? where : undefined,
     });
     return quotes.map((q: any) => this.mapToQuote(q));
   }
@@ -67,9 +75,12 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     return quote ? this.mapToQuote(quote) : null;
   }
 
-  async findByCustomer(customerId: string, options?: FindOptions): Promise<QuoteEntity[]> {
+  async findByCustomer(customerId: string, options?: QuoteFilter): Promise<QuoteEntity[]> {
     const quotes = await this.prisma.quote.findMany({
-      where: { customerId },
+      where: {
+        customerId,
+        ...(options?.organizationId && { organizationId: options.organizationId }),
+      },
       skip: options?.skip,
       take: options?.take,
       orderBy: { createdAt: 'desc' },
@@ -77,9 +88,12 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     return quotes.map((q: any) => this.mapToQuote(q));
   }
 
-  async findByStatus(status: QuoteEntity['status'], options?: FindOptions): Promise<QuoteEntity[]> {
+  async findByStatus(status: QuoteEntity['status'], options?: QuoteFilter): Promise<QuoteEntity[]> {
     const quotes = await this.prisma.quote.findMany({
-      where: { status },
+      where: {
+        status,
+        ...(options?.organizationId && { organizationId: options.organizationId }),
+      },
       skip: options?.skip,
       take: options?.take,
       orderBy: { createdAt: 'desc' },
@@ -87,9 +101,10 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     return quotes.map((q: any) => this.mapToQuote(q));
   }
 
-  async findWithItems(id: string): Promise<QuoteWithItems | null> {
-    const quote = await this.prisma.quote.findUnique({
-      where: { id },
+  async findWithItems(id: string, organizationId?: string): Promise<QuoteWithItems | null> {
+    const where = organizationId ? { id, organizationId } : { id };
+    const quote = await this.prisma.quote.findFirst({
+      where,
       include: {
         quoteItems: {
           select: {
@@ -111,8 +126,8 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
         id: item.id,
         productId: item.productId,
         quantity: item.quantity,
-        unitPrice: parseFloat(item.unitPrice.toString()),
-        lineTotal: parseFloat(item.lineTotal.toString()),
+        unitPrice: Number.parseFloat(item.unitPrice.toString()),
+        lineTotal: Number.parseFloat(item.lineTotal.toString()),
       })),
     };
   }
@@ -128,6 +143,7 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
         totalAmount: data.totalAmount,
         status: data.status || 'draft',
         notes: data.notes,
+        organizationId: data.organizationId,
         createdBy: data.createdBy,
       },
     });
@@ -150,17 +166,22 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
 
   /**
    * Atomic conditional status transition.
-   * Updates only if current status matches expectedStatus.
-   * Returns the updated quote, or null if the precondition failed (race condition lost).
+   * Updates only if current status matches expectedStatus (and organizationId when scoped).
+   * Returns null if the precondition failed (wrong state or wrong owner).
    */
   async transitionStatus(
     id: string,
     expectedStatus: QuoteEntity['status'],
     newStatus: QuoteEntity['status'],
-    extraData?: { notes?: string }
+    extraData?: { notes?: string },
+    organizationId?: string
   ): Promise<QuoteEntity | null> {
     const result = await this.prisma.quote.updateMany({
-      where: { id, status: expectedStatus },
+      where: {
+        id,
+        status: expectedStatus,
+        ...(organizationId && { organizationId }),
+      },
       data: {
         status: newStatus,
         ...(extraData?.notes !== undefined && { notes: extraData.notes }),
@@ -180,10 +201,14 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     return true;
   }
 
-  async count(where?: Partial<QuoteEntity>): Promise<number> {
-    return this.prisma.quote.count(
-      where?.status ? { where: { status: where.status } } : undefined
-    );
+  async count(where?: { organizationId?: string; status?: string; customerId?: string }): Promise<number> {
+    const filter: any = {};
+    if (where?.status) filter.status = where.status;
+    if (where?.customerId) filter.customerId = where.customerId;
+    if (where?.organizationId) filter.organizationId = where.organizationId;
+    return this.prisma.quote.count({
+      where: Object.keys(filter).length ? filter : undefined,
+    });
   }
 
   private mapToQuote(quote: any): QuoteEntity {
@@ -192,11 +217,12 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
       quoteNumber: quote.quoteNumber,
       quoteRequestId: quote.quoteRequestId,
       customerId: quote.customerId,
-      subtotalAmount: quote.subtotalAmount ? parseFloat(quote.subtotalAmount.toString()) : 0,
-      taxAmount: quote.taxAmount ? parseFloat(quote.taxAmount.toString()) : 0,
-      totalAmount: quote.totalAmount ? parseFloat(quote.totalAmount.toString()) : 0,
+      subtotalAmount: quote.subtotalAmount ? Number.parseFloat(quote.subtotalAmount.toString()) : 0,
+      taxAmount: quote.taxAmount ? Number.parseFloat(quote.taxAmount.toString()) : 0,
+      totalAmount: quote.totalAmount ? Number.parseFloat(quote.totalAmount.toString()) : 0,
       status: quote.status,
       notes: quote.notes,
+      organizationId: quote.organizationId ?? undefined,
       createdBy: quote.createdBy,
       createdAt: quote.createdAt,
       updatedAt: quote.updatedAt,

@@ -13,6 +13,13 @@ const validateQuoteId = (id: string): void => {
 export function workflowRoutes(services: ServiceContainer, repos: RepositoryContainer) {
   const router = Router();
 
+  // Guard: if the caller has an orgId, the quote must belong to that org.
+  const assertOrgOwnsQuote = async (quoteId: string, orgId?: string): Promise<void> => {
+    if (!orgId) return;
+    const q = await repos.quotes.findById(quoteId, orgId);
+    if (!q) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+  };
+
   // ── Quote state machine ──────────────────────────────────────────────────
 
   router.post(
@@ -22,6 +29,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       validateQuoteId(req.params.id);
       const { userId } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.submitForApproval(req.params.id, userId);
       await services.audit.logQuoteSubmitted(req.params.id, userId);
       res.json({ data: quote, message: 'Quote submitted for approval' });
@@ -35,6 +43,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       validateQuoteId(req.params.id);
       const { userId, notes } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.approve(req.params.id, userId, notes);
       await services.audit.logQuoteApproved(req.params.id, userId);
       res.json({ data: quote, message: 'Quote approved' });
@@ -50,6 +59,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!userId || !reason) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId and reason are required');
       }
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.reject(req.params.id, userId, reason);
       await services.audit.logQuoteRejected(req.params.id, userId, reason);
       res.json({ data: quote, message: 'Quote rejected' });
@@ -63,6 +73,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       validateQuoteId(req.params.id);
       const { userId } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const invoiceResult = await services.invoices.createFromQuote(req.params.id, userId);
       const quote = await services.quotes.convertToInvoice(req.params.id, userId);
       await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, userId);

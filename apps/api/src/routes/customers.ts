@@ -6,15 +6,15 @@ import { requireRole } from '../middleware/auth.js';
 export function customerRoutes(repos: RepositoryContainer) {
   const router = Router();
 
-  // GET /api/customers - List all customers
   router.get(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = parseInt(req.query.skip as string) || 0;
-      const take = parseInt(req.query.take as string) || 10;
+      const skip = Number.parseInt(req.query.skip as string) || 0;
+      const take = Number.parseInt(req.query.take as string) || 10;
+      const orgId = req.user?.orgId;
 
-      const customers = await repos.customers.findAll({ skip, take });
-      const count = await repos.customers.count();
+      const customers = await repos.customers.findAll({ skip, take, organizationId: orgId });
+      const count = await repos.customers.count({ organizationId: orgId });
 
       res.json({
         data: customers,
@@ -23,11 +23,10 @@ export function customerRoutes(repos: RepositoryContainer) {
     })
   );
 
-  // GET /api/customers/:id - Get customer by ID
   router.get(
     '/:id',
     asyncHandler(async (req: Request, res: Response) => {
-      const customer = await repos.customers.findById(req.params.id);
+      const customer = await repos.customers.findById(req.params.id, req.user?.orgId);
 
       if (!customer) {
         throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
@@ -37,7 +36,6 @@ export function customerRoutes(repos: RepositoryContainer) {
     })
   );
 
-  // POST /api/customers - Create customer
   router.post(
     '/',
     requireRole('editor', 'admin'),
@@ -52,13 +50,13 @@ export function customerRoutes(repos: RepositoryContainer) {
         name,
         address,
         phone,
+        organizationId: req.user?.orgId,
       });
 
       res.status(201).json({ data: customer });
     })
   );
 
-  // PATCH /api/customers/:id - Update customer
   router.patch(
     '/:id',
     requireRole('editor', 'admin'),
@@ -75,7 +73,6 @@ export function customerRoutes(repos: RepositoryContainer) {
     })
   );
 
-  // DELETE /api/customers/:id - Delete customer
   router.delete(
     '/:id',
     requireRole('admin'),
