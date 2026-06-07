@@ -13,6 +13,7 @@ import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { requestMetrics } from './middleware/requestMetrics.js';
 import { renderMetrics } from './observability/metrics.js';
+import { openapiDocument, swaggerHtml } from './openapi.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -79,6 +80,15 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.get('/metrics', (req: any, res: any) => {
     res.setHeader('Content-Type', 'text/plain; version=0.0.4');
     res.send(renderMetrics());
+  });
+
+  // API documentation: machine-readable spec + Swagger UI.
+  app.get('/openapi.json', (req: any, res: any) => {
+    res.json(openapiDocument);
+  });
+  app.get('/docs', (req: any, res: any) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(swaggerHtml);
   });
 
   // Global rate limit across the API surface
