@@ -16,4 +16,6 @@ export { InvoiceRepository } from './InvoiceRepository.js';
 export type { InvoiceRecord, InvoiceInput } from './InvoiceRepository.js';
 export { OutboxRepository } from './OutboxRepository.js';
 export type { OutboxEvent } from './OutboxRepository.js';
+export { WebhookRepository } from './WebhookRepository.js';
+export type { WebhookRecord, CreateWebhookInput, UpdateWebhookInput } from './WebhookRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';

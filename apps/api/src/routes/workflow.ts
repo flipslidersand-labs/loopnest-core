@@ -11,6 +11,8 @@ const validateQuoteId = (id: string): void => {
 };
 
 export function workflowRoutes(services: ServiceContainer, repos: RepositoryContainer) {
+  // Webhook delivery is fire-and-forget; errors are swallowed inside the service.
+  const wh = services.webhooks;
   const router = Router();
 
   // Guard: if the caller has an orgId, the quote must belong to that org.
@@ -32,6 +34,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.submitForApproval(req.params.id, userId);
       await services.audit.logQuoteSubmitted(req.params.id, userId);
+      wh.deliver(req.user?.orgId, 'quote.submitted', { quoteId: req.params.id, userId, status: 'pending_approval' });
       res.json({ data: quote, message: 'Quote submitted for approval' });
     })
   );
@@ -46,6 +49,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.approve(req.params.id, userId, notes);
       await services.audit.logQuoteApproved(req.params.id, userId);
+      wh.deliver(req.user?.orgId, 'quote.approved', { quoteId: req.params.id, userId, status: 'approved' });
       res.json({ data: quote, message: 'Quote approved' });
     })
   );
@@ -77,6 +81,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       const invoiceResult = await services.invoices.createFromQuote(req.params.id, userId);
       const quote = await services.quotes.convertToInvoice(req.params.id, userId);
       await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, userId);
+      wh.deliver(req.user?.orgId, 'invoice.created', { invoiceId: invoiceResult.invoiceId, quoteId: req.params.id, totalAmount: invoiceResult.totalAmount });
       res.json({ data: { quote, invoice: invoiceResult }, message: 'Invoice created from approved quote' });
     })
   );

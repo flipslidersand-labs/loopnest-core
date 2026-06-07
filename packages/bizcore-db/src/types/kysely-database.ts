@@ -135,6 +135,24 @@ export type NewOutboxEvent = Insertable<OutboxEventTable>;
 export type OutboxEventUpdate = Updateable<OutboxEventTable>;
 
 // ============================================
+// events.webhooks
+// ============================================
+export interface WebhookTable {
+  id: Generated<string>;
+  organization_id: string | null;
+  url: string;
+  events: string[];
+  secret: string | null;
+  is_active: boolean;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type WebhookRow = Selectable<WebhookTable>;
+export type NewWebhook = Insertable<WebhookTable>;
+export type WebhookUpdate = Updateable<WebhookTable>;
+
+// ============================================
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
@@ -145,4 +163,5 @@ export interface KyselyDatabase {
   'finance.invoice_items': InvoiceItemTable;
   'finance.accounting_exports': AccountingExportTable;
   'events.outbox_events': OutboxEventTable;
+  'events.webhooks': WebhookTable;
 }

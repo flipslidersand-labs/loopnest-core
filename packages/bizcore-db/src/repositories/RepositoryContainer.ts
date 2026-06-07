@@ -7,6 +7,7 @@ import { QuoteItemRepository } from './QuoteItemRepository.js';
 import { UserRepository } from './UserRepository.js';
 import { InvoiceRepository } from './InvoiceRepository.js';
 import { OutboxRepository } from './OutboxRepository.js';
+import { WebhookRepository } from './WebhookRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -17,6 +18,7 @@ export class RepositoryContainer {
   private readonly userRepo: UserRepository;
   private readonly invoiceRepo: InvoiceRepository;
   private readonly outboxRepo: OutboxRepository;
+  private readonly webhookRepo: WebhookRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -30,6 +32,7 @@ export class RepositoryContainer {
     this.userRepo = new UserRepository(prisma);
     this.invoiceRepo = new InvoiceRepository(db);
     this.outboxRepo = new OutboxRepository(db);
+    this.webhookRepo = new WebhookRepository(db);
   }
 
   get organizations(): OrganizationRepository {
@@ -62,6 +65,10 @@ export class RepositoryContainer {
 
   get outbox(): OutboxRepository {
     return this.outboxRepo;
+  }
+
+  get webhooks(): WebhookRepository {
+    return this.webhookRepo;
   }
 
   /**

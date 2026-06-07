@@ -13,8 +13,8 @@ export { outboxEvents, invoices, approvalRequests, approvalSteps } from '../driz
 export type { OutboxEventInsert, ApprovalRequest, ApprovalRequestInsert, ApprovalStep, ApprovalStepInsert } from '../drizzle/schema.js';
 
 // Export repositories
-export { BaseRepository, OrganizationRepository, CustomerRepository, ProductRepository, QuoteRepository, UserRepository, InvoiceRepository, OutboxRepository, RepositoryContainer } from './repositories/index.js';
-export type { FindOptions, CreateInput, UpdateInput, Organization, Customer, Product, QuoteEntity, QuoteWithItems, User, InvoiceRecord, OutboxEvent } from './repositories/index.js';
+export { BaseRepository, OrganizationRepository, CustomerRepository, ProductRepository, QuoteRepository, UserRepository, InvoiceRepository, OutboxRepository, WebhookRepository, RepositoryContainer } from './repositories/index.js';
+export type { FindOptions, CreateInput, UpdateInput, Organization, Customer, Product, QuoteEntity, QuoteWithItems, User, InvoiceRecord, OutboxEvent, WebhookRecord, CreateWebhookInput, UpdateWebhookInput } from './repositories/index.js';
 
 // Export factory
 export { initializeDatabaseServices, getRepositoryContainer } from './factory.js';
