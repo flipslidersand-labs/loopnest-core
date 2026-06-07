@@ -9,12 +9,53 @@ export interface AuditLogEntry {
   correlationId?: string;
 }
 
-export class AuditService {
-  constructor(private pgPool: any) {}
+export interface AuditLogRecord {
+  id: string;
+  actorId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  metadata: Record<string, any> | null;
+  correlationId: string | null;
+  createdAt: Date;
+}
 
-  /**
-   * Log an audit entry (operation)
-   */
+export interface RequestLogRecord {
+  id: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  durationMs: number;
+  correlationId: string | null;
+  actorId: string | null;
+  createdAt: Date;
+}
+
+export interface AuditLogFilter {
+  actorId?: string;
+  resourceType?: string;
+  resourceId?: string;
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  skip?: number;
+  take?: number;
+}
+
+export interface RequestLogFilter {
+  actorId?: string;
+  statusCode?: number;
+  method?: string;
+  path?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  skip?: number;
+  take?: number;
+}
+
+export class AuditService {
+  constructor(private readonly pgPool: any) {}
+
   async log(entry: AuditLogEntry): Promise<void> {
     const correlationId = entry.correlationId || uuidv4();
     const id = uuidv4();
@@ -40,107 +81,162 @@ export class AuditService {
     }
   }
 
-  /**
-   * Log quote submission
-   */
+  // ── Query methods ───────────────────────────────────────────────────────────
+
+  async queryLogs(filter: AuditLogFilter = {}): Promise<AuditLogRecord[]> {
+    const { conditions, params } = this.buildLogConditions(filter);
+    const skip = filter.skip ?? 0;
+    const take = filter.take ?? 20;
+    params.push(take, skip);
+    const limitParam = params.length - 1;
+    const offsetParam = params.length;
+
+    const sql = `
+      SELECT id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at
+      FROM audit.audit_logs
+      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+      ORDER BY created_at DESC
+      LIMIT $${limitParam} OFFSET $${offsetParam}
+    `;
+    const result = await this.pgPool.query(sql, params);
+    return result.rows.map(this.mapLogRow);
+  }
+
+  async countLogs(filter: AuditLogFilter = {}): Promise<number> {
+    const { conditions, params } = this.buildLogConditions(filter);
+    const sql = `
+      SELECT COUNT(*) FROM audit.audit_logs
+      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+    `;
+    const result = await this.pgPool.query(sql, params);
+    return Number.parseInt(result.rows[0].count, 10);
+  }
+
+  async getResourceHistory(resourceType: string, resourceId: string): Promise<AuditLogRecord[]> {
+    const result = await this.pgPool.query(
+      `SELECT id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at
+       FROM audit.audit_logs
+       WHERE resource_type = $1 AND resource_id = $2
+       ORDER BY created_at ASC`,
+      [resourceType, resourceId]
+    );
+    return result.rows.map(this.mapLogRow);
+  }
+
+  async queryRequestLogs(filter: RequestLogFilter = {}): Promise<RequestLogRecord[]> {
+    const { conditions, params } = this.buildRequestConditions(filter);
+    const skip = filter.skip ?? 0;
+    const take = filter.take ?? 20;
+    params.push(take, skip);
+    const limitParam = params.length - 1;
+    const offsetParam = params.length;
+
+    const sql = `
+      SELECT id, method, path, status_code, duration_ms, correlation_id, actor_id, created_at
+      FROM audit.request_logs
+      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+      ORDER BY created_at DESC
+      LIMIT $${limitParam} OFFSET $${offsetParam}
+    `;
+    const result = await this.pgPool.query(sql, params);
+    return result.rows.map(this.mapRequestRow);
+  }
+
+  async countRequestLogs(filter: RequestLogFilter = {}): Promise<number> {
+    const { conditions, params } = this.buildRequestConditions(filter);
+    const sql = `
+      SELECT COUNT(*) FROM audit.request_logs
+      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+    `;
+    const result = await this.pgPool.query(sql, params);
+    return Number.parseInt(result.rows[0].count, 10);
+  }
+
+  // ── Convenience log helpers ─────────────────────────────────────────────────
+
   async logQuoteSubmitted(quoteId: string, userId: string): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: 'QUOTE_SUBMITTED',
-      resourceType: 'quote',
-      resourceId: quoteId,
-      metadata: { status: 'pending_approval' },
-    });
+    await this.log({ actorId: userId, action: 'QUOTE_SUBMITTED', resourceType: 'quote', resourceId: quoteId, metadata: { status: 'pending_approval' } });
   }
 
-  /**
-   * Log quote approval
-   */
   async logQuoteApproved(quoteId: string, userId: string): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: 'QUOTE_APPROVED',
-      resourceType: 'quote',
-      resourceId: quoteId,
-      metadata: { status: 'approved' },
-    });
+    await this.log({ actorId: userId, action: 'QUOTE_APPROVED', resourceType: 'quote', resourceId: quoteId, metadata: { status: 'approved' } });
   }
 
-  /**
-   * Log quote rejection
-   */
   async logQuoteRejected(quoteId: string, userId: string, reason: string): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: 'QUOTE_REJECTED',
-      resourceType: 'quote',
-      resourceId: quoteId,
-      metadata: { status: 'rejected', reason },
-    });
+    await this.log({ actorId: userId, action: 'QUOTE_REJECTED', resourceType: 'quote', resourceId: quoteId, metadata: { status: 'rejected', reason } });
   }
 
-  /**
-   * Log invoice creation
-   */
   async logInvoiceCreated(invoiceId: string, quoteId: string, userId: string): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: 'INVOICE_CREATED',
-      resourceType: 'invoice',
-      resourceId: invoiceId,
-      metadata: { sourceQuote: quoteId },
-    });
+    await this.log({ actorId: userId, action: 'INVOICE_CREATED', resourceType: 'invoice', resourceId: invoiceId, metadata: { sourceQuote: quoteId } });
   }
 
-  /**
-   * Log resource creation (generic)
-   */
-  async logResourceCreated(
-    resourceType: string,
-    resourceId: string,
-    userId: string,
-    metadata?: Record<string, any>
-  ): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: `${resourceType.toUpperCase()}_CREATED`,
-      resourceType,
-      resourceId,
-      metadata,
-    });
+  async logResourceCreated(resourceType: string, resourceId: string, userId: string, metadata?: Record<string, any>): Promise<void> {
+    await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_CREATED`, resourceType, resourceId, metadata });
   }
 
-  /**
-   * Log resource update (generic)
-   */
-  async logResourceUpdated(
-    resourceType: string,
-    resourceId: string,
-    userId: string,
-    changes: Record<string, any>
-  ): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: `${resourceType.toUpperCase()}_UPDATED`,
-      resourceType,
-      resourceId,
-      metadata: { changes },
-    });
+  async logResourceUpdated(resourceType: string, resourceId: string, userId: string, changes: Record<string, any>): Promise<void> {
+    await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_UPDATED`, resourceType, resourceId, metadata: { changes } });
   }
 
-  /**
-   * Log resource deletion (generic)
-   */
-  async logResourceDeleted(
-    resourceType: string,
-    resourceId: string,
-    userId: string
-  ): Promise<void> {
-    await this.log({
-      actorId: userId,
-      action: `${resourceType.toUpperCase()}_DELETED`,
-      resourceType,
-      resourceId,
-    });
+  async logResourceDeleted(resourceType: string, resourceId: string, userId: string): Promise<void> {
+    await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_DELETED`, resourceType, resourceId });
+  }
+
+  // ── Private helpers ─────────────────────────────────────────────────────────
+
+  private buildLogConditions(f: AuditLogFilter): { conditions: string[]; params: any[] } {
+    const conditions: string[] = [];
+    const params: any[] = [];
+    const p = () => `$${params.length}`;
+
+    if (f.actorId)       { params.push(f.actorId);       conditions.push(`actor_id = ${p()}`); }
+    if (f.resourceType)  { params.push(f.resourceType);  conditions.push(`resource_type = ${p()}`); }
+    if (f.resourceId)    { params.push(f.resourceId);    conditions.push(`resource_id = ${p()}`); }
+    if (f.action)        { params.push(f.action);        conditions.push(`action = ${p()}`); }
+    if (f.dateFrom)      { params.push(f.dateFrom);      conditions.push(`created_at >= ${p()}`); }
+    if (f.dateTo)        { params.push(f.dateTo);        conditions.push(`created_at <= ${p()}`); }
+
+    return { conditions, params };
+  }
+
+  private buildRequestConditions(f: RequestLogFilter): { conditions: string[]; params: any[] } {
+    const conditions: string[] = [];
+    const params: any[] = [];
+    const p = () => `$${params.length}`;
+
+    if (f.actorId)    { params.push(f.actorId);    conditions.push(`actor_id = ${p()}`); }
+    if (f.statusCode) { params.push(f.statusCode); conditions.push(`status_code = ${p()}`); }
+    if (f.method)     { params.push(f.method.toUpperCase()); conditions.push(`method = ${p()}`); }
+    if (f.path)       { params.push(f.path + '%'); conditions.push(`path LIKE ${p()}`); }
+    if (f.dateFrom)   { params.push(f.dateFrom);   conditions.push(`created_at >= ${p()}`); }
+    if (f.dateTo)     { params.push(f.dateTo);     conditions.push(`created_at <= ${p()}`); }
+
+    return { conditions, params };
+  }
+
+  private mapLogRow(row: any): AuditLogRecord {
+    return {
+      id: row.id,
+      actorId: row.actor_id,
+      action: row.action,
+      resourceType: row.resource_type,
+      resourceId: row.resource_id,
+      metadata: row.metadata,
+      correlationId: row.correlation_id,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapRequestRow(row: any): RequestLogRecord {
+    return {
+      id: row.id,
+      method: row.method,
+      path: row.path,
+      statusCode: row.status_code,
+      durationMs: row.duration_ms,
+      correlationId: row.correlation_id,
+      actorId: row.actor_id,
+      createdAt: row.created_at,
+    };
   }
 }
