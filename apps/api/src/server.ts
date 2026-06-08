@@ -12,6 +12,8 @@ import { invoiceRoutes } from './routes/invoices.js';
 import { auditRoutes } from './routes/audit.js';
 import { reportRoutes } from './routes/reports.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { searchRoutes } from './routes/search.js';
+import { memberRoutes } from './routes/members.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -115,6 +117,8 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use('/api/audit', auditRoutes(serviceContainer.audit));
   app.use('/api/reports', reportRoutes(serviceContainer.reporting));
   app.use('/api/webhooks', webhookRoutes(serviceContainer.webhooks));
+  app.use('/api/search', searchRoutes(serviceContainer.search));
+  app.use('/api/organizations/:orgId/members', memberRoutes(dbServices.repos));
 
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
   app.use(

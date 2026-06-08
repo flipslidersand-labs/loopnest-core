@@ -97,10 +97,13 @@ export class UserRepository extends BaseRepository<User> {
     return true;
   }
 
-  async count(where?: Partial<User>): Promise<number> {
-    return this.prisma.user.count(
-      where?.role ? { where: { role: where.role } } : undefined
-    );
+  async count(where?: Partial<Pick<User, 'role' | 'organizationId'>>): Promise<number> {
+    return this.prisma.user.count({
+      where: {
+        ...(where?.role ? { role: where.role } : {}),
+        ...(where?.organizationId ? { organizationId: where.organizationId } : {}),
+      },
+    });
   }
 
   private mapToUser(user: any): User {

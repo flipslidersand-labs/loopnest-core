@@ -4,6 +4,7 @@ export { InvoiceService, type InvoiceCreationResult } from './InvoiceService.js'
 export { AuditService, type AuditLogEntry } from './AuditService.js';
 export { ReportingService } from './ReportingService.js';
 export { WebhookService } from './WebhookService.js';
+export { SearchService } from './SearchService.js';
 export { EventWorker } from './EventWorker.js';
 
 import { RepositoryContainer } from '@loopnest/bizcore-db';
@@ -13,6 +14,7 @@ import { InvoiceService } from './InvoiceService.js';
 import { AuditService } from './AuditService.js';
 import { ReportingService } from './ReportingService.js';
 import { WebhookService } from './WebhookService.js';
+import { SearchService } from './SearchService.js';
 import { EventWorker } from './EventWorker.js';
 
 export class ServiceContainer {
@@ -22,6 +24,7 @@ export class ServiceContainer {
   readonly audit: AuditService;
   readonly reporting: ReportingService;
   readonly webhooks: WebhookService;
+  readonly search: SearchService;
   readonly eventWorker: EventWorker;
 
   constructor(
@@ -35,6 +38,7 @@ export class ServiceContainer {
     this.audit = new AuditService(pgPool);
     this.reporting = new ReportingService(pgPool);
     this.webhooks = new WebhookService(repos.webhooks);
+    this.search = new SearchService(pgPool);
     this.eventWorker = new EventWorker(repos, pgPool);
   }
 
