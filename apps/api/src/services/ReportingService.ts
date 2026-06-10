@@ -23,6 +23,18 @@ export interface DashboardSummary {
   paidThisMonth: number;
 }
 
+export interface AccountsReceivableReport {
+  asOf: string;
+  totalOutstanding: number;
+  buckets: {
+    current: number; // 0–30 days past due
+    '31-60': number;
+    '61-90': number;
+    '90+': number;
+  };
+  byCustomer: Array<{ customerId: string; outstanding: number }>;
+}
+
 export class ReportingService {
   constructor(private readonly pgPool: any) {}
 
@@ -176,6 +188,82 @@ export class ReportingService {
       byStatus,
       overdueCount:  Number.parseInt(overdueR.rows[0].count, 10),
       overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount),
+    };
+  }
+
+  /**
+   * M13: accounts-receivable aging. Outstanding per open invoice is
+   * total_amount minus its confirmed payments; each invoice is bucketed by how
+   * many days past its due date it is, as of `asOf` (default today). Returns
+   * both the aging buckets and per-customer outstanding totals.
+   */
+  async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {
+    const params: any[] = [];
+
+    let asOfExpr = 'CURRENT_DATE';
+    if (asOf) {
+      params.push(asOf);
+      asOfExpr = `$${params.length}::date`;
+    }
+
+    const joinClause = orgId ? 'JOIN core.quotes q ON q.id = i.quote_id' : '';
+    let orgFilter = '';
+    if (orgId) {
+      params.push(orgId);
+      orgFilter = `AND q.organization_id = $${params.length}`;
+    }
+
+    const result = await this.pgPool.query(
+      `SELECT i.customer_id,
+              (i.total_amount - COALESCE(p.paid, 0)) AS outstanding,
+              GREATEST(
+                ${asOfExpr} - COALESCE(i.payment_due_date, i.issue_date, i.created_at::date),
+                0
+              ) AS days_overdue
+         FROM finance.invoices i
+         ${joinClause}
+         LEFT JOIN (
+           SELECT invoice_id, SUM(amount) AS paid
+             FROM finance.payments
+            WHERE status = 'confirmed'
+            GROUP BY invoice_id
+         ) p ON p.invoice_id = i.id
+        WHERE i.status IN ('issued', 'sent', 'partially_paid')
+          ${orgFilter}`,
+      params
+    );
+
+    const round = (n: number): number => Math.round(n * 100) / 100;
+    const buckets = { current: 0, c31: 0, c61: 0, c90: 0 };
+    const byCustomer = new Map<string, number>();
+    let totalOutstanding = 0;
+
+    for (const row of result.rows) {
+      const outstanding = Number.parseFloat(row.outstanding);
+      if (!(outstanding > 0)) continue;
+      const days = Number.parseInt(row.days_overdue, 10);
+
+      if (days <= 30) buckets.current += outstanding;
+      else if (days <= 60) buckets.c31 += outstanding;
+      else if (days <= 90) buckets.c61 += outstanding;
+      else buckets.c90 += outstanding;
+
+      totalOutstanding += outstanding;
+      byCustomer.set(row.customer_id, (byCustomer.get(row.customer_id) ?? 0) + outstanding);
+    }
+
+    return {
+      asOf: asOf ?? new Date().toISOString().slice(0, 10),
+      totalOutstanding: round(totalOutstanding),
+      buckets: {
+        current: round(buckets.current),
+        '31-60': round(buckets.c31),
+        '61-90': round(buckets.c61),
+        '90+': round(buckets.c90),
+      },
+      byCustomer: [...byCustomer.entries()]
+        .map(([customerId, outstanding]) => ({ customerId, outstanding: round(outstanding) }))
+        .sort((a, b) => b.outstanding - a.outstanding),
     };
   }
 }

@@ -117,6 +117,29 @@ export type NewAccountingExport = Insertable<AccountingExportTable>;
 export type AccountingExportUpdate = Updateable<AccountingExportTable>;
 
 // ============================================
+// finance.payments
+// ============================================
+export interface PaymentTable {
+  id: Generated<string>;
+  invoice_id: string;
+  organization_id: string | null;
+  amount: number;
+  method: string; // 'bank_transfer' | 'credit_card' | 'cash' | 'offset'
+  paid_on: Date;
+  reference: string | null;
+  status: string; // 'confirmed' | 'reversed'
+  reversed_at: Date | null;
+  reversal_reason: string | null;
+  metadata: any | null; // JSONB
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export type Payment = Selectable<PaymentTable>;
+export type NewPayment = Insertable<PaymentTable>;
+export type PaymentUpdate = Updateable<PaymentTable>;
+
+// ============================================
 // events.outbox_events
 // ============================================
 export interface OutboxEventTable {
@@ -162,6 +185,7 @@ export interface KyselyDatabase {
   'finance.invoices': InvoiceTable;
   'finance.invoice_items': InvoiceItemTable;
   'finance.accounting_exports': AccountingExportTable;
+  'finance.payments': PaymentTable;
   'events.outbox_events': OutboxEventTable;
   'events.webhooks': WebhookTable;
 }
