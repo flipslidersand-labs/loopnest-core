@@ -176,6 +176,46 @@ export type NewWebhook = Insertable<WebhookTable>;
 export type WebhookUpdate = Updateable<WebhookTable>;
 
 // ============================================
+// finance.credit_notes
+// ============================================
+export interface CreditNoteTable {
+  id: Generated<string>;
+  organization_id: string | null;
+  invoice_id: string | null;
+  credit_number: string;
+  amount: number;
+  reason: string;
+  cn_type: string; // 'return' | 'pricing_error' | 'goodwill' | 'adjustment'
+  status: string;  // 'issued' | 'partially_applied' | 'fully_applied' | 'refunded' | 'void'
+  applied_amount: number;
+  refunded_amount: number;
+  issued_at: Generated<Date>;
+  metadata: any | null;
+  created_by: string | null; // VARCHAR(255) — matches payments.created_by
+  created_at: Generated<Date>;
+}
+
+export type CreditNote = Selectable<CreditNoteTable>;
+export type NewCreditNote = Insertable<CreditNoteTable>;
+export type CreditNoteUpdate = Updateable<CreditNoteTable>;
+
+// ============================================
+// finance.credit_note_applications
+// ============================================
+export interface CreditNoteApplicationTable {
+  id: Generated<string>;
+  credit_note_id: string;
+  invoice_id: string;
+  amount: number;
+  applied_at: Generated<Date>;
+  applied_by: string | null; // VARCHAR(255)
+  notes: string | null;
+}
+
+export type CreditNoteApplication = Selectable<CreditNoteApplicationTable>;
+export type NewCreditNoteApplication = Insertable<CreditNoteApplicationTable>;
+
+// ============================================
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
@@ -186,6 +226,8 @@ export interface KyselyDatabase {
   'finance.invoice_items': InvoiceItemTable;
   'finance.accounting_exports': AccountingExportTable;
   'finance.payments': PaymentTable;
+  'finance.credit_notes': CreditNoteTable;
+  'finance.credit_note_applications': CreditNoteApplicationTable;
   'events.outbox_events': OutboxEventTable;
   'events.webhooks': WebhookTable;
 }

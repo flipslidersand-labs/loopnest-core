@@ -20,4 +20,14 @@ export { WebhookRepository } from './WebhookRepository.js';
 export type { WebhookRecord, CreateWebhookInput, UpdateWebhookInput } from './WebhookRepository.js';
 export { PaymentRepository } from './PaymentRepository.js';
 export type { PaymentRecord, PaymentInput, PaymentFilter, PaymentMethod, PaymentStatus } from './PaymentRepository.js';
+export { CreditNoteRepository } from './CreditNoteRepository.js';
+export type {
+  CreditNoteRecord,
+  CreditNoteApplicationRecord,
+  CreditNoteInput,
+  CreditNoteApplicationInput,
+  CreditNoteFilter,
+  CreditNoteType,
+  CreditNoteStatus,
+} from './CreditNoteRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';
