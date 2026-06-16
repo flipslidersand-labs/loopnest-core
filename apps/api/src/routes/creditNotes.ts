@@ -5,6 +5,12 @@ import { requireRole } from '../middleware/auth.js';
 import { CreditNoteService } from '../services/CreditNoteService.js';
 import { WebhookService } from '../services/WebhookService.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertUuid(id: string, label: string): void {
+  if (!UUID_RE.test(id)) throw new ApiErrorResponse(404, 'NOT_FOUND', `${label} not found`);
+}
+
 function assertOrgAccess(req: Request, ownerOrgId: string | null): void {
   if (req.user?.orgId && ownerOrgId && req.user.orgId !== ownerOrgId) {
     throw new ApiErrorResponse(403, 'FORBIDDEN', 'You may only access your own organization');
@@ -12,6 +18,7 @@ function assertOrgAccess(req: Request, ownerOrgId: string | null): void {
 }
 
 async function loadInvoiceOrg(repos: RepositoryContainer, invoiceId: string): Promise<string | null> {
+  assertUuid(invoiceId, 'Invoice');
   const invoice = await repos.invoices.findById(invoiceId);
   if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
   const quote = await repos.quotes.findById(invoice.quoteId);
@@ -107,6 +114,7 @@ export function creditNoteRoutes(
   router.get(
     '/:id',
     asyncHandler(async (req: Request, res: Response) => {
+      assertUuid(req.params.id, 'Credit note');
       const result = await creditNotes.getCreditNote(req.params.id);
       assertOrgAccess(req, result.creditNote.organizationId);
       res.json({ data: result.creditNote, balance: result.balance, applications: result.applications });
@@ -119,6 +127,7 @@ export function creditNoteRoutes(
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params as { id: string };
+      assertUuid(id, 'Credit note');
       const existing = await repos.creditNotes.findById(id);
       if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
       assertOrgAccess(req, existing.organizationId);
@@ -155,6 +164,7 @@ export function creditNoteRoutes(
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params as { id: string };
+      assertUuid(id, 'Credit note');
       const existing = await repos.creditNotes.findById(id);
       if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
       assertOrgAccess(req, existing.organizationId);
@@ -176,6 +186,7 @@ export function creditNoteRoutes(
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params as { id: string };
+      assertUuid(id, 'Credit note');
       const existing = await repos.creditNotes.findById(id);
       if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
       assertOrgAccess(req, existing.organizationId);
