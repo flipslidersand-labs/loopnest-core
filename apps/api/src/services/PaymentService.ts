@@ -121,7 +121,8 @@ export class PaymentService {
 
       const total = parseFloat(inv.total_amount.toString());
       const priorPaid = await this.repos.payments.confirmedTotal(invoiceId, trx);
-      const outstanding = money(total - priorPaid);
+      const priorCredit = await this.repos.creditNotes.creditAppliedToInvoice(invoiceId, trx);
+      const outstanding = money(total - priorPaid - priorCredit);
 
       if (input.amount > outstanding + 0.001) {
         throw new ApiErrorResponse(
@@ -239,7 +240,7 @@ export class PaymentService {
         .where('id', '=', payment.invoiceId)
         .execute();
 
-      await this.enqueue(trx, 'payment.reversed', payment.invoiceId, {
+      await this.enqueue(trx, 'payment_reversed', payment.invoiceId, {
         invoiceId: payment.invoiceId,
         paymentId,
         reason,

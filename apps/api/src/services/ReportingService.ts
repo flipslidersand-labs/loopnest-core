@@ -215,7 +215,7 @@ export class ReportingService {
 
     const result = await this.pgPool.query(
       `SELECT i.customer_id,
-              (i.total_amount - COALESCE(p.paid, 0)) AS outstanding,
+              (i.total_amount - COALESCE(p.paid, 0) - COALESCE(cn.applied, 0)) AS outstanding,
               GREATEST(
                 ${asOfExpr} - COALESCE(i.payment_due_date, i.issue_date, i.created_at::date),
                 0
@@ -228,6 +228,11 @@ export class ReportingService {
             WHERE status = 'confirmed'
             GROUP BY invoice_id
          ) p ON p.invoice_id = i.id
+         LEFT JOIN (
+           SELECT invoice_id, SUM(amount) AS applied
+             FROM finance.credit_note_applications
+            GROUP BY invoice_id
+         ) cn ON cn.invoice_id = i.id
         WHERE i.status IN ('issued', 'sent', 'partially_paid')
           ${orgFilter}`,
       params

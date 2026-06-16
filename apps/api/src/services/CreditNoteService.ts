@@ -173,7 +173,7 @@ export class CreditNoteService {
         trx
       );
 
-      await this.enqueue(trx, 'credit_note.issued', creditNote.id, {
+      await this.enqueue(trx, 'credit_note_issued', creditNote.id, {
         creditNoteId: creditNote.id,
         creditNumber,
         invoiceId,
@@ -307,7 +307,7 @@ export class CreditNoteService {
         .where('id', '=', input.targetInvoiceId)
         .execute();
 
-      await this.enqueue(trx, 'credit_note.applied', creditNoteId, {
+      await this.enqueue(trx, 'credit_note_applied', creditNoteId, {
         creditNoteId,
         applicationId: application.id,
         targetInvoiceId: input.targetInvoiceId,
@@ -370,7 +370,7 @@ export class CreditNoteService {
         trx
       );
 
-      await this.enqueue(trx, 'credit_note.refunded', creditNoteId, {
+      await this.enqueue(trx, 'credit_note_refunded', creditNoteId, {
         creditNoteId,
         refundedAmount: remaining,
         issuedBy: userId,
@@ -409,7 +409,7 @@ export class CreditNoteService {
         throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Credit note could not be voided');
       }
 
-      await this.enqueue(trx, 'credit_note.voided', creditNoteId, { creditNoteId });
+      await this.enqueue(trx, 'credit_note_voided', creditNoteId, { creditNoteId });
       return voided;
     });
   }

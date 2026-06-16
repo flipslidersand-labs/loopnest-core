@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS finance.credit_notes (
   refunded_amount  NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (refunded_amount >= 0),
   issued_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   metadata         JSONB         NULL,
-  created_by       UUID          NULL,
+  created_by       VARCHAR(255)  NULL,
   created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS finance.credit_note_applications (
   invoice_id     UUID          NOT NULL REFERENCES finance.invoices(id),
   amount         NUMERIC(12,2) NOT NULL CHECK (amount > 0),
   applied_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  applied_by     UUID          NULL,
+  applied_by     VARCHAR(255)  NULL,
   notes          TEXT          NULL
 );
 

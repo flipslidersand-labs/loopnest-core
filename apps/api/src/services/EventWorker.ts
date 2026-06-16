@@ -105,6 +105,18 @@ export class EventWorker {
       case 'payment_overdue':
         console.log(`⏰ Invoice overdue: ${aggregateId}`);
         break;
+      case 'credit_note_issued':
+        console.log(`📋 Credit note issued: ${aggregateId}`);
+        break;
+      case 'credit_note_applied':
+        console.log(`📋 Credit note applied to invoice ${payload?.targetInvoiceId}`);
+        break;
+      case 'credit_note_refunded':
+        console.log(`💸 Credit note refunded: ${aggregateId}`);
+        break;
+      case 'credit_note_voided':
+        console.log(`🗑️  Credit note voided: ${aggregateId}`);
+        break;
       default:
         console.warn(`Unknown event type: ${eventType}`);
     }
@@ -122,8 +134,21 @@ export class EventWorker {
     try {
       const { rows } = await this.pgPool.query(
         `SELECT i.id, i.organization_id, i.customer_id, i.total_amount,
-                (CURRENT_DATE - i.payment_due_date) AS days_overdue
+                (CURRENT_DATE - i.payment_due_date) AS days_overdue,
+                COALESCE(p.paid, 0) AS paid_total,
+                COALESCE(cn.applied, 0) AS credit_applied
            FROM finance.invoices i
+           LEFT JOIN (
+             SELECT invoice_id, SUM(amount) AS paid
+               FROM finance.payments
+              WHERE status = 'confirmed'
+              GROUP BY invoice_id
+           ) p ON p.invoice_id = i.id
+           LEFT JOIN (
+             SELECT invoice_id, SUM(amount) AS applied
+               FROM finance.credit_note_applications
+              GROUP BY invoice_id
+           ) cn ON cn.invoice_id = i.id
           WHERE i.status IN ('issued', 'sent', 'partially_paid')
             AND i.payment_due_date IS NOT NULL
             AND i.payment_due_date < CURRENT_DATE
@@ -131,13 +156,14 @@ export class EventWorker {
               SELECT 1 FROM events.outbox_events e
                WHERE e.event_type = 'payment_overdue'
                  AND e.aggregate_id = i.id::text
-                 AND e.created_at::date = CURRENT_DATE
+                 AND e.created_at AT TIME ZONE 'UTC' >= CURRENT_DATE
             )`
       );
 
       for (const row of rows) {
-        const paid = await this.repos.payments.confirmedTotal(row.id);
-        const outstanding = Math.round((Number(row.total_amount) - paid) * 100) / 100;
+        const outstanding = Math.round(
+          (Number(row.total_amount) - Number(row.paid_total) - Number(row.credit_applied)) * 100
+        ) / 100;
         if (outstanding <= 0) continue;
 
         const payload = {
