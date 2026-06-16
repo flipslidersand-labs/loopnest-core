@@ -70,6 +70,7 @@ start_server() {
   EVENT_WORKER_INTERVAL_MS="${EVENT_WORKER_INTERVAL_MS:-1000}" \
   MOCK_ACCOUNTING_API_URL="${MOCK_ACCOUNTING_API_URL:-http://localhost:3991}" \
   OUTBOX_MAX_RETRIES="${OUTBOX_MAX_RETRIES:-50}" \
+  RATE_LIMIT_GLOBAL_MAX="${RATE_LIMIT_GLOBAL_MAX:-100000}" \
     node apps/api/dist/src/server.js > /tmp/loopnest-itest-server.log 2>&1 &
   SERVER_PID=$!
   until curl -s -m 2 -o /dev/null "http://localhost:3000/health"; do
