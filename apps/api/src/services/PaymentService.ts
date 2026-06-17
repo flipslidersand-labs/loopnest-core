@@ -1,8 +1,18 @@
-import { randomUUID } from 'crypto';
-import { RepositoryContainer, PaymentRecord, PaymentMethod, PaymentFilter } from '@loopnest/bizcore-db';
-import { ApiErrorResponse } from '../middleware/errorHandler.js';
+import { randomUUID } from "crypto";
+import {
+  RepositoryContainer,
+  PaymentRecord,
+  PaymentMethod,
+  PaymentFilter,
+} from "@loopnest/bizcore-db";
+import { ApiErrorResponse } from "../middleware/errorHandler.js";
 
-const METHODS: PaymentMethod[] = ['bank_transfer', 'credit_card', 'cash', 'offset'];
+const METHODS: PaymentMethod[] = [
+  "bank_transfer",
+  "credit_card",
+  "cash",
+  "offset",
+];
 
 export interface RecordPaymentInput {
   amount: number;
@@ -40,23 +50,23 @@ function money(n: number): number {
 export class PaymentService {
   constructor(
     private repos: RepositoryContainer,
-    private db: any
+    private db: any,
   ) {}
 
   private async enqueue(
     trx: any,
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ): Promise<void> {
     await trx
-      .insertInto('events.outbox_events')
+      .insertInto("events.outbox_events")
       .values({
         id: randomUUID(),
         event_type: eventType,
         aggregate_id: aggregateId,
         payload,
-        status: 'pending',
+        status: "pending",
         created_at: new Date(),
       })
       .execute();
@@ -71,18 +81,23 @@ export class PaymentService {
     if (inv.organization_id) return inv.organization_id;
     if (!inv.quote_id) return null;
     const q = await trx
-      .selectFrom('core.quotes')
-      .select('organization_id')
-      .where('id', '=', inv.quote_id)
+      .selectFrom("core.quotes")
+      .select("organization_id")
+      .where("id", "=", inv.quote_id)
       .executeTakeFirst();
     return q?.organization_id ?? null;
   }
 
-  private deriveStatus(currentStatus: string, paidTotal: number, total: number): string {
-    if (money(total - paidTotal) <= 0) return 'paid';
-    if (paidTotal > 0) return 'partially_paid';
+  private deriveStatus(
+    currentStatus: string,
+    paidTotal: number,
+    total: number,
+  ): string {
+    if (money(total - paidTotal) <= 0) return "paid";
+    if (paidTotal > 0) return "partially_paid";
     // No confirmed payments left: step back out of a paid/partial state.
-    if (currentStatus === 'paid' || currentStatus === 'partially_paid') return 'sent';
+    if (currentStatus === "paid" || currentStatus === "partially_paid")
+      return "sent";
     return currentStatus;
   }
 
@@ -90,45 +105,59 @@ export class PaymentService {
   async recordPayment(
     invoiceId: string,
     input: RecordPaymentInput,
-    userId: string
+    userId: string,
   ): Promise<RecordPaymentResult> {
-    if (typeof input.amount !== 'number' || !(input.amount > 0)) {
-      throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'amount must be a positive number');
+    if (typeof input.amount !== "number" || !(input.amount > 0)) {
+      throw new ApiErrorResponse(
+        400,
+        "VALIDATION_ERROR",
+        "amount must be a positive number",
+      );
     }
     if (!METHODS.includes(input.method)) {
       throw new ApiErrorResponse(
         400,
-        'VALIDATION_ERROR',
-        `method must be one of: ${METHODS.join(', ')}`
+        "VALIDATION_ERROR",
+        `method must be one of: ${METHODS.join(", ")}`,
       );
     }
     const paidOn = input.paidOn ?? new Date().toISOString().slice(0, 10);
 
     return this.db.transaction().execute(async (trx: any) => {
       const inv = await trx
-        .selectFrom('finance.invoices')
+        .selectFrom("finance.invoices")
         .selectAll()
-        .where('id', '=', invoiceId)
+        .where("id", "=", invoiceId)
         .forUpdate()
         .executeTakeFirst();
 
       if (!inv) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
       }
-      if (inv.status === 'cancelled') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Cannot record payment on a cancelled invoice');
+      if (inv.status === "cancelled") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Cannot record payment on a cancelled invoice",
+        );
       }
 
       const total = parseFloat(inv.total_amount.toString());
-      const priorPaid = await this.repos.payments.confirmedTotal(invoiceId, trx);
-      const priorCredit = await this.repos.creditNotes.creditAppliedToInvoice(invoiceId, trx);
+      const priorPaid = await this.repos.payments.confirmedTotal(
+        invoiceId,
+        trx,
+      );
+      const priorCredit = await this.repos.creditNotes.creditAppliedToInvoice(
+        invoiceId,
+        trx,
+      );
       const outstanding = money(total - priorPaid - priorCredit);
 
       if (input.amount > outstanding + 0.001) {
         throw new ApiErrorResponse(
           409,
-          'OVERPAYMENT',
-          `Payment ${input.amount} exceeds outstanding balance ${outstanding}`
+          "OVERPAYMENT",
+          `Payment ${input.amount} exceeds outstanding balance ${outstanding}`,
         );
       }
 
@@ -143,25 +172,27 @@ export class PaymentService {
           reference: input.reference ?? null,
           createdBy: userId,
         },
-        trx
+        trx,
       );
 
       const paidTotal = money(priorPaid + input.amount);
-      const newOutstanding = money(total - paidTotal);
-      const newStatus = newOutstanding <= 0 ? 'paid' : 'partially_paid';
+      const newOutstanding = money(total - paidTotal - priorCredit);
+      const newStatus = newOutstanding <= 0 ? "paid" : "partially_paid";
       const paidAt =
-        newStatus === 'paid' ? await this.repos.payments.lastConfirmedPaidOn(invoiceId, trx) : null;
+        newStatus === "paid"
+          ? await this.repos.payments.lastConfirmedPaidOn(invoiceId, trx)
+          : null;
 
       await trx
-        .updateTable('finance.invoices')
+        .updateTable("finance.invoices")
         .set({ status: newStatus, paid_at: paidAt })
-        .where('id', '=', invoiceId)
+        .where("id", "=", invoiceId)
         .execute();
 
       // Outbox events use snake_case to match the EventWorker dispatch convention
       // (quote_submitted, invoice_created, …). Webhook fan-out uses dotted names
       // and is fired from the route, mirroring the invoice_created pattern.
-      await this.enqueue(trx, 'payment_recorded', invoiceId, {
+      await this.enqueue(trx, "payment_recorded", invoiceId, {
         invoiceId,
         paymentId: payment.id,
         amount: input.amount,
@@ -169,8 +200,8 @@ export class PaymentService {
         outstanding: newOutstanding,
         status: newStatus,
       });
-      if (newStatus === 'paid') {
-        await this.enqueue(trx, 'invoice_paid', invoiceId, {
+      if (newStatus === "paid") {
+        await this.enqueue(trx, "invoice_paid", invoiceId, {
           invoiceId,
           paidTotal,
           paidAt,
@@ -194,53 +225,79 @@ export class PaymentService {
   async reversePayment(
     paymentId: string,
     reason: string,
-    _userId: string
+    _userId: string,
   ): Promise<RecordPaymentResult> {
     if (!reason || !reason.trim()) {
-      throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
+      throw new ApiErrorResponse(400, "VALIDATION_ERROR", "reason is required");
     }
 
     return this.db.transaction().execute(async (trx: any) => {
       const payment = await this.repos.payments.findById(paymentId, trx);
       if (!payment) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Payment not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Payment not found");
       }
-      if (payment.status !== 'confirmed') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Payment is already reversed');
+      if (payment.status !== "confirmed") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Payment is already reversed",
+        );
       }
 
       const inv = await trx
-        .selectFrom('finance.invoices')
+        .selectFrom("finance.invoices")
         .selectAll()
-        .where('id', '=', payment.invoiceId)
+        .where("id", "=", payment.invoiceId)
         .forUpdate()
         .executeTakeFirst();
       if (!inv) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
       }
 
-      const reversed = await this.repos.payments.markReversed(paymentId, reason, trx);
+      const reversed = await this.repos.payments.markReversed(
+        paymentId,
+        reason,
+        trx,
+      );
       if (!reversed) {
         // Lost a race to another reversal of the same payment.
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Payment is already reversed');
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Payment is already reversed",
+        );
       }
 
       const total = parseFloat(inv.total_amount.toString());
-      const paidTotal = await this.repos.payments.confirmedTotal(payment.invoiceId, trx);
-      const newOutstanding = money(total - paidTotal);
-      const newStatus = this.deriveStatus(inv.status, paidTotal, total);
+      const paidTotal = await this.repos.payments.confirmedTotal(
+        payment.invoiceId,
+        trx,
+      );
+      const creditApplied = await this.repos.creditNotes.creditAppliedToInvoice(
+        payment.invoiceId,
+        trx,
+      );
+      const newOutstanding = money(total - paidTotal - creditApplied);
+      const newStatus = this.deriveStatus(
+        inv.status,
+        money(paidTotal + creditApplied),
+        total,
+      );
       const paidAt =
-        newStatus === 'paid'
-          ? await this.repos.payments.lastConfirmedPaidOn(payment.invoiceId, trx)
+        newStatus === "paid"
+          ? await this.repos.payments.lastConfirmedPaidOn(
+              payment.invoiceId,
+              trx,
+            )
           : null;
 
       await trx
-        .updateTable('finance.invoices')
+        .updateTable("finance.invoices")
         .set({ status: newStatus, paid_at: paidAt })
-        .where('id', '=', payment.invoiceId)
+        .where("id", "=", payment.invoiceId)
         .execute();
 
-      await this.enqueue(trx, 'payment_reversed', payment.invoiceId, {
+      await this.enqueue(trx, "payment_reversed", payment.invoiceId, {
         invoiceId: payment.invoiceId,
         paymentId,
         reason,
@@ -266,20 +323,22 @@ export class PaymentService {
   async getInvoiceBalance(invoiceId: string): Promise<InvoiceBalance> {
     const inv = await this.repos.invoices.findById(invoiceId);
     if (!inv) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
     }
     const paidTotal = await this.repos.payments.confirmedTotal(invoiceId);
+    const creditApplied =
+      await this.repos.creditNotes.creditAppliedToInvoice(invoiceId);
     return {
       invoiceId,
       totalAmount: inv.totalAmount,
       paidTotal,
-      outstanding: money(inv.totalAmount - paidTotal),
+      outstanding: money(inv.totalAmount - paidTotal - creditApplied),
       status: inv.status,
     };
   }
 
   async getPaymentHistory(
-    invoiceId: string
+    invoiceId: string,
   ): Promise<{ payments: PaymentRecord[]; balance: InvoiceBalance }> {
     const balance = await this.getInvoiceBalance(invoiceId);
     const payments = await this.repos.payments.listByInvoice(invoiceId);
