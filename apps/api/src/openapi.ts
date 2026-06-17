@@ -163,6 +163,7 @@ export const openapiDocument: Json = {
     { name: 'Users' },
     { name: 'Workflow', description: 'Quote state transitions' },
     { name: 'Approvals', description: 'Multi-step approval workflow' },
+    { name: 'Payments', description: 'Payments & accounts receivable (M13)' },
   ],
   paths: {
     // System
@@ -367,6 +368,109 @@ export const openapiDocument: Json = {
         responses: { '200': dataResp('Array of approval requests', { type: 'array', items: ref('ApprovalRequest') }) },
       },
     },
+
+    // Payments & Accounts Receivable (M13)
+    '/api/invoices/{invoiceId}/payments': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Payment history + balance for an invoice',
+        parameters: [idParam('invoiceId', 'Invoice id (UUID)')],
+        responses: {
+          '200': {
+            description: 'Payments and balance summary',
+            content: {
+              'application/json': {
+                schema: obj({
+                  data: { type: 'array', items: ref('Payment') },
+                  balance: ref('InvoiceBalance'),
+                }),
+              },
+            },
+          },
+          '404': STD_ERRORS['404'],
+        },
+      },
+      post: {
+        tags: ['Payments'],
+        summary: 'Record a (possibly partial) payment — editor+',
+        parameters: [idParam('invoiceId', 'Invoice id (UUID)'), idempotencyHeader],
+        requestBody: body(
+          obj(
+            {
+              amount: num({ description: 'Must be > 0 and ≤ outstanding balance' }),
+              method: str({ enum: ['bank_transfer', 'credit_card', 'cash', 'offset'] }),
+              paidOn: str({ format: 'date', description: 'Defaults to today' }),
+              reference: str({ nullable: true }),
+            },
+            ['amount', 'method']
+          )
+        ),
+        responses: {
+          '201': {
+            description: 'Recorded payment + updated balance',
+            content: {
+              'application/json': {
+                schema: obj({ data: ref('Payment'), balance: ref('InvoiceBalance') }),
+              },
+            },
+          },
+          '400': errorResp('Validation error'),
+          '403': errorResp('Insufficient role or cross-org access'),
+          '404': errorResp('Invoice not found'),
+          '409': errorResp('Overpayment, or invoice cancelled'),
+        },
+      },
+    },
+    '/api/payments': {
+      get: {
+        tags: ['Payments'],
+        summary: 'List payments (org-scoped)',
+        parameters: [
+          ...pageParams,
+          { name: 'invoiceId', in: 'query', schema: str({ format: 'uuid' }) },
+          { name: 'status', in: 'query', schema: str({ enum: ['confirmed', 'reversed'] }) },
+          { name: 'method', in: 'query', schema: str({ enum: ['bank_transfer', 'credit_card', 'cash', 'offset'] }) },
+          { name: 'from', in: 'query', schema: str({ format: 'date' }) },
+          { name: 'to', in: 'query', schema: str({ format: 'date' }) },
+        ],
+        responses: { '200': dataResp('Array of payments', { type: 'array', items: ref('Payment') }) },
+      },
+    },
+    '/api/payments/{id}/reverse': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Reverse a confirmed payment — admin only',
+        parameters: [idParam('id', 'Payment id (UUID)')],
+        requestBody: body(obj({ reason: str() }, ['reason'])),
+        responses: {
+          '200': {
+            description: 'Reversed payment + updated balance',
+            content: {
+              'application/json': {
+                schema: obj({ data: ref('Payment'), balance: ref('InvoiceBalance') }),
+              },
+            },
+          },
+          '400': errorResp('reason is required'),
+          '403': errorResp('Admin role required'),
+          '404': errorResp('Payment not found'),
+          '409': errorResp('Payment already reversed'),
+        },
+      },
+    },
+    '/api/reports/accounts-receivable': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Accounts-receivable aging (buckets + per-customer)',
+        parameters: [
+          { name: 'asOf', in: 'query', required: false, schema: str({ format: 'date' }), description: 'Aging reference date; defaults to today' },
+        ],
+        responses: {
+          '200': dataResp('AR aging report', ref('AccountsReceivable')),
+          '400': errorResp('Invalid asOf date'),
+        },
+      },
+    },
   },
 
   components: {
@@ -422,6 +526,33 @@ export const openapiDocument: Json = {
           totalSteps: { type: 'integer' }, completedSteps: { type: 'integer' },
           pendingSteps: { type: 'integer' }, approvalPercentage: { type: 'integer' },
         }),
+      }),
+      Payment: obj({
+        id: str({ format: 'uuid' }), invoiceId: str({ format: 'uuid' }),
+        organizationId: str({ format: 'uuid', nullable: true }),
+        amount: num(), method: str({ enum: ['bank_transfer', 'credit_card', 'cash', 'offset'] }),
+        paidOn: str({ format: 'date' }), reference: str({ nullable: true }),
+        status: str({ enum: ['confirmed', 'reversed'] }),
+        reversedAt: str({ format: 'date-time', nullable: true }),
+        reversalReason: str({ nullable: true }),
+        createdBy: str({ nullable: true }), createdAt: str({ format: 'date-time' }),
+      }),
+      InvoiceBalance: obj({
+        invoiceId: str({ format: 'uuid' }),
+        totalAmount: num(), paidTotal: num(), outstanding: num(),
+        status: str({ enum: ['issued', 'sent', 'partially_paid', 'paid', 'cancelled'] }),
+      }),
+      AccountsReceivable: obj({
+        asOf: str({ format: 'date' }),
+        totalOutstanding: num(),
+        buckets: obj({
+          current: num({ description: '0–30 days past due' }),
+          '31-60': num(), '61-90': num(), '90+': num(),
+        }),
+        byCustomer: {
+          type: 'array',
+          items: obj({ customerId: str({ format: 'uuid' }), outstanding: num() }),
+        },
       }),
     },
   },
