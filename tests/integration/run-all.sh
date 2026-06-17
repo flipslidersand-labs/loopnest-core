@@ -70,6 +70,8 @@ start_server() {
   EVENT_WORKER_INTERVAL_MS="${EVENT_WORKER_INTERVAL_MS:-1000}" \
   MOCK_ACCOUNTING_API_URL="${MOCK_ACCOUNTING_API_URL:-http://localhost:3991}" \
   OUTBOX_MAX_RETRIES="${OUTBOX_MAX_RETRIES:-50}" \
+  RATE_LIMIT_GLOBAL_MAX="${RATE_LIMIT_GLOBAL_MAX:-100000}" \
+  RATE_LIMIT_WORKFLOW_MAX="${RATE_LIMIT_WORKFLOW_MAX:-100000}" \
     node apps/api/dist/src/server.js > /tmp/loopnest-itest-server.log 2>&1 &
   SERVER_PID=$!
   until curl -s -m 2 -o /dev/null "http://localhost:3000/health"; do
@@ -105,7 +107,7 @@ if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
   # auth first; quote_items + invoices before workflow suites; tenancy after auth; outbox_dispatch before rate_limit.
-  SUITES=(observability auth tenancy e2e_workflow quote_items invoices audit_api reports webhooks outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit search members)
+  SUITES=(observability auth tenancy e2e_workflow quote_items invoices payments credit_notes audit_api reports webhooks outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit search members)
 fi
 
 TOTAL_FAIL=0

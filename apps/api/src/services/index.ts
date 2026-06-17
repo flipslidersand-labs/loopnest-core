@@ -5,6 +5,8 @@ export { AuditService, type AuditLogEntry } from './AuditService.js';
 export { ReportingService } from './ReportingService.js';
 export { WebhookService } from './WebhookService.js';
 export { SearchService } from './SearchService.js';
+export { PaymentService, type RecordPaymentInput, type InvoiceBalance } from './PaymentService.js';
+export { CreditNoteService, type IssueCreditNoteInput, type ApplyCreditNoteInput, type CreditNoteBalance } from './CreditNoteService.js';
 export { EventWorker } from './EventWorker.js';
 
 import { RepositoryContainer } from '@loopnest/bizcore-db';
@@ -15,6 +17,8 @@ import { AuditService } from './AuditService.js';
 import { ReportingService } from './ReportingService.js';
 import { WebhookService } from './WebhookService.js';
 import { SearchService } from './SearchService.js';
+import { PaymentService } from './PaymentService.js';
+import { CreditNoteService } from './CreditNoteService.js';
 import { EventWorker } from './EventWorker.js';
 
 export class ServiceContainer {
@@ -25,6 +29,8 @@ export class ServiceContainer {
   readonly reporting: ReportingService;
   readonly webhooks: WebhookService;
   readonly search: SearchService;
+  readonly payments: PaymentService;
+  readonly creditNotes: CreditNoteService;
   readonly eventWorker: EventWorker;
 
   constructor(
@@ -39,7 +45,9 @@ export class ServiceContainer {
     this.reporting = new ReportingService(pgPool);
     this.webhooks = new WebhookService(repos.webhooks);
     this.search = new SearchService(pgPool);
-    this.eventWorker = new EventWorker(repos, pgPool);
+    this.payments = new PaymentService(repos, kyselyDb);
+    this.creditNotes = new CreditNoteService(repos, kyselyDb);
+    this.eventWorker = new EventWorker(repos, pgPool, this.webhooks);
   }
 
   async close(): Promise<void> {

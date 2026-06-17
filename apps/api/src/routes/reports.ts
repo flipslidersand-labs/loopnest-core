@@ -51,5 +51,18 @@ export function reportRoutes(reportingService: ReportingService) {
     })
   );
 
+  // Accounts-receivable aging (M13) — viewer and above
+  router.get(
+    '/accounts-receivable',
+    asyncHandler(async (req: Request, res: Response) => {
+      const asOf = req.query.asOf as string | undefined;
+      if (asOf && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'asOf must be an ISO date (YYYY-MM-DD)');
+      }
+      const ar = await reportingService.getAccountsReceivable(req.user?.orgId, asOf);
+      res.json({ data: ar });
+    })
+  );
+
   return router;
 }
