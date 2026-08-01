@@ -2,11 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'feat/**', 'fix/**', 'hotfix/**', 'refactor/**']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/*.md'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   integration:
+    if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     services:
