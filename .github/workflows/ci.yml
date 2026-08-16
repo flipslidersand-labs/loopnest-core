@@ -127,3 +127,12 @@ jobs:
           python3 .dep-policy/scripts/dep-policy-check.py \
             --policy-dir .dep-policy/dependency-policy || echo "::warning::dependency drift detected"
         continue-on-error: true
+
+  ai-review:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
+    uses: flipslidersand-labs/qa-platform/.github/workflows/ai-review.yml@main
+    with:
+      model: 'claude-haiku-4-5-20251001'
+      fail-on-high: false
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
