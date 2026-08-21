@@ -16,6 +16,21 @@ export interface InvoiceRecord {
   createdAt: Date;
 }
 
+export interface InvoiceLineItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  notes: string | null;
+}
+
+export interface InvoiceWithItems extends InvoiceRecord {
+  items: InvoiceLineItem[];
+}
+
 export interface InvoiceInput {
   quoteId: string;
   invoiceNumber: string;
@@ -120,6 +135,39 @@ export class InvoiceRepository {
       .where('quote_id', '=', quoteId)
       .executeTakeFirst();
     return r ? this.map(r) : null;
+  }
+
+  async findWithItems(id: string): Promise<InvoiceWithItems | null> {
+    const invoice = await this.findById(id);
+    if (!invoice) return null;
+    const items = await this.db
+      .selectFrom('finance.invoice_items as ii')
+      .innerJoin('core.products as p', 'p.id', 'ii.product_id')
+      .select([
+        'ii.id',
+        'ii.product_id',
+        'p.name as product_name',
+        'p.sku as product_sku',
+        'ii.quantity',
+        'ii.unit_price',
+        'ii.line_total',
+        'ii.notes',
+      ])
+      .where('ii.invoice_id', '=', id)
+      .execute();
+    return {
+      ...invoice,
+      items: items.map((r: any) => ({
+        id: r.id,
+        productId: r.product_id,
+        productName: r.product_name,
+        productSku: r.product_sku,
+        quantity: Number(r.quantity),
+        unitPrice: parseFloat(r.unit_price.toString()),
+        lineTotal: parseFloat(r.line_total.toString()),
+        notes: r.notes ?? null,
+      })),
+    };
   }
 
   // issued → sent
