@@ -45,16 +45,28 @@ export class InvoiceService {
       );
     }
 
-    const [invoiceNumber, taxRate] = await Promise.all([
-      this.generateInvoiceNumber(),
-      this.repos.taxRates.findDefault(),
-    ]);
+    const taxRate = await this.repos.taxRates.findDefault();
     const rate = taxRate?.rate ?? 0.1;
     const subtotal = quote.subtotalAmount || 0;
     const discountAmount = quote.discountAmount ?? 0;
     const taxableAmount = Math.max(0, subtotal - discountAmount);
     const taxAmount = this.calculateTax(taxableAmount, rate);
     const totalAmount = taxableAmount + taxAmount;
+
+    // Credit limit check: reject if issuing this invoice would exceed the customer's limit.
+    const creditStatus = await this.repos.customers.getCreditStatus(quote.customerId);
+    if (creditStatus && !creditStatus.isUnlimited) {
+      const available = creditStatus.creditAvailable ?? 0;
+      if (totalAmount > available) {
+        throw new ApiErrorResponse(
+          422,
+          'CREDIT_LIMIT_EXCEEDED',
+          `Invoice total ${totalAmount} exceeds available credit ${available} (limit: ${creditStatus.creditLimit}, used: ${creditStatus.creditUsed})`
+        );
+      }
+    }
+
+    const invoiceNumber = await this.generateInvoiceNumber();
 
     const invoice = await this.repos.invoices.create({
       quoteId,
@@ -67,6 +79,9 @@ export class InvoiceService {
       status: 'issued',
       createdBy: userId,
     });
+
+    // Increment customer's outstanding credit usage.
+    await this.repos.customers.incrementCreditUsed(quote.customerId, totalAmount);
 
     const invoiceId = invoice.id;
 
