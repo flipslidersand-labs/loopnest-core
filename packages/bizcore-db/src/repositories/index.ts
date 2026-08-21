@@ -7,7 +7,7 @@ export type { Customer } from './CustomerRepository.js';
 export { ProductRepository } from './ProductRepository.js';
 export type { Product } from './ProductRepository.js';
 export { QuoteRepository } from './QuoteRepository.js';
-export type { QuoteEntity, QuoteWithItems } from './QuoteRepository.js';
+export type { QuoteEntity, QuoteWithItems, DiscountType } from './QuoteRepository.js';
 export { QuoteItemRepository } from './QuoteItemRepository.js';
 export type { QuoteItemEntity, QuoteItemInput } from './QuoteItemRepository.js';
 export { UserRepository } from './UserRepository.js';
