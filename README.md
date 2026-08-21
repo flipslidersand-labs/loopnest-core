@@ -18,6 +18,7 @@
 | M06 | 税率マスタ（`/api/tax-rates` CRUD・請求書発行時 DB 参照） | ✅ 完了 |
 | M07 | 割引管理（見積書への discount 適用・請求書引継ぎ） | ✅ 完了 |
 | M08 | 顧客クレジット枠（credit_limit / credit_used・請求書発行ブロック） | ✅ 完了 |
+| M09 | 見積有効期限（expires_at・期限切れ自動リジェクト・期限迫る一覧） | ✅ 完了 |
 | M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
 | M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
 

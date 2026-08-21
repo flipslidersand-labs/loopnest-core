@@ -73,6 +73,7 @@ model Quote {
   discountAmount  Decimal?    @map("discount_amount") @db.Decimal(15, 2)
   status          String      @db.VarChar(50) @default("draft")
   notes           String?     @db.Text
+  expiresAt       DateTime?   @map("expires_at")
   organizationId  String?     @map("organization_id") @db.Uuid
   createdBy       String      @map("created_by") @db.VarChar(255)
   createdAt       DateTime    @default(now()) @map("created_at")
