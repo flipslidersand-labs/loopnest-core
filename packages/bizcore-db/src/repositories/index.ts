@@ -32,4 +32,6 @@ export type {
 } from './CreditNoteRepository.js';
 export { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
 export type { QuoteTemplate, QuoteTemplateInput, TemplateItem } from './QuoteTemplateRepository.js';
+export { InstallmentRepository } from './InstallmentRepository.js';
+export type { Installment, InstallmentStatus, CreateInstallmentInput } from './InstallmentRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';
