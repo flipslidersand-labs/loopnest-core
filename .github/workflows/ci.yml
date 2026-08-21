@@ -21,7 +21,7 @@ concurrency:
 jobs:
   integration:
     if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
 
     services:
       postgres:
@@ -49,7 +49,6 @@ jobs:
           --health-retries 10
 
     env:
-      # Clients read these; defaults in the code match, but set them explicitly.
       DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local
       REDIS_URL: redis://localhost:6379
       POSTGRES_HOST: localhost
@@ -59,7 +58,6 @@ jobs:
       POSTGRES_DB: omni_local
       REDIS_HOST: localhost
       REDIS_PORT: "6379"
-      # No named docker containers in CI — services are already up on localhost.
       MANAGE_CONTAINERS: "no"
       JWT_SECRET: loopnest_dev_secret
 
@@ -130,9 +128,56 @@ jobs:
 
   ai-review:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    uses: flipslidersand-labs/qa-platform/.github/workflows/ai-review.yml@main
-    with:
-      model: 'claude-haiku-4-5-20251001'
-      fail-on-high: false
-    secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR diff
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr diff ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} > /tmp/pr.diff
+          # Truncate to 8000 chars to fit LLM context
+          head -c 8000 /tmp/pr.diff > /tmp/pr_truncated.diff
+          echo "diff_size=$(wc -c < /tmp/pr.diff)" >> "$GITHUB_OUTPUT"
+
+      - name: AI review via local Ollama
+        id: review
+        env:
+          OLLAMA_URL: ${{ vars.OLLAMA_URL || 'http://192.168.68.63:11434' }}
+        run: |
+          DIFF=$(cat /tmp/pr_truncated.diff)
+          PROMPT="You are a code reviewer. Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points. If no issues found, say 'No significant issues found.'\n\n\`\`\`diff\n${DIFF}\n\`\`\`"
+
+          RESPONSE=$(curl -sf --max-time 60 "${OLLAMA_URL}/api/generate" \
+            -H 'Content-Type: application/json' \
+            -d "{\"model\":\"qwen2.5:7b\",\"prompt\":$(echo "$PROMPT" | jq -Rs .),\"stream\":false}" \
+            | jq -r '.response' 2>/dev/null) || RESPONSE=""
+
+          if [ -z "$RESPONSE" ]; then
+            echo "review_body=⚠️ AI review skipped (Ollama unavailable)" >> "$GITHUB_OUTPUT"
+          else
+            # Write multiline safely
+            {
+              echo "review_body<<EOF"
+              echo "🤖 **AI Review (qwen2.5:7b)**"
+              echo ""
+              echo "${RESPONSE}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body "${{ steps.review.outputs.review_body }}"
