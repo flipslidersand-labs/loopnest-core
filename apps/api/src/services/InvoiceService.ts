@@ -45,9 +45,13 @@ export class InvoiceService {
       );
     }
 
-    const invoiceNumber = await this.generateInvoiceNumber();
+    const [invoiceNumber, taxRate] = await Promise.all([
+      this.generateInvoiceNumber(),
+      this.repos.taxRates.findDefault(),
+    ]);
+    const rate = taxRate?.rate ?? 0.1;
     const subtotal = quote.subtotalAmount || 0;
-    const taxAmount = this.calculateTax(subtotal);
+    const taxAmount = this.calculateTax(subtotal, rate);
     const totalAmount = subtotal + taxAmount;
 
     const invoice = await this.repos.invoices.create({
@@ -88,9 +92,6 @@ export class InvoiceService {
     return items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   }
 
-  /**
-   * Calculate tax (assumes 10% for Japanese consumption tax)
-   */
   calculateTax(subtotal: number, taxRate: number = 0.1): number {
     return Math.round(subtotal * taxRate * 100) / 100;
   }
