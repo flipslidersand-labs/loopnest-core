@@ -13,8 +13,10 @@ import { WebhookService } from "./WebhookService.js";
 export class EventWorker {
   private timer: NodeJS.Timeout | null = null;
   private overdueTimer: NodeJS.Timeout | null = null;
+  private expiryTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
+  private isScanningExpiry = false;
   private readonly accountingApiUrl: string;
   private readonly maxRetries: number;
 
@@ -41,6 +43,13 @@ export class EventWorker {
     const overdueMs =
       Number(process.env.OVERDUE_SCAN_INTERVAL_MS) || 60 * 60 * 1000;
     this.overdueTimer = setInterval(() => this.scanOverdue(), overdueMs);
+
+    // Quote expiry scan — same slow cadence; auto-rejects expired quotes.
+    const expiryMs =
+      Number(process.env.EXPIRY_SCAN_INTERVAL_MS) || 60 * 60 * 1000;
+    this.expiryTimer = setInterval(() => this.scanExpiredQuotes(), expiryMs);
+    // Run once at startup to catch any already-expired quotes.
+    void this.scanExpiredQuotes();
   }
 
   stop(): void {
@@ -52,6 +61,10 @@ export class EventWorker {
     if (this.overdueTimer) {
       clearInterval(this.overdueTimer);
       this.overdueTimer = null;
+    }
+    if (this.expiryTimer) {
+      clearInterval(this.expiryTimer);
+      this.expiryTimer = null;
     }
   }
 
@@ -124,6 +137,9 @@ export class EventWorker {
         break;
       case "credit_note_voided":
         console.log(`🗑️  Credit note voided: ${aggregateId}`);
+        break;
+      case "quote_expired":
+        console.log(`⏰ Quote expired: ${aggregateId}`);
         break;
       default:
         console.warn(`Unknown event type: ${eventType}`);
@@ -290,6 +306,46 @@ export class EventWorker {
     } catch (err) {
       // Recording the export must not mask the dispatch result; just log.
       console.error("Failed to record accounting_export:", err);
+    }
+  }
+
+  /**
+   * M09: auto-reject quotes that have passed their expires_at.
+   * Transitions draft/pending_approval → rejected and enqueues a quote_expired event.
+   * Idempotent: only quotes still in an actionable status are touched.
+   */
+  private async scanExpiredQuotes(): Promise<void> {
+    if (this.isScanningExpiry) return;
+    this.isScanningExpiry = true;
+    try {
+      const expired = await this.repos.quotes.findExpired();
+      for (const quote of expired) {
+        try {
+          const result = await this.repos.quotes.transitionStatus(
+            quote.id,
+            quote.status as any,
+            'rejected',
+            { notes: `Auto-rejected: quote expired at ${quote.expiresAt?.toISOString()}` },
+          );
+          if (result) {
+            await this.repos.outbox.publish('quote_expired', quote.id, {
+              quoteId: quote.id,
+              quoteNumber: quote.quoteNumber,
+              expiredAt: quote.expiresAt?.toISOString(),
+            });
+            console.log(`⏰ Quote expired and auto-rejected: ${quote.quoteNumber}`);
+          }
+        } catch (err) {
+          console.error(`❌ Failed to expire quote ${quote.id}:`, err);
+        }
+      }
+      if (expired.length > 0) {
+        console.log(`⏰ Expiry scan: auto-rejected ${expired.length} quote(s)`);
+      }
+    } catch (error) {
+      console.error("❌ Error in quote expiry scan:", error);
+    } finally {
+      this.isScanningExpiry = false;
     }
   }
 }

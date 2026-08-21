@@ -14,6 +14,7 @@ export interface QuoteEntity {
   discountType: DiscountType | null;
   discountValue: number | null;
   discountAmount: number | null;
+  expiresAt: Date | null;
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'invoiced';
   notes?: string;
   organizationId?: string;
@@ -148,6 +149,7 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
         totalAmount: data.totalAmount,
         status: data.status || 'draft',
         notes: data.notes,
+        expiresAt: data.expiresAt ?? null,
         organizationId: data.organizationId,
         createdBy: data.createdBy,
       },
@@ -167,6 +169,48 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
       },
     });
     return this.mapToQuote(quote);
+  }
+
+  /** Set or clear the expiry date. Pass null to remove the deadline. */
+  async setExpiry(id: string, expiresAt: Date | null): Promise<QuoteEntity | null> {
+    const quote = await this.prisma.quote.update({
+      where: { id },
+      data: { expiresAt },
+    }).catch(() => null);
+    return quote ? this.mapToQuote(quote) : null;
+  }
+
+  /**
+   * Quotes that have passed their expiry and are still in an actionable status.
+   * Used by the EventWorker expiry scanner.
+   */
+  async findExpired(): Promise<QuoteEntity[]> {
+    const quotes = await this.prisma.quote.findMany({
+      where: {
+        expiresAt: { lt: new Date() },
+        status: { in: ['draft', 'pending_approval'] },
+      },
+      orderBy: { expiresAt: 'asc' },
+    });
+    return quotes.map((q: any) => this.mapToQuote(q));
+  }
+
+  /**
+   * Quotes expiring within the next `days` days (default 7), still actionable.
+   * Used to surface early warnings before auto-rejection.
+   */
+  async findExpiringSoon(days = 7, organizationId?: string): Promise<QuoteEntity[]> {
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + days);
+    const quotes = await this.prisma.quote.findMany({
+      where: {
+        expiresAt: { gt: new Date(), lte: horizon },
+        status: { in: ['draft', 'pending_approval'] },
+        ...(organizationId && { organizationId }),
+      },
+      orderBy: { expiresAt: 'asc' },
+    });
+    return quotes.map((q: any) => this.mapToQuote(q));
   }
 
   /**
@@ -263,6 +307,7 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
       discountType: (quote.discountType as DiscountType | null) ?? null,
       discountValue: quote.discountValue ? Number.parseFloat(quote.discountValue.toString()) : null,
       discountAmount: quote.discountAmount ? Number.parseFloat(quote.discountAmount.toString()) : null,
+      expiresAt: quote.expiresAt ?? null,
       status: quote.status,
       notes: quote.notes,
       organizationId: quote.organizationId ?? undefined,
