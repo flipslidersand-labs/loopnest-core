@@ -14,6 +14,7 @@
 | M02 | Outbox 非同期化（信頼性・冪等性） | ✅ 完了 |
 | M03 | Error / Performance / Data Generator | ✅ 完了 |
 | M04 | PDF 請求書生成（`GET /invoices/:id/pdf`） | ✅ 完了 |
+| M05 | PDF 見積書生成（`GET /quotes/:id/pdf`） | ✅ 完了 |
 | M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
 | M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
 
