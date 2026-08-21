@@ -10,6 +10,7 @@ import { OutboxRepository } from './OutboxRepository.js';
 import { WebhookRepository } from './WebhookRepository.js';
 import { PaymentRepository } from './PaymentRepository.js';
 import { CreditNoteRepository } from './CreditNoteRepository.js';
+import { TaxRateRepository } from './TaxRateRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -23,6 +24,7 @@ export class RepositoryContainer {
   private readonly webhookRepo: WebhookRepository;
   private readonly paymentRepo: PaymentRepository;
   private readonly creditNoteRepo: CreditNoteRepository;
+  private readonly taxRateRepo: TaxRateRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -39,6 +41,7 @@ export class RepositoryContainer {
     this.webhookRepo = new WebhookRepository(db);
     this.paymentRepo = new PaymentRepository(db);
     this.creditNoteRepo = new CreditNoteRepository(db);
+    this.taxRateRepo = new TaxRateRepository(db);
   }
 
   get organizations(): OrganizationRepository {
@@ -83,6 +86,10 @@ export class RepositoryContainer {
 
   get creditNotes(): CreditNoteRepository {
     return this.creditNoteRepo;
+  }
+
+  get taxRates(): TaxRateRepository {
+    return this.taxRateRepo;
   }
 
   /**
