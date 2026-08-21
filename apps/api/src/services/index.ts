@@ -8,6 +8,7 @@ export { SearchService } from './SearchService.js';
 export { PaymentService, type RecordPaymentInput, type InvoiceBalance } from './PaymentService.js';
 export { CreditNoteService, type IssueCreditNoteInput, type ApplyCreditNoteInput, type CreditNoteBalance } from './CreditNoteService.js';
 export { EventWorker } from './EventWorker.js';
+export { PdfService } from './PdfService.js';
 
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { QuoteService } from './QuoteService.js';
@@ -20,6 +21,7 @@ import { SearchService } from './SearchService.js';
 import { PaymentService } from './PaymentService.js';
 import { CreditNoteService } from './CreditNoteService.js';
 import { EventWorker } from './EventWorker.js';
+import { PdfService } from './PdfService.js';
 
 export class ServiceContainer {
   readonly quotes: QuoteService;
@@ -32,6 +34,7 @@ export class ServiceContainer {
   readonly payments: PaymentService;
   readonly creditNotes: CreditNoteService;
   readonly eventWorker: EventWorker;
+  readonly pdf: PdfService;
 
   constructor(
     repos: RepositoryContainer,
@@ -48,6 +51,7 @@ export class ServiceContainer {
     this.payments = new PaymentService(repos, kyselyDb);
     this.creditNotes = new CreditNoteService(repos, kyselyDb);
     this.eventWorker = new EventWorker(repos, pgPool, this.webhooks);
+    this.pdf = new PdfService(repos);
   }
 
   async close(): Promise<void> {
