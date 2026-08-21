@@ -13,7 +13,7 @@ export type { QuoteItemEntity, QuoteItemInput } from './QuoteItemRepository.js';
 export { UserRepository } from './UserRepository.js';
 export type { User } from './UserRepository.js';
 export { InvoiceRepository } from './InvoiceRepository.js';
-export type { InvoiceRecord, InvoiceInput } from './InvoiceRepository.js';
+export type { InvoiceRecord, InvoiceInput, InvoiceWithItems, InvoiceLineItem } from './InvoiceRepository.js';
 export { OutboxRepository } from './OutboxRepository.js';
 export type { OutboxEvent } from './OutboxRepository.js';
 export { WebhookRepository } from './WebhookRepository.js';
