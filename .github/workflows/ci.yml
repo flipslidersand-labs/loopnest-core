@@ -126,17 +126,24 @@ jobs:
             --policy-dir .dep-policy/dependency-policy || echo "::warning::dependency drift detected"
         continue-on-error: true
 
+  # ---------------------------------------------------------------------------
+  # AI Review — two backends, select via repo variables / secrets:
+  #   Local LLM : set OLLAMA_URL repo variable  (e.g. http://host:11434)
+  #   Cloud API : set ANTHROPIC_API_KEY repo secret
+  # OLLAMA_URL takes priority. If neither is configured the job is skipped.
+  # ---------------------------------------------------------------------------
   ai-review:
-    # Requires OLLAMA_URL repo variable pointing to a local Ollama instance.
-    # Skip silently when the variable is not set (e.g. public forks, GitHub-hosted runners).
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&
       github.actor != 'github-actions[bot]' &&
-      vars.OLLAMA_URL != ''
+      (vars.OLLAMA_URL != '' || vars.AI_REVIEW_CLOUD == 'true')
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     permissions:
       pull-requests: write
+
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +151,6 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch PR diff
-        id: diff
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -152,33 +158,79 @@ jobs:
             --repo ${{ github.repository }} > /tmp/pr.diff
           head -c 8000 /tmp/pr.diff > /tmp/pr_truncated.diff
 
-      - name: AI review via local Ollama
-        id: review
+      - name: AI review — local Ollama
+        id: review_local
+        if: vars.OLLAMA_URL != ''
         run: |
           DIFF=$(cat /tmp/pr_truncated.diff)
           PROMPT="You are a code reviewer. Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points. If no issues found, say 'No significant issues found.'\n\n\`\`\`diff\n${DIFF}\n\`\`\`"
 
           RESPONSE=$(curl -sf --max-time 60 "${{ vars.OLLAMA_URL }}/api/generate" \
             -H 'Content-Type: application/json' \
-            -d "{\"model\":\"qwen2.5:7b\",\"prompt\":$(echo "$PROMPT" | jq -Rs .),\"stream\":false}" \
+            -d "{\"model\":\"${{ vars.OLLAMA_MODEL || 'qwen2.5:7b' }}\",\"prompt\":$(echo "$PROMPT" | jq -Rs .),\"stream\":false}" \
             | jq -r '.response' 2>/dev/null) || RESPONSE=""
 
           if [ -z "$RESPONSE" ]; then
-            echo "review_body=⚠️ AI review skipped (Ollama unavailable)" >> "$GITHUB_OUTPUT"
+            BODY="⚠️ AI review skipped (Ollama unavailable at ${{ vars.OLLAMA_URL }})"
           else
-            {
-              echo "review_body<<EOF"
-              echo "🤖 **AI Review (qwen2.5:7b)**"
-              echo ""
-              echo "${RESPONSE}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            BODY="🤖 **AI Review (Ollama / ${{ vars.OLLAMA_MODEL || 'qwen2.5:7b' }})**
+
+${RESPONSE}"
           fi
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: AI review — cloud API (Anthropic)
+        id: review_cloud
+        if: vars.OLLAMA_URL == '' && vars.AI_REVIEW_CLOUD == 'true'
+        run: |
+          DIFF=$(cat /tmp/pr_truncated.diff)
+          PAYLOAD=$(jq -n \
+            --arg diff "$DIFF" \
+            --arg model "${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}" \
+            '{
+              model: $model,
+              max_tokens: 1024,
+              messages: [{
+                role: "user",
+                content: ("Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points.\n\n```diff\n" + $diff + "\n```")
+              }]
+            }')
+
+          RESPONSE=$(curl -sf --max-time 60 https://api.anthropic.com/v1/messages \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$PAYLOAD" \
+            | jq -r '.content[0].text' 2>/dev/null) || RESPONSE=""
+
+          if [ -z "$RESPONSE" ]; then
+            BODY="⚠️ AI review skipped (cloud API unavailable)"
+          else
+            MODEL="${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}"
+            BODY="🤖 **AI Review (${MODEL})**
+
+${RESPONSE}"
+          fi
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL || 'claude-haiku-4-5-20251001' }}
 
       - name: Post review comment
         env:
           GH_TOKEN: ${{ github.token }}
+          BODY_LOCAL: ${{ steps.review_local.outputs.body }}
+          BODY_CLOUD: ${{ steps.review_cloud.outputs.body }}
         run: |
+          BODY="${BODY_LOCAL:-${BODY_CLOUD}}"
+          [ -z "$BODY" ] && exit 0
           gh pr comment ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --body "${{ steps.review.outputs.review_body }}"
+            --body "$BODY"
