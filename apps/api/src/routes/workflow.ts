@@ -273,6 +273,42 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     })
   );
 
+  // ── Quote expiry ─────────────────────────────────────────────────────────
+
+  // List quotes expiring within N days (default 7). Useful for dashboard warnings.
+  router.get(
+    '/quotes/expiring-soon',
+    asyncHandler(async (req: Request, res: Response) => {
+      const days = Math.min(Number(req.query.days) || 7, 90);
+      const quotes = await repos.quotes.findExpiringSoon(days, req.user?.orgId);
+      res.json({ data: quotes, meta: { days, count: quotes.length } });
+    })
+  );
+
+  // Set (or clear) the expiry date on a quote. Only editor/admin; any status allowed.
+  router.patch(
+    '/quotes/:id/expiry',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
+      const { expiresAt } = req.body;
+      let date: Date | null = null;
+      if (expiresAt !== null && expiresAt !== undefined) {
+        date = new Date(expiresAt);
+        if (isNaN(date.getTime())) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'expiresAt must be a valid ISO 8601 date string or null');
+        }
+        if (date <= new Date()) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'expiresAt must be a future date');
+        }
+      }
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
+      const quote = await repos.quotes.setExpiry(req.params.id, date);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      res.json({ data: quote, message: date ? `Expiry set to ${date.toISOString()}` : 'Expiry cleared' });
+    })
+  );
+
   // issued | sent → cancelled (admin only)
   router.post(
     '/invoices/:id/cancel',
