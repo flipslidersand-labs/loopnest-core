@@ -51,8 +51,10 @@ export class InvoiceService {
     ]);
     const rate = taxRate?.rate ?? 0.1;
     const subtotal = quote.subtotalAmount || 0;
-    const taxAmount = this.calculateTax(subtotal, rate);
-    const totalAmount = subtotal + taxAmount;
+    const discountAmount = quote.discountAmount ?? 0;
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
+    const taxAmount = this.calculateTax(taxableAmount, rate);
+    const totalAmount = taxableAmount + taxAmount;
 
     const invoice = await this.repos.invoices.create({
       quoteId,
@@ -60,6 +62,7 @@ export class InvoiceService {
       customerId: quote.customerId,
       subtotal,
       taxAmount,
+      discountAmount,
       totalAmount,
       status: 'issued',
       createdBy: userId,

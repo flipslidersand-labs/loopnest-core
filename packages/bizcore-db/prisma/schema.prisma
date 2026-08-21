@@ -66,6 +66,9 @@ model Quote {
   subtotalAmount  Decimal?    @map("subtotal_amount") @db.Decimal(12, 2)
   taxAmount       Decimal?    @map("tax_amount") @db.Decimal(12, 2)
   totalAmount     Decimal?    @map("total_amount") @db.Decimal(12, 2)
+  discountType    String?     @map("discount_type") @db.VarChar(20)
+  discountValue   Decimal?    @map("discount_value") @db.Decimal(15, 4)
+  discountAmount  Decimal?    @map("discount_amount") @db.Decimal(15, 2)
   status          String      @db.VarChar(50) @default("draft")
   notes           String?     @db.Text
   organizationId  String?     @map("organization_id") @db.Uuid
