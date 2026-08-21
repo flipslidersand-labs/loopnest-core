@@ -21,6 +21,7 @@
 | M09 | 見積有効期限（expires_at・期限切れ自動リジェクト・期限迫る一覧） | ✅ 完了 |
 | M10 | 見積テンプレート（CRUD + テンプレートから見積書生成） | ✅ 完了 |
 | M11 | Invoice Installments（分割払いスケジュール） | ✅ 完了 |
+| M12 | Recurring Billing（定期請求・サブスクリプション） | ✅ 完了 |
 | M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
 | M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
 

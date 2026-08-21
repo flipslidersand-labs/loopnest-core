@@ -13,6 +13,7 @@ import { CreditNoteRepository } from './CreditNoteRepository.js';
 import { TaxRateRepository } from './TaxRateRepository.js';
 import { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
 import { InstallmentRepository } from './InstallmentRepository.js';
+import { RecurringContractRepository } from './RecurringContractRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -29,6 +30,7 @@ export class RepositoryContainer {
   private readonly taxRateRepo: TaxRateRepository;
   private readonly quoteTemplateRepo: QuoteTemplateRepository;
   private readonly installmentRepo: InstallmentRepository;
+  private readonly recurringContractRepo: RecurringContractRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -48,6 +50,7 @@ export class RepositoryContainer {
     this.taxRateRepo = new TaxRateRepository(db);
     this.quoteTemplateRepo = new QuoteTemplateRepository(db);
     this.installmentRepo = new InstallmentRepository(db);
+    this.recurringContractRepo = new RecurringContractRepository(db);
   }
 
   get organizations(): OrganizationRepository { return this.organizationRepo; }
@@ -64,6 +67,7 @@ export class RepositoryContainer {
   get taxRates(): TaxRateRepository { return this.taxRateRepo; }
   get quoteTemplates(): QuoteTemplateRepository { return this.quoteTemplateRepo; }
   get installments(): InstallmentRepository { return this.installmentRepo; }
+  get recurringContracts(): RecurringContractRepository { return this.recurringContractRepo; }
 
   async beginTransaction<T>(
     callback: (container: RepositoryContainer) => Promise<T>
