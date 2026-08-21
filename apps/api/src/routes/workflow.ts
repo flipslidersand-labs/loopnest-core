@@ -234,6 +234,45 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     })
   );
 
+  // ── Discount management ─────────────────────────────────────────────────
+
+  // Apply (or update) a discount on a quote (draft/pending_approval only).
+  router.post(
+    '/quotes/:id/discount',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
+      const { discountType, discountValue } = req.body;
+      if (!discountType || !['percentage', 'fixed'].includes(discountType)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountType must be "percentage" or "fixed"');
+      }
+      const value = Number(discountValue);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountValue must be a non-negative number');
+      }
+      if (discountType === 'percentage' && value > 100) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Percentage discount cannot exceed 100');
+      }
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
+      const quote = await repos.quotes.applyDiscount(req.params.id, discountType, value);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      res.json({ data: quote, message: 'Discount applied' });
+    })
+  );
+
+  // Remove discount from a quote.
+  router.delete(
+    '/quotes/:id/discount',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
+      const quote = await repos.quotes.clearDiscount(req.params.id);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      res.json({ data: quote, message: 'Discount removed' });
+    })
+  );
+
   // issued | sent → cancelled (admin only)
   router.post(
     '/invoices/:id/cancel',

@@ -9,6 +9,7 @@ export interface InvoiceRecord {
   customerId: string;
   subtotal: number;
   taxAmount: number;
+  discountAmount: number;
   totalAmount: number;
   status: InvoiceStatus;
   paidAt: Date | null;
@@ -37,6 +38,7 @@ export interface InvoiceInput {
   customerId: string;
   subtotal: number;
   taxAmount: number;
+  discountAmount?: number;
   totalAmount: number;
   status?: string;
   createdBy?: string;
@@ -51,7 +53,7 @@ export interface InvoiceFilter {
 
 const COLS = [
   'id', 'quote_id', 'invoice_number', 'customer_id',
-  'subtotal_amount', 'tax_amount', 'total_amount',
+  'subtotal_amount', 'tax_amount', 'discount_amount', 'total_amount',
   'status', 'paid_at', 'created_by', 'created_at',
 ] as const;
 
@@ -77,6 +79,7 @@ export class InvoiceRepository {
         customer_id: data.customerId,
         subtotal_amount: data.subtotal.toString(),
         tax_amount: data.taxAmount.toString(),
+        discount_amount: (data.discountAmount ?? 0).toString(),
         total_amount: data.totalAmount.toString(),
         status: data.status || 'issued',
         created_by: data.createdBy,
@@ -219,6 +222,7 @@ export class InvoiceRepository {
       customerId: r.customer_id,
       subtotal: parseFloat(r.subtotal_amount.toString()),
       taxAmount: parseFloat(r.tax_amount.toString()),
+      discountAmount: r.discount_amount ? parseFloat(r.discount_amount.toString()) : 0,
       totalAmount: parseFloat(r.total_amount.toString()),
       status: r.status,
       paidAt: r.paid_at ?? null,

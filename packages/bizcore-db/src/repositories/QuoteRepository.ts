@@ -1,6 +1,8 @@
 import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { PrismaClient } from '@prisma/client';
 
+export type DiscountType = 'percentage' | 'fixed';
+
 export interface QuoteEntity {
   id: string;
   quoteNumber: string;
@@ -9,6 +11,9 @@ export interface QuoteEntity {
   subtotalAmount: number;
   taxAmount: number;
   totalAmount: number;
+  discountType: DiscountType | null;
+  discountValue: number | null;
+  discountAmount: number | null;
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'invoiced';
   notes?: string;
   organizationId?: string;
@@ -211,6 +216,41 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     });
   }
 
+  /** Apply or update a discount on a quote (draft/pending_approval only). */
+  async applyDiscount(
+    id: string,
+    discountType: DiscountType,
+    discountValue: number
+  ): Promise<QuoteEntity | null> {
+    const quote = await this.prisma.quote.findUnique({ where: { id } });
+    if (!quote) return null;
+
+    const subtotal = quote.subtotalAmount ? Number.parseFloat(quote.subtotalAmount.toString()) : 0;
+    const discountAmount =
+      discountType === 'fixed'
+        ? Math.min(discountValue, subtotal)
+        : Math.round((subtotal * discountValue) / 100 * 100) / 100;
+
+    const updated = await this.prisma.quote.update({
+      where: { id },
+      data: {
+        discountType,
+        discountValue,
+        discountAmount,
+      },
+    });
+    return this.mapToQuote(updated);
+  }
+
+  /** Remove discount from a quote. */
+  async clearDiscount(id: string): Promise<QuoteEntity | null> {
+    const updated = await this.prisma.quote.update({
+      where: { id },
+      data: { discountType: null, discountValue: null, discountAmount: null },
+    }).catch(() => null);
+    return updated ? this.mapToQuote(updated) : null;
+  }
+
   private mapToQuote(quote: any): QuoteEntity {
     return {
       id: quote.id,
@@ -220,6 +260,9 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
       subtotalAmount: quote.subtotalAmount ? Number.parseFloat(quote.subtotalAmount.toString()) : 0,
       taxAmount: quote.taxAmount ? Number.parseFloat(quote.taxAmount.toString()) : 0,
       totalAmount: quote.totalAmount ? Number.parseFloat(quote.totalAmount.toString()) : 0,
+      discountType: (quote.discountType as DiscountType | null) ?? null,
+      discountValue: quote.discountValue ? Number.parseFloat(quote.discountValue.toString()) : null,
+      discountAmount: quote.discountAmount ? Number.parseFloat(quote.discountAmount.toString()) : null,
       status: quote.status,
       notes: quote.notes,
       organizationId: quote.organizationId ?? undefined,
