@@ -3,7 +3,7 @@ export type { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js'
 export { OrganizationRepository } from './OrganizationRepository.js';
 export type { Organization } from './OrganizationRepository.js';
 export { CustomerRepository } from './CustomerRepository.js';
-export type { Customer } from './CustomerRepository.js';
+export type { Customer, CreditStatus } from './CustomerRepository.js';
 export { ProductRepository } from './ProductRepository.js';
 export type { Product } from './ProductRepository.js';
 export { QuoteRepository } from './QuoteRepository.js';

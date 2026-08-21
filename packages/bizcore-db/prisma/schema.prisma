@@ -32,6 +32,8 @@ model Customer {
   phone          String?  @db.VarChar(20)
   address        String?  @db.Text
   organizationId String?  @map("organization_id") @db.Uuid
+  creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  creditUsed     Decimal  @default(0) @map("credit_used") @db.Decimal(15, 2)
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("customers")
