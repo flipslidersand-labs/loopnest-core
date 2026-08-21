@@ -2,11 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'feat/**', 'fix/**', 'hotfix/**', 'refactor/**']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/*.md'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   integration:
+    if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     services:
@@ -39,14 +53,14 @@ jobs:
       DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local
       REDIS_URL: redis://localhost:6379
       POSTGRES_HOST: localhost
-      POSTGRES_PORT: '5432'
+      POSTGRES_PORT: "5432"
       POSTGRES_USER: loopnest
       POSTGRES_PASSWORD: loopnest_dev_password
       POSTGRES_DB: omni_local
       REDIS_HOST: localhost
-      REDIS_PORT: '6379'
+      REDIS_PORT: "6379"
       # No named docker containers in CI — services are already up on localhost.
-      MANAGE_CONTAINERS: 'no'
+      MANAGE_CONTAINERS: "no"
       JWT_SECRET: loopnest_dev_secret
 
     steps:
@@ -54,7 +68,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Install psql + jq
         run: |
@@ -96,3 +110,29 @@ jobs:
         run: |
           echo "=== integration server ==="; tail -n 200 /tmp/loopnest-itest-server.log 2>/dev/null || true
           echo "=== load server ==="; tail -n 100 /tmp/load-server.log 2>/dev/null || true
+
+      - name: Checkout dep-policy
+        uses: actions/checkout@v4
+        with:
+          repository: flipslidersand/dev-infrastructure
+          path: .dep-policy
+          sparse-checkout: |
+            dependency-policy
+            scripts/dep-policy-check.py
+          sparse-checkout-cone-mode: false
+
+      - name: Dependency policy drift check
+        run: |
+          pip install pyyaml --quiet --disable-pip-version-check
+          python3 .dep-policy/scripts/dep-policy-check.py \
+            --policy-dir .dep-policy/dependency-policy || echo "::warning::dependency drift detected"
+        continue-on-error: true
+
+  ai-review:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
+    uses: flipslidersand-labs/qa-platform/.github/workflows/ai-review.yml@main
+    with:
+      model: 'claude-haiku-4-5-20251001'
+      fail-on-high: false
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
