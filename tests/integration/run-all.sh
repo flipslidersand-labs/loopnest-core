@@ -107,7 +107,7 @@ if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
   # auth first; quote_items + invoices before workflow suites; tenancy after auth; outbox_dispatch before rate_limit.
-  SUITES=(observability auth tenancy e2e_workflow tax_rates discounts credit_limit quote_expiry quote_items invoices pdf_invoice pdf_quote payments credit_notes audit_api reports webhooks outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit search members)
+  SUITES=(observability auth tenancy e2e_workflow tax_rates discounts credit_limit quote_expiry quote_templates quote_items invoices pdf_invoice pdf_quote payments credit_notes audit_api reports webhooks outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit search members)
 fi
 
 TOTAL_FAIL=0

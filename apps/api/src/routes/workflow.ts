@@ -323,5 +323,70 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     })
   );
 
+  // ── Quote template apply ─────────────────────────────────────────────────
+
+  /**
+   * Create a new draft quote from a template.
+   * Body: { customerId, notes? }
+   * Returns the new quote with all items populated.
+   */
+  router.post(
+    '/quote-templates/:id/apply',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { customerId, notes } = req.body;
+      if (!customerId || !UUID_RE.test(customerId)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'customerId (UUID) is required');
+      }
+
+      const template = await repos.quoteTemplates.findById(req.params.id, req.user?.orgId);
+      if (!template) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Template not found');
+      if (template.items.length === 0) {
+        throw new ApiErrorResponse(422, 'EMPTY_TEMPLATE', 'Template has no items');
+      }
+
+      const quoteNumber = await repos.quoteTemplates.nextQuoteNumber();
+      const userId = req.user?.sub ?? 'system';
+
+      // Compute subtotal from template items.
+      const subtotal = template.items.reduce(
+        (sum, item) => sum + Math.round(item.quantity * item.unitPrice * 100) / 100,
+        0
+      );
+      const taxAmount = Math.round(subtotal * 0.1 * 100) / 100;
+      const totalAmount = subtotal + taxAmount;
+
+      // Create quote.
+      const quote = await repos.quotes.create({
+        quoteNumber,
+        quoteRequestId: null,
+        customerId,
+        subtotalAmount: subtotal,
+        taxAmount,
+        totalAmount,
+        status: 'draft',
+        notes: notes ?? `Generated from template: ${template.name}`,
+        organizationId: req.user?.orgId,
+        createdBy: userId,
+      });
+
+      // Add items sequentially (QuoteItemRepository uses Prisma, not Kysely tx).
+      const createdItems = [];
+      for (const item of template.items) {
+        const qi = await repos.quoteItems.addItem(quote.id, {
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        });
+        createdItems.push(qi);
+      }
+
+      res.status(201).json({
+        data: { ...quote, items: createdItems },
+        message: `Quote ${quoteNumber} created from template "${template.name}"`,
+      });
+    })
+  );
+
   return router;
 }
