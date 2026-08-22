@@ -234,6 +234,81 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     })
   );
 
+  // ── Discount management ─────────────────────────────────────────────────
+
+  // Apply (or update) a discount on a quote (draft/pending_approval only).
+  router.post(
+    '/quotes/:id/discount',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
+      const { discountType, discountValue } = req.body;
+      if (!discountType || !['percentage', 'fixed'].includes(discountType)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountType must be "percentage" or "fixed"');
+      }
+      const value = Number(discountValue);
+      if (!Number.isFinite(value) || value < 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountValue must be a non-negative number');
+      }
+      if (discountType === 'percentage' && value > 100) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Percentage discount cannot exceed 100');
+      }
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
+      const quote = await repos.quotes.applyDiscount(req.params.id, discountType, value);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      res.json({ data: quote, message: 'Discount applied' });
+    })
+  );
+
+  // Remove discount from a quote.
+  router.delete(
+    '/quotes/:id/discount',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
+      const quote = await repos.quotes.clearDiscount(req.params.id);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      res.json({ data: quote, message: 'Discount removed' });
+    })
+  );
+
+  // ── Quote expiry ─────────────────────────────────────────────────────────
+
+  // List quotes expiring within N days (default 7). Useful for dashboard warnings.
+  router.get(
+    '/quotes/expiring-soon',
+    asyncHandler(async (req: Request, res: Response) => {
+      const days = Math.min(Number(req.query.days) || 7, 90);
+      const quotes = await repos.quotes.findExpiringSoon(days, req.user?.orgId);
+      res.json({ data: quotes, meta: { days, count: quotes.length } });
+    })
+  );
+
+  // Set (or clear) the expiry date on a quote. Only editor/admin; any status allowed.
+  router.patch(
+    '/quotes/:id/expiry',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      validateQuoteId(req.params.id);
+      const { expiresAt } = req.body;
+      let date: Date | null = null;
+      if (expiresAt !== null && expiresAt !== undefined) {
+        date = new Date(expiresAt);
+        if (isNaN(date.getTime())) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'expiresAt must be a valid ISO 8601 date string or null');
+        }
+        if (date <= new Date()) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'expiresAt must be a future date');
+        }
+      }
+      await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
+      const quote = await repos.quotes.setExpiry(req.params.id, date);
+      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      res.json({ data: quote, message: date ? `Expiry set to ${date.toISOString()}` : 'Expiry cleared' });
+    })
+  );
+
   // issued | sent → cancelled (admin only)
   router.post(
     '/invoices/:id/cancel',
@@ -245,6 +320,71 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
         throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Only issued or sent invoices can be cancelled');
       }
       res.json({ data: invoice, message: 'Invoice cancelled' });
+    })
+  );
+
+  // ── Quote template apply ─────────────────────────────────────────────────
+
+  /**
+   * Create a new draft quote from a template.
+   * Body: { customerId, notes? }
+   * Returns the new quote with all items populated.
+   */
+  router.post(
+    '/quote-templates/:id/apply',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { customerId, notes } = req.body;
+      if (!customerId || !UUID_RE.test(customerId)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'customerId (UUID) is required');
+      }
+
+      const template = await repos.quoteTemplates.findById(req.params.id, req.user?.orgId);
+      if (!template) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Template not found');
+      if (template.items.length === 0) {
+        throw new ApiErrorResponse(422, 'EMPTY_TEMPLATE', 'Template has no items');
+      }
+
+      const quoteNumber = await repos.quoteTemplates.nextQuoteNumber();
+      const userId = req.user?.sub ?? 'system';
+
+      // Compute subtotal from template items.
+      const subtotal = template.items.reduce(
+        (sum, item) => sum + Math.round(item.quantity * item.unitPrice * 100) / 100,
+        0
+      );
+      const taxAmount = Math.round(subtotal * 0.1 * 100) / 100;
+      const totalAmount = subtotal + taxAmount;
+
+      // Create quote.
+      const quote = await repos.quotes.create({
+        quoteNumber,
+        quoteRequestId: null,
+        customerId,
+        subtotalAmount: subtotal,
+        taxAmount,
+        totalAmount,
+        status: 'draft',
+        notes: notes ?? `Generated from template: ${template.name}`,
+        organizationId: req.user?.orgId,
+        createdBy: userId,
+      });
+
+      // Add items sequentially (QuoteItemRepository uses Prisma, not Kysely tx).
+      const createdItems = [];
+      for (const item of template.items) {
+        const qi = await repos.quoteItems.addItem(quote.id, {
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        });
+        createdItems.push(qi);
+      }
+
+      res.status(201).json({
+        data: { ...quote, items: createdItems },
+        message: `Quote ${quoteNumber} created from template "${template.name}"`,
+      });
     })
   );
 

@@ -35,7 +35,7 @@ async function loadInvoiceOrg(
   const invoice = await repos.invoices.findById(invoiceId);
   if (!invoice)
     throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
-  const quote = await repos.quotes.findById(invoice.quoteId);
+  const quote = invoice.quoteId ? await repos.quotes.findById(invoice.quoteId) : null;
   return quote?.organizationId ?? null;
 }
 
@@ -183,7 +183,7 @@ export function creditNoteRoutes(
           "NOT_FOUND",
           "Target invoice not found",
         );
-      const targetQuote = await repos.quotes.findById(targetInvoice.quoteId);
+      const targetQuote = targetInvoice.quoteId ? await repos.quotes.findById(targetInvoice.quoteId) : null;
       assertOrgAccess(req, targetQuote?.organizationId ?? null);
 
       const result = await creditNotes.applyCreditNote(

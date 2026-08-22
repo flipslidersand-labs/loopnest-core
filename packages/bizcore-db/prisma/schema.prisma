@@ -32,6 +32,8 @@ model Customer {
   phone          String?  @db.VarChar(20)
   address        String?  @db.Text
   organizationId String?  @map("organization_id") @db.Uuid
+  creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  creditUsed     Decimal  @default(0) @map("credit_used") @db.Decimal(15, 2)
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("customers")
@@ -66,8 +68,12 @@ model Quote {
   subtotalAmount  Decimal?    @map("subtotal_amount") @db.Decimal(12, 2)
   taxAmount       Decimal?    @map("tax_amount") @db.Decimal(12, 2)
   totalAmount     Decimal?    @map("total_amount") @db.Decimal(12, 2)
+  discountType    String?     @map("discount_type") @db.VarChar(20)
+  discountValue   Decimal?    @map("discount_value") @db.Decimal(15, 4)
+  discountAmount  Decimal?    @map("discount_amount") @db.Decimal(15, 2)
   status          String      @db.VarChar(50) @default("draft")
   notes           String?     @db.Text
+  expiresAt       DateTime?   @map("expires_at")
   organizationId  String?     @map("organization_id") @db.Uuid
   createdBy       String      @map("created_by") @db.VarChar(255)
   createdAt       DateTime    @default(now()) @map("created_at")

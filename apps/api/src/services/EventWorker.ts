@@ -2,6 +2,17 @@ import { RepositoryContainer } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
 import { WebhookService } from "./WebhookService.js";
 
+function advanceDate(from: string, unit: string, value: number): string {
+  const d = new Date(from + 'T00:00:00Z');
+  switch (unit) {
+    case 'day':   d.setUTCDate(d.getUTCDate() + value); break;
+    case 'week':  d.setUTCDate(d.getUTCDate() + value * 7); break;
+    case 'month': d.setUTCMonth(d.getUTCMonth() + value); break;
+    case 'year':  d.setUTCFullYear(d.getUTCFullYear() + value); break;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Polls the transactional outbox and dispatches events to their side effects.
  *
@@ -13,8 +24,12 @@ import { WebhookService } from "./WebhookService.js";
 export class EventWorker {
   private timer: NodeJS.Timeout | null = null;
   private overdueTimer: NodeJS.Timeout | null = null;
+  private expiryTimer: NodeJS.Timeout | null = null;
+  private recurringTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
+  private isScanningExpiry = false;
+  private isScanningRecurring = false;
   private readonly accountingApiUrl: string;
   private readonly maxRetries: number;
 
@@ -41,6 +56,20 @@ export class EventWorker {
     const overdueMs =
       Number(process.env.OVERDUE_SCAN_INTERVAL_MS) || 60 * 60 * 1000;
     this.overdueTimer = setInterval(() => this.scanOverdue(), overdueMs);
+
+    // Quote expiry scan — same slow cadence; auto-rejects expired quotes.
+    const expiryMs =
+      Number(process.env.EXPIRY_SCAN_INTERVAL_MS) || 60 * 60 * 1000;
+    this.expiryTimer = setInterval(() => this.scanExpiredQuotes(), expiryMs);
+    // Run once at startup to catch any already-expired quotes.
+    void this.scanExpiredQuotes();
+
+    const recurringMs =
+      Number(process.env.RECURRING_SCAN_INTERVAL_MS) || 60 * 60 * 1000;
+    this.recurringTimer = setInterval(() => this.scanRecurring(), recurringMs);
+    // Run once immediately at startup so contracts due today are billed without
+    // waiting for the first interval tick.
+    this.scanRecurring();
   }
 
   stop(): void {
@@ -52,6 +81,14 @@ export class EventWorker {
     if (this.overdueTimer) {
       clearInterval(this.overdueTimer);
       this.overdueTimer = null;
+    }
+    if (this.expiryTimer) {
+      clearInterval(this.expiryTimer);
+      this.expiryTimer = null;
+    }
+    if (this.recurringTimer) {
+      clearInterval(this.recurringTimer);
+      this.recurringTimer = null;
     }
   }
 
@@ -125,9 +162,83 @@ export class EventWorker {
       case "credit_note_voided":
         console.log(`🗑️  Credit note voided: ${aggregateId}`);
         break;
+      case "quote_expired":
+        console.log(`⏰ Quote expired: ${aggregateId}`);
+        break;
+      case "recurring_invoice_created":
+        console.log(`🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`);
+        break;
       default:
         console.warn(`Unknown event type: ${eventType}`);
     }
+  }
+
+  /**
+   * M12: auto-generate invoices for recurring contracts whose next_billing_at
+   * is today or in the past, then advance next_billing_at by one interval.
+   * Contracts that have passed their ends_at are auto-completed first.
+   */
+  private async scanRecurring(): Promise<void> {
+    if (this.isScanningRecurring) return;
+    this.isScanningRecurring = true;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Auto-complete expired contracts before billing.
+      await this.repos.recurringContracts.expireCompleted(today);
+
+      const due = await this.repos.recurringContracts.findDue(today);
+      for (const contract of due) {
+        try {
+          await this.billContract(contract, today);
+        } catch (err) {
+          console.error(`[RECURRING] Failed to bill contract ${contract.id}:`, err);
+        }
+      }
+      if (due.length > 0) {
+        console.log(`🔁 Recurring scan billed ${due.length} contract(s)`);
+      }
+    } catch (error) {
+      console.error('❌ Error in recurring scan:', error);
+    } finally {
+      this.isScanningRecurring = false;
+    }
+  }
+
+  private async billContract(contract: any, today: string): Promise<void> {
+    const seq = await this.repos.invoices.nextSequenceValue();
+    const yyyymm = today.slice(0, 7).replace('-', '');
+    const invoiceNumber = `REC-${yyyymm}-${String(seq).padStart(6, '0')}`;
+
+    const subtotal = Math.round(contract.amount * 100) / 100;
+    const taxAmount = Math.round(subtotal * contract.taxRate * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+
+    const invoice = await this.repos.invoices.create({
+      quoteId: null,
+      contractId: contract.id,
+      invoiceNumber,
+      customerId: contract.customerId,
+      subtotal,
+      taxAmount,
+      totalAmount,
+      createdBy: 'recurring-worker',
+    });
+
+    // Advance next_billing_at by one interval.
+    const next = advanceDate(contract.nextBillingAt, contract.intervalUnit, contract.intervalValue);
+    await this.repos.recurringContracts.advanceNextBilling(contract.id, next);
+
+    // Publish outbox event for observability / downstream hooks.
+    await this.repos.outbox.publish('recurring_invoice_created', contract.id, {
+      contractId: contract.id,
+      invoiceId: invoice.id,
+      invoiceNumber,
+      customerId: contract.customerId,
+      totalAmount,
+      billingDate: today,
+      nextBillingAt: next,
+    });
   }
 
   /**
@@ -290,6 +401,46 @@ export class EventWorker {
     } catch (err) {
       // Recording the export must not mask the dispatch result; just log.
       console.error("Failed to record accounting_export:", err);
+    }
+  }
+
+  /**
+   * M09: auto-reject quotes that have passed their expires_at.
+   * Transitions draft/pending_approval → rejected and enqueues a quote_expired event.
+   * Idempotent: only quotes still in an actionable status are touched.
+   */
+  private async scanExpiredQuotes(): Promise<void> {
+    if (this.isScanningExpiry) return;
+    this.isScanningExpiry = true;
+    try {
+      const expired = await this.repos.quotes.findExpired();
+      for (const quote of expired) {
+        try {
+          const result = await this.repos.quotes.transitionStatus(
+            quote.id,
+            quote.status as any,
+            'rejected',
+            { notes: `Auto-rejected: quote expired at ${quote.expiresAt?.toISOString()}` },
+          );
+          if (result) {
+            await this.repos.outbox.publish('quote_expired', quote.id, {
+              quoteId: quote.id,
+              quoteNumber: quote.quoteNumber,
+              expiredAt: quote.expiresAt?.toISOString(),
+            });
+            console.log(`⏰ Quote expired and auto-rejected: ${quote.quoteNumber}`);
+          }
+        } catch (err) {
+          console.error(`❌ Failed to expire quote ${quote.id}:`, err);
+        }
+      }
+      if (expired.length > 0) {
+        console.log(`⏰ Expiry scan: auto-rejected ${expired.length} quote(s)`);
+      }
+    } catch (error) {
+      console.error("❌ Error in quote expiry scan:", error);
+    } finally {
+      this.isScanningExpiry = false;
     }
   }
 }

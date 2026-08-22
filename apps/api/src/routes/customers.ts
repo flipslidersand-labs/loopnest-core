@@ -87,5 +87,36 @@ export function customerRoutes(repos: RepositoryContainer) {
     })
   );
 
+  // ── Credit limit ────────────────────────────────────────────────────────
+
+  router.get(
+    '/:id/credit-status',
+    asyncHandler(async (req: Request, res: Response) => {
+      const status = await repos.customers.getCreditStatus(req.params.id);
+      if (!status) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+      res.json({ data: status });
+    })
+  );
+
+  router.patch(
+    '/:id/credit-limit',
+    requireRole('admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { creditLimit } = req.body;
+      if (creditLimit !== null && creditLimit !== undefined) {
+        const val = Number(creditLimit);
+        if (!Number.isFinite(val) || val < 0) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'creditLimit must be a non-negative number or null');
+        }
+      }
+      const customer = await repos.customers.setCreditLimit(
+        req.params.id,
+        creditLimit === null ? null : Number(creditLimit)
+      );
+      if (!customer) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+      res.json({ data: customer });
+    })
+  );
+
   return router;
 }

@@ -45,10 +45,28 @@ export class InvoiceService {
       );
     }
 
-    const invoiceNumber = await this.generateInvoiceNumber();
+    const taxRate = await this.repos.taxRates.findDefault();
+    const rate = taxRate?.rate ?? 0.1;
     const subtotal = quote.subtotalAmount || 0;
-    const taxAmount = this.calculateTax(subtotal);
-    const totalAmount = subtotal + taxAmount;
+    const discountAmount = quote.discountAmount ?? 0;
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
+    const taxAmount = this.calculateTax(taxableAmount, rate);
+    const totalAmount = taxableAmount + taxAmount;
+
+    // Credit limit check: reject if issuing this invoice would exceed the customer's limit.
+    const creditStatus = await this.repos.customers.getCreditStatus(quote.customerId);
+    if (creditStatus && !creditStatus.isUnlimited) {
+      const available = creditStatus.creditAvailable ?? 0;
+      if (totalAmount > available) {
+        throw new ApiErrorResponse(
+          422,
+          'CREDIT_LIMIT_EXCEEDED',
+          `Invoice total ${totalAmount} exceeds available credit ${available} (limit: ${creditStatus.creditLimit}, used: ${creditStatus.creditUsed})`
+        );
+      }
+    }
+
+    const invoiceNumber = await this.generateInvoiceNumber();
 
     const invoice = await this.repos.invoices.create({
       quoteId,
@@ -56,10 +74,14 @@ export class InvoiceService {
       customerId: quote.customerId,
       subtotal,
       taxAmount,
+      discountAmount,
       totalAmount,
       status: 'issued',
       createdBy: userId,
     });
+
+    // Increment customer's outstanding credit usage.
+    await this.repos.customers.incrementCreditUsed(quote.customerId, totalAmount);
 
     const invoiceId = invoice.id;
 
@@ -88,9 +110,6 @@ export class InvoiceService {
     return items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   }
 
-  /**
-   * Calculate tax (assumes 10% for Japanese consumption tax)
-   */
   calculateTax(subtotal: number, taxRate: number = 0.1): number {
     return Math.round(subtotal * taxRate * 100) / 100;
   }
