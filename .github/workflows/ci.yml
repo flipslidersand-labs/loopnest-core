@@ -2,11 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'feat/**', 'fix/**', 'hotfix/**', 'refactor/**']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/*.md'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   integration:
+    if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
 
     services:
@@ -35,18 +49,16 @@ jobs:
           --health-retries 10
 
     env:
-      # Clients read these; defaults in the code match, but set them explicitly.
       DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local
       REDIS_URL: redis://localhost:6379
       POSTGRES_HOST: localhost
-      POSTGRES_PORT: '5432'
+      POSTGRES_PORT: "5432"
       POSTGRES_USER: loopnest
       POSTGRES_PASSWORD: loopnest_dev_password
       POSTGRES_DB: omni_local
       REDIS_HOST: localhost
-      REDIS_PORT: '6379'
-      # No named docker containers in CI — services are already up on localhost.
-      MANAGE_CONTAINERS: 'no'
+      REDIS_PORT: "6379"
+      MANAGE_CONTAINERS: "no"
       JWT_SECRET: loopnest_dev_secret
 
     steps:
@@ -54,7 +66,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Install psql + jq
         run: |
@@ -96,3 +108,129 @@ jobs:
         run: |
           echo "=== integration server ==="; tail -n 200 /tmp/loopnest-itest-server.log 2>/dev/null || true
           echo "=== load server ==="; tail -n 100 /tmp/load-server.log 2>/dev/null || true
+
+      - name: Checkout dep-policy
+        uses: actions/checkout@v4
+        with:
+          repository: flipslidersand/dev-infrastructure
+          path: .dep-policy
+          sparse-checkout: |
+            dependency-policy
+            scripts/dep-policy-check.py
+          sparse-checkout-cone-mode: false
+
+      - name: Dependency policy drift check
+        run: |
+          pip install pyyaml --quiet --disable-pip-version-check
+          python3 .dep-policy/scripts/dep-policy-check.py \
+            --policy-dir .dep-policy/dependency-policy || echo "::warning::dependency drift detected"
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # AI Review — two backends, select via repo variables / secrets:
+  #   Local LLM : set OLLAMA_URL repo variable  (e.g. http://host:11434)
+  #   Cloud API : set ANTHROPIC_API_KEY repo secret
+  # OLLAMA_URL takes priority. If neither is configured the job is skipped.
+  # ---------------------------------------------------------------------------
+  ai-review:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
+      github.actor != 'github-actions[bot]' &&
+      (vars.OLLAMA_URL != '' || vars.AI_REVIEW_CLOUD == 'true')
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      pull-requests: write
+
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr diff ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} > /tmp/pr.diff
+          head -c 8000 /tmp/pr.diff > /tmp/pr_truncated.diff
+
+      - name: AI review — local Ollama
+        id: review_local
+        if: vars.OLLAMA_URL != ''
+        run: |
+          DIFF=$(cat /tmp/pr_truncated.diff)
+          PROMPT="You are a code reviewer. Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points. If no issues found, say 'No significant issues found.'\n\n\`\`\`diff\n${DIFF}\n\`\`\`"
+
+          RESPONSE=$(curl -sf --max-time 60 "${{ vars.OLLAMA_URL }}/api/generate" \
+            -H 'Content-Type: application/json' \
+            -d "{\"model\":\"${{ vars.OLLAMA_MODEL || 'qwen2.5:7b' }}\",\"prompt\":$(echo "$PROMPT" | jq -Rs .),\"stream\":false}" \
+            | jq -r '.response' 2>/dev/null) || RESPONSE=""
+
+          if [ -z "$RESPONSE" ]; then
+            BODY="⚠️ AI review skipped (Ollama unavailable at ${{ vars.OLLAMA_URL }})"
+          else
+            BODY="🤖 **AI Review (Ollama / ${{ vars.OLLAMA_MODEL || 'qwen2.5:7b' }})**
+
+${RESPONSE}"
+          fi
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: AI review — cloud API (Anthropic)
+        id: review_cloud
+        if: vars.OLLAMA_URL == '' && vars.AI_REVIEW_CLOUD == 'true'
+        run: |
+          DIFF=$(cat /tmp/pr_truncated.diff)
+          PAYLOAD=$(jq -n \
+            --arg diff "$DIFF" \
+            --arg model "${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}" \
+            '{
+              model: $model,
+              max_tokens: 1024,
+              messages: [{
+                role: "user",
+                content: ("Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points.\n\n```diff\n" + $diff + "\n```")
+              }]
+            }')
+
+          RESPONSE=$(curl -sf --max-time 60 https://api.anthropic.com/v1/messages \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$PAYLOAD" \
+            | jq -r '.content[0].text' 2>/dev/null) || RESPONSE=""
+
+          if [ -z "$RESPONSE" ]; then
+            BODY="⚠️ AI review skipped (cloud API unavailable)"
+          else
+            MODEL="${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}"
+            BODY="🤖 **AI Review (${MODEL})**
+
+${RESPONSE}"
+          fi
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL || 'claude-haiku-4-5-20251001' }}
+
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY_LOCAL: ${{ steps.review_local.outputs.body }}
+          BODY_CLOUD: ${{ steps.review_cloud.outputs.body }}
+        run: |
+          BODY="${BODY_LOCAL:-${BODY_CLOUD}}"
+          [ -z "$BODY" ] && exit 0
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body "$BODY"

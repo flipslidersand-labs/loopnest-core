@@ -1,0 +1,11 @@
+dependency_profile: node-t2@1
+
+overrides:
+  typescript:
+    version: "^5.6.0"
+    reason: "5.9.x へのアップグレード pending — Turbo/wrangler 互換性確認待ち"
+    expires: "2026-10-01"
+  prettier:
+    version: "^3.3.0"
+    reason: "3.6.x へのアップグレード pending"
+    expires: "2026-10-01"
