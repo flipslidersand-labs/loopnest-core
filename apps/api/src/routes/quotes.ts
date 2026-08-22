@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { PdfService } from '../services/PdfService.js';
 
 export function quoteRoutes(repos: RepositoryContainer) {
   const router = Router();
+  const pdfService = new PdfService(repos);
 
   router.get(
     '/',
@@ -35,6 +37,18 @@ export function quoteRoutes(repos: RepositoryContainer) {
       const quote = await repos.quotes.findByNumber(req.params.quoteNumber);
       if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
       res.json({ data: quote });
+    })
+  );
+
+  // GET /api/quotes/:id/pdf — download quote as PDF
+  router.get(
+    '/:id/pdf',
+    asyncHandler(async (req: Request, res: Response) => {
+      const pdf = await pdfService.generateQuotePdf(req.params.id, req.user?.orgId);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="quote-${req.params.id}.pdf"`);
+      res.setHeader('Content-Length', pdf.length);
+      res.end(pdf);
     })
   );
 

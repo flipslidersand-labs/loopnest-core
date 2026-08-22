@@ -10,6 +10,10 @@ import { OutboxRepository } from './OutboxRepository.js';
 import { WebhookRepository } from './WebhookRepository.js';
 import { PaymentRepository } from './PaymentRepository.js';
 import { CreditNoteRepository } from './CreditNoteRepository.js';
+import { TaxRateRepository } from './TaxRateRepository.js';
+import { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
+import { InstallmentRepository } from './InstallmentRepository.js';
+import { RecurringContractRepository } from './RecurringContractRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -23,6 +27,10 @@ export class RepositoryContainer {
   private readonly webhookRepo: WebhookRepository;
   private readonly paymentRepo: PaymentRepository;
   private readonly creditNoteRepo: CreditNoteRepository;
+  private readonly taxRateRepo: TaxRateRepository;
+  private readonly quoteTemplateRepo: QuoteTemplateRepository;
+  private readonly installmentRepo: InstallmentRepository;
+  private readonly recurringContractRepo: RecurringContractRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -39,56 +47,28 @@ export class RepositoryContainer {
     this.webhookRepo = new WebhookRepository(db);
     this.paymentRepo = new PaymentRepository(db);
     this.creditNoteRepo = new CreditNoteRepository(db);
+    this.taxRateRepo = new TaxRateRepository(db);
+    this.quoteTemplateRepo = new QuoteTemplateRepository(db);
+    this.installmentRepo = new InstallmentRepository(db);
+    this.recurringContractRepo = new RecurringContractRepository(db);
   }
 
-  get organizations(): OrganizationRepository {
-    return this.organizationRepo;
-  }
+  get organizations(): OrganizationRepository { return this.organizationRepo; }
+  get customers(): CustomerRepository { return this.customerRepo; }
+  get products(): ProductRepository { return this.productRepo; }
+  get quotes(): QuoteRepository { return this.quoteRepo; }
+  get quoteItems(): QuoteItemRepository { return this.quoteItemRepo; }
+  get users(): UserRepository { return this.userRepo; }
+  get invoices(): InvoiceRepository { return this.invoiceRepo; }
+  get outbox(): OutboxRepository { return this.outboxRepo; }
+  get webhooks(): WebhookRepository { return this.webhookRepo; }
+  get payments(): PaymentRepository { return this.paymentRepo; }
+  get creditNotes(): CreditNoteRepository { return this.creditNoteRepo; }
+  get taxRates(): TaxRateRepository { return this.taxRateRepo; }
+  get quoteTemplates(): QuoteTemplateRepository { return this.quoteTemplateRepo; }
+  get installments(): InstallmentRepository { return this.installmentRepo; }
+  get recurringContracts(): RecurringContractRepository { return this.recurringContractRepo; }
 
-  get customers(): CustomerRepository {
-    return this.customerRepo;
-  }
-
-  get products(): ProductRepository {
-    return this.productRepo;
-  }
-
-  get quotes(): QuoteRepository {
-    return this.quoteRepo;
-  }
-
-  get quoteItems(): QuoteItemRepository {
-    return this.quoteItemRepo;
-  }
-
-  get users(): UserRepository {
-    return this.userRepo;
-  }
-
-  get invoices(): InvoiceRepository {
-    return this.invoiceRepo;
-  }
-
-  get outbox(): OutboxRepository {
-    return this.outboxRepo;
-  }
-
-  get webhooks(): WebhookRepository {
-    return this.webhookRepo;
-  }
-
-  get payments(): PaymentRepository {
-    return this.paymentRepo;
-  }
-
-  get creditNotes(): CreditNoteRepository {
-    return this.creditNoteRepo;
-  }
-
-  /**
-   * Begin a database transaction.
-   * Useful for operations that span multiple repositories.
-   */
   async beginTransaction<T>(
     callback: (container: RepositoryContainer) => Promise<T>
   ): Promise<T> {

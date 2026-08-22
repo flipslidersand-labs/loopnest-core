@@ -123,7 +123,11 @@ export class PaymentService {
     }
     const paidOn = input.paidOn ?? new Date().toISOString().slice(0, 10);
 
-    return this.db.transaction().execute(async (trx: any) => {
+    // Captured inside the transaction for post-commit credit adjustment.
+    let paidCustomerId: string | null = null;
+    let creditDecrement: number | null = null;
+
+    const result = await this.db.transaction().execute(async (trx: any) => {
       const inv = await trx
         .selectFrom("finance.invoices")
         .selectAll()
@@ -206,6 +210,9 @@ export class PaymentService {
           paidTotal,
           paidAt,
         });
+        // Capture for post-commit credit release.
+        paidCustomerId = inv.customer_id;
+        creditDecrement = total;
       }
 
       return {
@@ -219,6 +226,13 @@ export class PaymentService {
         },
       };
     });
+
+    // Release credit_used after the DB transaction commits (fire-and-forget on error).
+    if (paidCustomerId && creditDecrement) {
+      await this.repos.customers.decrementCreditUsed(paidCustomerId, creditDecrement).catch(() => undefined);
+    }
+
+    return result;
   }
 
   /** Reverse a confirmed payment and re-evaluate the invoice status. */
