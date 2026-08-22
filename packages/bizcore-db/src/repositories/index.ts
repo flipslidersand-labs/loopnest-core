@@ -30,4 +30,6 @@ export type {
   CreditNoteType,
   CreditNoteStatus,
 } from './CreditNoteRepository.js';
+export { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
+export type { QuoteTemplate, QuoteTemplateInput, TemplateItem } from './QuoteTemplateRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';

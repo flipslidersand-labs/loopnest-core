@@ -17,6 +17,7 @@ import { memberRoutes } from './routes/members.js';
 import { paymentRoutes, invoicePaymentRoutes } from './routes/payments.js';
 import { creditNoteRoutes, invoiceCreditNoteRoutes } from './routes/creditNotes.js';
 import { taxRateRoutes } from './routes/taxRates.js';
+import { quoteTemplateRoutes } from './routes/quoteTemplates.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -123,6 +124,7 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use('/api/search', searchRoutes(serviceContainer.search));
   app.use('/api/organizations/:orgId/members', memberRoutes(dbServices.repos));
   app.use('/api/tax-rates', taxRateRoutes(dbServices.repos));
+  app.use('/api/quote-templates', quoteTemplateRoutes(dbServices.repos));
 
   // Payments & AR (M13) — writes carry idempotency keys, like the workflow routes.
   app.use(

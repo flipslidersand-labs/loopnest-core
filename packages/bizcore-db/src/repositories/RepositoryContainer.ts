@@ -11,6 +11,7 @@ import { WebhookRepository } from './WebhookRepository.js';
 import { PaymentRepository } from './PaymentRepository.js';
 import { CreditNoteRepository } from './CreditNoteRepository.js';
 import { TaxRateRepository } from './TaxRateRepository.js';
+import { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -25,6 +26,7 @@ export class RepositoryContainer {
   private readonly paymentRepo: PaymentRepository;
   private readonly creditNoteRepo: CreditNoteRepository;
   private readonly taxRateRepo: TaxRateRepository;
+  private readonly quoteTemplateRepo: QuoteTemplateRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -42,51 +44,21 @@ export class RepositoryContainer {
     this.paymentRepo = new PaymentRepository(db);
     this.creditNoteRepo = new CreditNoteRepository(db);
     this.taxRateRepo = new TaxRateRepository(db);
+    this.quoteTemplateRepo = new QuoteTemplateRepository(db);
   }
 
-  get organizations(): OrganizationRepository {
-    return this.organizationRepo;
-  }
-
-  get customers(): CustomerRepository {
-    return this.customerRepo;
-  }
-
-  get products(): ProductRepository {
-    return this.productRepo;
-  }
-
-  get quotes(): QuoteRepository {
-    return this.quoteRepo;
-  }
-
-  get quoteItems(): QuoteItemRepository {
-    return this.quoteItemRepo;
-  }
-
-  get users(): UserRepository {
-    return this.userRepo;
-  }
-
-  get invoices(): InvoiceRepository {
-    return this.invoiceRepo;
-  }
-
-  get outbox(): OutboxRepository {
-    return this.outboxRepo;
-  }
-
-  get webhooks(): WebhookRepository {
-    return this.webhookRepo;
-  }
-
-  get payments(): PaymentRepository {
-    return this.paymentRepo;
-  }
-
-  get creditNotes(): CreditNoteRepository {
-    return this.creditNoteRepo;
-  }
+  get organizations(): OrganizationRepository { return this.organizationRepo; }
+  get customers(): CustomerRepository { return this.customerRepo; }
+  get products(): ProductRepository { return this.productRepo; }
+  get quotes(): QuoteRepository { return this.quoteRepo; }
+  get quoteItems(): QuoteItemRepository { return this.quoteItemRepo; }
+  get users(): UserRepository { return this.userRepo; }
+  get invoices(): InvoiceRepository { return this.invoiceRepo; }
+  get outbox(): OutboxRepository { return this.outboxRepo; }
+  get webhooks(): WebhookRepository { return this.webhookRepo; }
+  get payments(): PaymentRepository { return this.paymentRepo; }
+  get creditNotes(): CreditNoteRepository { return this.creditNoteRepo; }
+  get quoteTemplates(): QuoteTemplateRepository { return this.quoteTemplateRepo; }
 
   get taxRates(): TaxRateRepository {
     return this.taxRateRepo;
