@@ -12,6 +12,7 @@ import { PaymentRepository } from './PaymentRepository.js';
 import { CreditNoteRepository } from './CreditNoteRepository.js';
 import { TaxRateRepository } from './TaxRateRepository.js';
 import { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
+import { InstallmentRepository } from './InstallmentRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -27,6 +28,7 @@ export class RepositoryContainer {
   private readonly creditNoteRepo: CreditNoteRepository;
   private readonly taxRateRepo: TaxRateRepository;
   private readonly quoteTemplateRepo: QuoteTemplateRepository;
+  private readonly installmentRepo: InstallmentRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -45,6 +47,7 @@ export class RepositoryContainer {
     this.creditNoteRepo = new CreditNoteRepository(db);
     this.taxRateRepo = new TaxRateRepository(db);
     this.quoteTemplateRepo = new QuoteTemplateRepository(db);
+    this.installmentRepo = new InstallmentRepository(db);
   }
 
   get organizations(): OrganizationRepository { return this.organizationRepo; }
@@ -58,16 +61,10 @@ export class RepositoryContainer {
   get webhooks(): WebhookRepository { return this.webhookRepo; }
   get payments(): PaymentRepository { return this.paymentRepo; }
   get creditNotes(): CreditNoteRepository { return this.creditNoteRepo; }
+  get taxRates(): TaxRateRepository { return this.taxRateRepo; }
   get quoteTemplates(): QuoteTemplateRepository { return this.quoteTemplateRepo; }
+  get installments(): InstallmentRepository { return this.installmentRepo; }
 
-  get taxRates(): TaxRateRepository {
-    return this.taxRateRepo;
-  }
-
-  /**
-   * Begin a database transaction.
-   * Useful for operations that span multiple repositories.
-   */
   async beginTransaction<T>(
     callback: (container: RepositoryContainer) => Promise<T>
   ): Promise<T> {
