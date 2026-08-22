@@ -4,7 +4,8 @@ export type InvoiceStatus = 'issued' | 'sent' | 'paid' | 'cancelled';
 
 export interface InvoiceRecord {
   id: string;
-  quoteId: string;
+  quoteId: string | null;
+  contractId: string | null;
   invoiceNumber: string;
   customerId: string;
   subtotal: number;
@@ -33,7 +34,8 @@ export interface InvoiceWithItems extends InvoiceRecord {
 }
 
 export interface InvoiceInput {
-  quoteId: string;
+  quoteId?: string | null;
+  contractId?: string | null;
   invoiceNumber: string;
   customerId: string;
   subtotal: number;
@@ -52,7 +54,7 @@ export interface InvoiceFilter {
 }
 
 const COLS = [
-  'id', 'quote_id', 'invoice_number', 'customer_id',
+  'id', 'quote_id', 'contract_id', 'invoice_number', 'customer_id',
   'subtotal_amount', 'tax_amount', 'discount_amount', 'total_amount',
   'status', 'paid_at', 'created_by', 'created_at',
 ] as const;
@@ -74,7 +76,8 @@ export class InvoiceRepository {
       .insertInto('finance.invoices')
       .values({
         id,
-        quote_id: data.quoteId,
+        quote_id: data.quoteId ?? null,
+        contract_id: data.contractId ?? null,
         invoice_number: data.invoiceNumber,
         customer_id: data.customerId,
         subtotal_amount: data.subtotal.toString(),
@@ -217,7 +220,8 @@ export class InvoiceRepository {
   private map(r: any): InvoiceRecord {
     return {
       id: r.id,
-      quoteId: r.quote_id,
+      quoteId: r.quote_id ?? null,
+      contractId: r.contract_id ?? null,
       invoiceNumber: r.invoice_number,
       customerId: r.customer_id,
       subtotal: parseFloat(r.subtotal_amount.toString()),

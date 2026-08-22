@@ -26,7 +26,7 @@ async function loadInvoiceOrg(
 ): Promise<string | null> {
   const invoice = await repos.invoices.findById(invoiceId);
   if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
-  const quote = await repos.quotes.findById(invoice.quoteId);
+  const quote = invoice.quoteId ? await repos.quotes.findById(invoice.quoteId) : null;
   return quote?.organizationId ?? null;
 }
 

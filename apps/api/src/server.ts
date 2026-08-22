@@ -18,6 +18,7 @@ import { paymentRoutes, invoicePaymentRoutes } from './routes/payments.js';
 import { creditNoteRoutes, invoiceCreditNoteRoutes } from './routes/creditNotes.js';
 import { taxRateRoutes } from './routes/taxRates.js';
 import { quoteTemplateRoutes } from './routes/quoteTemplates.js';
+import { recurringContractRoutes } from './routes/recurringContracts.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -153,6 +154,8 @@ initializeDatabaseServices().then((dbServices: any) => {
     idempotencyMiddleware,
     creditNoteRoutes(serviceContainer.creditNotes, dbServices.repos, serviceContainer.webhooks)
   );
+
+  app.use('/api/recurring-contracts', recurringContractRoutes(dbServices.repos));
 
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
   app.use(
