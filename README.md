@@ -44,8 +44,8 @@ apps/api/               Express API サーバー
   src/lib/              JWT, observability
 packages/bizcore-db/    DB アクセス層（Kysely + Prisma）
   src/repositories/     各エンティティ Repository
-infra/migrations/       PostgreSQL マイグレーション SQL（000〜010）
-tests/integration/      bash curl ベース統合テスト（18 スイート）
+infra/migrations/       PostgreSQL マイグレーション SQL（000〜017）
+tests/integration/      bash curl ベース統合テスト（23 スイート）
 docs/                   ADR, backlog, design, roadmap
 ```
 
