@@ -28,10 +28,12 @@ export class EventWorker {
   private overdueTimer: NodeJS.Timeout | null = null;
   private expiryTimer: NodeJS.Timeout | null = null;
   private recurringTimer: NodeJS.Timeout | null = null;
+  private dunningTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
   private isScanningExpiry = false;
   private isScanningRecurring = false;
+  private isScanningDunning = false;
   private readonly accountingApiUrl: string;
   private readonly maxRetries: number;
 
@@ -72,6 +74,11 @@ export class EventWorker {
     // Run once immediately at startup so contracts due today are billed without
     // waiting for the first interval tick.
     this.scanRecurring();
+
+    const dunningMs =
+      Number(process.env.DUNNING_SCAN_INTERVAL_MS) || 60 * 60 * 1000;
+    this.dunningTimer = setInterval(() => this.scanDunning(), dunningMs);
+    void this.scanDunning();
   }
 
   stop(): void {
@@ -91,6 +98,10 @@ export class EventWorker {
     if (this.recurringTimer) {
       clearInterval(this.recurringTimer);
       this.recurringTimer = null;
+    }
+    if (this.dunningTimer) {
+      clearInterval(this.dunningTimer);
+      this.dunningTimer = null;
     }
   }
 
@@ -170,6 +181,9 @@ export class EventWorker {
         break;
       case "recurring_invoice_created":
         logger.info(`🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`);
+        break;
+      case "dunning_action":
+        console.log(`📬 Dunning action '${payload?.action}' for invoice ${aggregateId} (${payload?.daysOverdue}d overdue)`);
         break;
       default:
         logger.warn(`Unknown event type: ${eventType}`);
@@ -445,6 +459,91 @@ export class EventWorker {
       logger.error({ err: error }, 'quote expiry scan error');
     } finally {
       this.isScanningExpiry = false;
+    }
+  }
+
+  /**
+   * M15: For each overdue invoice, apply matching dunning rules that haven't
+   * fired yet. Records a dunning_log row (UNIQUE constraint prevents duplicates)
+   * and publishes a dunning_action outbox event + webhook per rule fired.
+   */
+  private async scanDunning(): Promise<void> {
+    if (this.isScanningDunning) return;
+    this.isScanningDunning = true;
+    try {
+      const { rows } = await this.pgPool.query(
+        `SELECT i.id, i.invoice_number, i.customer_id, i.total_amount,
+                q.organization_id,
+                (CURRENT_DATE - i.payment_due_date)::int AS days_overdue,
+                COALESCE(p.paid, 0) AS paid_total,
+                COALESCE(cn.applied, 0) AS credit_applied
+           FROM finance.invoices i
+           LEFT JOIN core.quotes q ON q.id = i.quote_id
+           LEFT JOIN (
+             SELECT invoice_id, SUM(amount) AS paid
+               FROM finance.payments WHERE status = 'confirmed'
+              GROUP BY invoice_id
+           ) p ON p.invoice_id = i.id
+           LEFT JOIN (
+             SELECT invoice_id, SUM(amount) AS applied
+               FROM finance.credit_note_applications
+              GROUP BY invoice_id
+           ) cn ON cn.invoice_id = i.id
+          WHERE i.status IN ('issued', 'sent')
+            AND i.payment_due_date IS NOT NULL
+            AND i.payment_due_date < CURRENT_DATE`,
+      );
+
+      let fired = 0;
+      for (const row of rows) {
+        const outstanding =
+          Math.round((Number(row.total_amount) - Number(row.paid_total) - Number(row.credit_applied)) * 100) / 100;
+        if (outstanding <= 0) continue;
+
+        const daysOverdue = Number(row.days_overdue);
+        const pending = await this.repos.dunning.findPendingRules(row.id, daysOverdue);
+
+        for (const rule of pending) {
+          try {
+            await this.repos.dunning.recordLog(row.id, rule, daysOverdue);
+
+            const message = (rule.messageTemplate ?? '')
+              .replace('{{invoice_number}}', row.invoice_number);
+
+            const payload = {
+              invoiceId: row.id,
+              invoiceNumber: row.invoice_number,
+              customerId: row.customer_id,
+              daysOverdue,
+              outstanding,
+              action: rule.action,
+              ruleId: rule.id,
+              ruleName: rule.name,
+              message,
+            };
+
+            await this.repos.outbox.publish('dunning_action', row.id, payload);
+
+            if (this.webhooks && row.organization_id) {
+              this.webhooks
+                .deliver(row.organization_id, 'dunning.action', payload)
+                .catch((err: any) =>
+                  console.error('[DUNNING_WEBHOOK_ERROR]', row.id, err?.message),
+                );
+            }
+            fired++;
+          } catch (err: any) {
+            if (err?.code === '23505') continue; // unique constraint — already logged
+            console.error(`[DUNNING] Failed rule ${rule.id} for invoice ${row.id}:`, err);
+          }
+        }
+      }
+
+      if (fired > 0) console.log(`📬 Dunning scan fired ${fired} action(s)`);
+    } catch (error) {
+      console.error('❌ Error in dunning scan:', error);
+    } finally {
+      this.isScanningDunning = false;
     }
   }
 }

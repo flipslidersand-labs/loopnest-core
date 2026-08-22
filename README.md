@@ -132,6 +132,7 @@ bash tests/integration/credit_notes.sh
 | M12 | Recurring Billing（定期請求・サブスクリプション） | ✅ 完了 |
 | M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
 | M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
+| M15 | Dunning Management（督促管理・自動リマインダー） | ✅ 完了 |
 
 ### 技術スタック
 

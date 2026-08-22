@@ -43,4 +43,6 @@ export type {
   CreateRecurringInput,
   RecurringFilter,
 } from './RecurringContractRepository.js';
+export { DunningRepository } from './DunningRepository.js';
+export type { DunningRule, DunningLog, DunningAction, CreateDunningRuleInput } from './DunningRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';
