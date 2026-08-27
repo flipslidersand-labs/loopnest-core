@@ -5,6 +5,7 @@ import {
   httpRequestDurationMs,
   httpRequestsInFlight,
 } from '../observability/metrics.js';
+import { logger } from '../lib/logger.js';
 
 const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -67,7 +68,10 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
         duration_ms: Math.round(durationMs * 100) / 100,
         correlation_id: correlationId,
       };
-      console.log(JSON.stringify(line));
+      logger[line.level as 'info' | 'error'](
+        { method: line.method, route: line.route, status: line.status, duration_ms: line.duration_ms, correlation_id: line.correlation_id },
+        'http_request'
+      );
 
       if (Math.random() < sampleRate) {
         const actorId =
@@ -88,9 +92,7 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
               actorId,
             ]
           )
-          .catch((err) =>
-            console.error('request_logs insert failed:', err?.message ?? err)
-          );
+          .catch((err) => logger.error({ err }, 'request_logs insert failed'));
       }
     });
 
