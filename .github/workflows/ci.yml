@@ -21,7 +21,7 @@ concurrency:
 jobs:
   integration:
     if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -138,7 +138,7 @@ jobs:
       github.event.pull_request.draft == false &&
       github.actor != 'github-actions[bot]' &&
       (vars.OLLAMA_URL != '' || vars.AI_REVIEW_CLOUD == 'true')
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: write
 
