@@ -173,9 +173,8 @@ jobs:
           if [ -z "$RESPONSE" ]; then
             BODY="⚠️ AI review skipped (Ollama unavailable at ${{ vars.OLLAMA_URL }})"
           else
-            BODY="🤖 **AI Review (Ollama / ${{ vars.OLLAMA_MODEL || 'qwen2.5:7b' }})**
-
-${RESPONSE}"
+            BODY="🤖 **AI Review (Ollama / ${{ vars.OLLAMA_MODEL || 'qwen2.5:7b' }})**"
+            BODY="${BODY}"$'\n\n'"${RESPONSE}"
           fi
           {
             echo "body<<EOF"
@@ -211,9 +210,8 @@ ${RESPONSE}"
             BODY="⚠️ AI review skipped (cloud API unavailable)"
           else
             MODEL="${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}"
-            BODY="🤖 **AI Review (${MODEL})**
-
-${RESPONSE}"
+            BODY="🤖 **AI Review (${MODEL})**"
+            BODY="${BODY}"$'\n\n'"${RESPONSE}"
           fi
           {
             echo "body<<EOF"
