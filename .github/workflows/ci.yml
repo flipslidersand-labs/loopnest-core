@@ -21,7 +21,10 @@ concurrency:
 jobs:
   integration:
     if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    # Pinned to GitHub-hosted: this job needs Docker service containers
+    # (postgres/valkey), and the ARC `linux-general` runners have no Docker
+    # socket ("failed to connect to the docker API at unix:///var/run/docker.sock").
+    runs-on: ubuntu-latest
 
     services:
       postgres:
