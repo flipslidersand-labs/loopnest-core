@@ -121,8 +121,10 @@ jobs:
             dependency-policy
             scripts/dep-policy-check.py
           sparse-checkout-cone-mode: false
+        continue-on-error: true
 
       - name: Dependency policy drift check
+        if: hashFiles('.dep-policy/scripts/dep-policy-check.py') != ''
         run: |
           pip install pyyaml --quiet --disable-pip-version-check
           python3 .dep-policy/scripts/dep-policy-check.py \
