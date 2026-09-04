@@ -7,8 +7,8 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 PASS=0; FAIL=0
 
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 echo "=== Installments (M11) ==="
 
@@ -30,12 +30,12 @@ QUOTE=$(curl -sf -X POST "${BASE_URL}/api/quotes" \
   -d "{\"customerId\":\"$CUSTOMER\",\"quoteNumber\":\"QUO-INST-$(date +%s)\",\"subtotalAmount\":90000,\"taxAmount\":9000,\"totalAmount\":99000,\"createdBy\":\"test\"}" | jq -r '.data.id')
 
 curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/submit" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}' > /dev/null
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"user1"}' > /dev/null
 curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/approve" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}' > /dev/null
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"approver1"}' > /dev/null
 
 INV_RESP=$(curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/invoice" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}')
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"user1"}')
 INVOICE_ID=$(echo "$INV_RESP" | jq -r '.data.invoice.invoiceId // .data.invoiceId // empty')
 
 if [ -z "$INVOICE_ID" ] || [ "$INVOICE_ID" = "null" ]; then

@@ -7,8 +7,8 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-$(cat /tmp/loopnest_admin_token 2>/dev/null || echo '')}"
 PASS=0; FAIL=0
 
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 auth_header() {
   [ -n "$ADMIN_TOKEN" ] && echo "-H \"Authorization: Bearer $ADMIN_TOKEN\"" || echo ""

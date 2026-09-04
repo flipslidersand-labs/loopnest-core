@@ -7,8 +7,8 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 PASS=0; FAIL=0
 
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 echo "=== Credit Limit (M08) ==="
 
@@ -85,7 +85,7 @@ curl -sf -X PATCH "${BASE_URL}/api/customers/${CUSTOMER}/credit-limit" \
 PRODUCT=$(curl -sf -X POST "${BASE_URL}/api/products" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sku":"CL-TEST-001","name":"Credit Limit Test","category":"test","unitPrice":50000,"stockQuantity":10}' | jq -r '.data.id')
+  -d '{"sku":"CL-TEST-001","name":"Credit Limit Test","category":"laptop","unitPrice":50000,"stockQuantity":10}' | jq -r '.data.id')
 
 QUOTE=$(curl -sf -X POST "${BASE_URL}/api/quotes" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -93,13 +93,13 @@ QUOTE=$(curl -sf -X POST "${BASE_URL}/api/quotes" \
   -d "{\"customerId\":\"$CUSTOMER\",\"quoteNumber\":\"QUO-CL-$(date +%s)\",\"subtotalAmount\":50000,\"taxAmount\":5000,\"totalAmount\":55000,\"createdBy\":\"test\"}" | jq -r '.data.id')
 
 curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/submit" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}' > /dev/null
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"user1"}' > /dev/null
 curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/approve" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}' > /dev/null
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"approver1"}' > /dev/null
 
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   "${BASE_URL}/api/workflow/quotes/${QUOTE}/invoice" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}')
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"user1"}')
 if [ "$HTTP" = "422" ]; then
   pass "Invoice blocked by credit limit → 422 CREDIT_LIMIT_EXCEEDED"
 else
@@ -122,7 +122,7 @@ fi
 # ── Test 7: invoice succeeds with unlimited credit ───────────────────────────
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
   "${BASE_URL}/api/workflow/quotes/${QUOTE}/invoice" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{}')
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"userId":"user1"}')
 if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
   pass "Invoice succeeds with unlimited credit → $HTTP"
 else

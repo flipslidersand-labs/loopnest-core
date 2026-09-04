@@ -7,8 +7,8 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 PASS=0; FAIL=0
 
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 echo "=== Discounts (M07) ==="
 
@@ -29,7 +29,7 @@ CUSTOMER=$(curl -sf -X POST "${BASE_URL}/api/customers" \
 PRODUCT=$(curl -sf -X POST "${BASE_URL}/api/products" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sku":"DSC-001","name":"Discount Test Product","category":"test","unitPrice":10000,"stockQuantity":100}' | jq -r '.data.id')
+  -d '{"sku":"DSC-001","name":"Discount Test Product","category":"laptop","unitPrice":10000,"stockQuantity":100}' | jq -r '.data.id')
 
 QUOTE=$(curl -sf -X POST "${BASE_URL}/api/quotes" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -109,16 +109,20 @@ curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/discount" \
 
 curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/submit" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" -d '{}' > /dev/null
+  -H "Content-Type: application/json" -d '{"userId":"user1"}' > /dev/null
 
 curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/approve" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" -d '{}' > /dev/null
+  -H "Content-Type: application/json" -d '{"userId":"approver1"}' > /dev/null
 
 INV_RESP=$(curl -sf -X POST "${BASE_URL}/api/workflow/quotes/${QUOTE}/invoice" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" -d '{}')
-INV_DISC=$(echo "$INV_RESP" | jq -r '.data.invoice.discountAmount // .data.discountAmount // empty')
+  -H "Content-Type: application/json" -d '{"userId":"user1"}')
+INVOICE_ID=$(echo "$INV_RESP" | jq -r '.data.invoice.invoiceId // empty')
+# InvoiceCreationResult (the workflow response) doesn't carry discountAmount;
+# fetch the persisted invoice to see the value actually written to the DB.
+INV_DISC=$(curl -sf "${BASE_URL}/api/invoices/${INVOICE_ID}" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.data.discountAmount // empty')
 if [ "$INV_DISC" = "20000" ]; then
   pass "Invoice.discountAmount=20000 carried from quote"
 else
