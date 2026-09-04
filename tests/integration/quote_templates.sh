@@ -7,8 +7,8 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 PASS=0; FAIL=0
 
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 echo "=== Quote Templates (M10) ==="
 
@@ -27,7 +27,7 @@ CUSTOMER=$(curl -sf -X POST "${BASE_URL}/api/customers" \
 PRODUCT=$(curl -sf -X POST "${BASE_URL}/api/products" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sku":"TPL-001","name":"Template Product","category":"test","unitPrice":10000,"stockQuantity":100}' | jq -r '.data.id')
+  -d '{"sku":"TPL-001","name":"Template Product","category":"laptop","unitPrice":10000,"stockQuantity":100}' | jq -r '.data.id')
 
 echo "  Setup: customer=$CUSTOMER product=$PRODUCT"
 

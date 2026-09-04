@@ -6,8 +6,8 @@ source "$(dirname "$0")/_common.sh" 2>/dev/null || true
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 PASS=0; FAIL=0
 
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 echo "=== PDF Quote (M05) ==="
 
@@ -27,8 +27,8 @@ else
   fail "GET /api/quotes/:id/pdf → expected 200, got $HTTP_CODE"
 fi
 
-MAGIC=$(xxd /tmp/test_quote.pdf 2>/dev/null | head -1 | grep -o '25 50 44 46' || true)
-if [ "$MAGIC" = "25 50 44 46" ]; then
+MAGIC=$(head -c 4 /tmp/test_quote.pdf 2>/dev/null)
+if [ "$MAGIC" = "%PDF" ]; then
   pass "Response body starts with %PDF magic bytes"
 else
   fail "Response body does not look like a PDF"
