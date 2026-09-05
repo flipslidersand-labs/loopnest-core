@@ -92,6 +92,8 @@ export class InvoiceRepository {
         status: data.status || 'issued',
         created_by: data.createdBy,
         created_at: new Date(),
+        currency: data.currency ?? 'JPY',
+        exchange_rate: (data.exchangeRate ?? 1.0).toString(),
       })
       .returning(COLS)
       .executeTakeFirst();
