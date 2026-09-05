@@ -180,16 +180,16 @@ export class ReportingService {
 
     const byStatus: Record<string, { count: number; totalAmount: number }> = {};
     for (const row of statusR.rows) {
-      byStatus[row.status] = {
-        count:       Number.parseInt(row.count, 10),
-        totalAmount: Number.parseFloat(row.total_amount),
+      byStatus[row.status as string] = {
+        count:       Number.parseInt(row.count as string, 10),
+        totalAmount: Number.parseFloat(row.total_amount as string),
       };
     }
 
     return {
       byStatus,
-      overdueCount:  Number.parseInt(overdueR.rows[0].count, 10),
-      overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount),
+      overdueCount:  Number.parseInt(overdueR.rows[0].count as string, 10),
+      overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount as string),
     };
   }
 
@@ -246,9 +246,9 @@ export class ReportingService {
     let totalOutstanding = 0;
 
     for (const row of result.rows) {
-      const outstanding = Number.parseFloat(row.outstanding);
+      const outstanding = Number.parseFloat(row.outstanding as string);
       if (!(outstanding > 0)) continue;
-      const days = Number.parseInt(row.days_overdue, 10);
+      const days = Number.parseInt(row.days_overdue as string, 10);
 
       if (days <= 30) buckets.current += outstanding;
       else if (days <= 60) buckets.c31 += outstanding;
@@ -256,7 +256,7 @@ export class ReportingService {
       else buckets.c90 += outstanding;
 
       totalOutstanding += outstanding;
-      byCustomer.set(row.customer_id, (byCustomer.get(row.customer_id) ?? 0) + outstanding);
+      byCustomer.set(row.customer_id as string, (byCustomer.get(row.customer_id as string) ?? 0) + outstanding);
     }
 
     return {
