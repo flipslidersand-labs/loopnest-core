@@ -142,6 +142,23 @@ export const rateLimitRejectionsTotal = new Counter(
   'Requests rejected by the rate limiter, by bucket'
 );
 
+export const dbQueryDurationMs = new Histogram(
+  'db_query_duration_ms',
+  'Kysely DB query latency in milliseconds, labelled by query name',
+  [1, 5, 10, 25, 50, 100, 250, 500, 1000]
+);
+
+export const outboxEventLagMs = new Histogram(
+  'outbox_event_lag_ms',
+  'Time from outbox event created_at to dispatch start, in milliseconds',
+  [10, 50, 100, 500, 1000, 5000, 10000, 30000]
+);
+
+export const webhookDeliveryFailureTotal = new Counter(
+  'webhook_delivery_failure_total',
+  'Webhook dispatches that received a non-2xx response, by event type'
+);
+
 const processStart = Date.now();
 
 export const renderMetrics = (): string => {
@@ -157,6 +174,9 @@ export const renderMetrics = (): string => {
       httpRequestDurationMs.render(),
       httpRequestsInFlight.render(),
       rateLimitRejectionsTotal.render(),
+      dbQueryDurationMs.render(),
+      outboxEventLagMs.render(),
+      webhookDeliveryFailureTotal.render(),
       uptime,
     ].join('\n\n') + '\n'
   );
