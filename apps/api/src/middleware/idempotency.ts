@@ -52,7 +52,7 @@ export const idempotencyMiddleware = (
   const key = `${KEY_PREFIX}${rawKey}`;
   const fingerprint = computeFingerprint(req);
 
-  withRedisTimeout(redis.get(key))
+  withRedisTimeout<string | null>(redis.get(key))
     .then(async (existing) => {
       if (existing) {
         const cached = JSON.parse(existing) as CachedResponse;
@@ -101,9 +101,9 @@ export const idempotencyMiddleware = (
           };
           redis
             .set(key, JSON.stringify(completed), 'EX', TTL_SECONDS)
-            .catch((err) => logger.error({ err, key }, 'idempotency cache write failed'));
+            .catch((err: unknown) => logger.error({ err, key }, 'idempotency cache write failed'));
         } else {
-          redis.del(key).catch((err) => logger.error({ err, key }, 'idempotency cache delete failed'));
+          redis.del(key).catch((err: unknown) => logger.error({ err, key }, 'idempotency cache delete failed'));
         }
         return originalJson(body);
       };

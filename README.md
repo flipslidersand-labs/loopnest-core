@@ -73,6 +73,12 @@ pnpm dev
 
 Place environment variables in `env/.env.local` (see `env/.env.example`).
 
+**Working in a git worktree?** Run the setup script once after `git worktree add` to restore pnpm workspace symlinks (required for `@loopnest/*` package resolution):
+
+```bash
+bash scripts/setup-worktree.sh
+```
+
 ### Testing
 
 ```bash
@@ -168,6 +174,12 @@ pnpm dev
 ```
 
 環境変数は `env/.env.local` に配置してください（`env/.env.example` 参照）。
+
+**git worktree で作業する場合** は、`git worktree add` 後に一度セットアップスクリプトを実行して pnpm workspace のシンボリックリンクを復元してください（`@loopnest/*` パッケージ解決に必要）:
+
+```bash
+bash scripts/setup-worktree.sh
+```
 
 ### テスト
 
