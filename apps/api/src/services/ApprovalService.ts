@@ -1,8 +1,7 @@
 import { RepositoryContainer } from '@loopnest/bizcore-db';
-import type { QuoteEntity, KyselyDatabase, ApprovalStepRow } from '@loopnest/bizcore-db';
+import type { QuoteEntity, KyselyDatabase, ApprovalStepRow, Kysely } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
-import type { Kysely } from 'kysely';
 
 export interface ApprovalStep {
   id: string;
