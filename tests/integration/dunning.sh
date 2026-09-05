@@ -5,8 +5,8 @@ source "$(dirname "$0")/lib.sh" 2>/dev/null || true
 
 BASE_URL="${BASE_URL:-http://localhost:3000/api}"
 PASS=0; FAIL=0
-pass() { echo "  ✓ $1"; ((PASS++)); }
-fail() { echo "  ✗ $1"; ((FAIL++)); }
+pass() { echo "  ✓ $1"; PASS=$((PASS+1)); }
+fail() { echo "  ✗ $1"; FAIL=$((FAIL+1)); }
 
 echo "=== Dunning Management (M15) ==="
 
