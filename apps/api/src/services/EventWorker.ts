@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger.js";
 import { RepositoryContainer } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
 import { WebhookService } from "./WebhookService.js";
@@ -48,7 +49,7 @@ export class EventWorker {
   start(
     intervalMs: number = Number(process.env.EVENT_WORKER_INTERVAL_MS) || 5000,
   ): void {
-    console.log(`🔄 EventWorker started (interval: ${intervalMs}ms)`);
+    logger.info(`🔄 EventWorker started (interval: ${intervalMs}ms)`);
     this.timer = setInterval(() => this.processBatch(), intervalMs);
 
     // Overdue detection runs on a slower cadence (default hourly) — a payment
@@ -76,7 +77,7 @@ export class EventWorker {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      console.log("⏸️  EventWorker stopped");
+      logger.info('EventWorker stopped');
     }
     if (this.overdueTimer) {
       clearInterval(this.overdueTimer);
@@ -100,7 +101,7 @@ export class EventWorker {
       const events = await this.repos.outbox.claimPending(50);
 
       if (events.length > 0) {
-        console.log(`📨 Processing ${events.length} pending events`);
+        logger.info(`📨 Processing ${events.length} pending events`);
       }
 
       for (const event of events) {
@@ -108,13 +109,13 @@ export class EventWorker {
           await this.dispatch(event);
           await this.repos.outbox.markProcessed(event.id);
         } catch (error) {
-          console.error(`❌ Failed to dispatch event ${event.id}:`, error);
+          logger.error({ eventId: event.id, err: error }, 'failed to dispatch event');
           // Re-queues for retry, or dead-letters after maxRetries.
           await this.repos.outbox.markFailed(event.id, this.maxRetries);
         }
       }
     } catch (error) {
-      console.error("❌ Error in EventWorker batch processing:", error);
+      logger.error({ err: error }, 'EventWorker batch processing error');
     } finally {
       this.isProcessing = false;
     }
@@ -125,51 +126,49 @@ export class EventWorker {
 
     switch (eventType) {
       case "quote_submitted":
-        console.log(`✅ Quote submitted: ${aggregateId}`);
+        logger.info(`✅ Quote submitted: ${aggregateId}`);
         break;
       case "quote_approved":
-        console.log(`✅ Quote approved: ${aggregateId}`);
+        logger.info(`✅ Quote approved: ${aggregateId}`);
         break;
       case "quote_rejected":
-        console.log(`❌ Quote rejected: ${aggregateId}`);
+        logger.info(`❌ Quote rejected: ${aggregateId}`);
         break;
       case "invoice_created":
         await this.handleInvoiceCreated(aggregateId, payload);
         break;
       case "payment_recorded":
-        console.log(`💰 Payment recorded for invoice ${aggregateId}`);
+        logger.info(`💰 Payment recorded for invoice ${aggregateId}`);
         break;
       case "invoice_paid":
-        console.log(`✅ Invoice fully paid: ${aggregateId}`);
+        logger.info(`✅ Invoice fully paid: ${aggregateId}`);
         break;
       case "payment_reversed":
-        console.log(`↩️  Payment reversed for invoice ${aggregateId}`);
+        logger.info(`↩️  Payment reversed for invoice ${aggregateId}`);
         break;
       case "payment_overdue":
-        console.log(`⏰ Invoice overdue: ${aggregateId}`);
+        logger.info(`⏰ Invoice overdue: ${aggregateId}`);
         break;
       case "credit_note_issued":
-        console.log(`📋 Credit note issued: ${aggregateId}`);
+        logger.info(`📋 Credit note issued: ${aggregateId}`);
         break;
       case "credit_note_applied":
-        console.log(
-          `📋 Credit note applied to invoice ${payload?.targetInvoiceId}`,
-        );
+        logger.info(`credit_note applied to invoice ${payload?.targetInvoiceId}`);
         break;
       case "credit_note_refunded":
-        console.log(`💸 Credit note refunded: ${aggregateId}`);
+        logger.info(`💸 Credit note refunded: ${aggregateId}`);
         break;
       case "credit_note_voided":
-        console.log(`🗑️  Credit note voided: ${aggregateId}`);
+        logger.info(`🗑️  Credit note voided: ${aggregateId}`);
         break;
       case "quote_expired":
-        console.log(`⏰ Quote expired: ${aggregateId}`);
+        logger.info(`⏰ Quote expired: ${aggregateId}`);
         break;
       case "recurring_invoice_created":
-        console.log(`🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`);
+        logger.info(`🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`);
         break;
       default:
-        console.warn(`Unknown event type: ${eventType}`);
+        logger.warn(`Unknown event type: ${eventType}`);
     }
   }
 
@@ -192,14 +191,14 @@ export class EventWorker {
         try {
           await this.billContract(contract, today);
         } catch (err) {
-          console.error(`[RECURRING] Failed to bill contract ${contract.id}:`, err);
+          logger.error({ contractId: contract.id, err }, 'failed to bill contract');
         }
       }
       if (due.length > 0) {
-        console.log(`🔁 Recurring scan billed ${due.length} contract(s)`);
+        logger.info(`🔁 Recurring scan billed ${due.length} contract(s)`);
       }
     } catch (error) {
-      console.error('❌ Error in recurring scan:', error);
+      logger.error({ err: error }, 'recurring scan error');
     } finally {
       this.isScanningRecurring = false;
     }
@@ -301,16 +300,16 @@ export class EventWorker {
           this.webhooks
             .deliver(row.organization_id, "payment.overdue", payload)
             .catch((err) =>
-              console.error("[OVERDUE_WEBHOOK_ERROR]", row.id, err?.message),
+              logger.error({ invoiceId: row.id, err }, 'overdue webhook delivery failed'),
             );
         }
       }
 
       if (rows.length > 0) {
-        console.log(`⏰ Overdue scan flagged ${rows.length} invoice(s)`);
+        logger.info(`⏰ Overdue scan flagged ${rows.length} invoice(s)`);
       }
     } catch (error) {
-      console.error("❌ Error in overdue scan:", error);
+      logger.error({ err: error }, 'overdue scan error');
     } finally {
       this.isScanningOverdue = false;
     }
@@ -375,9 +374,7 @@ export class EventWorker {
       responseBody,
       null,
     );
-    console.log(
-      `📤 Exported invoice ${payload.invoiceNumber} to accounting API`,
-    );
+    logger.info(`exported invoice ${payload.invoiceNumber} to accounting API`);
   }
 
   private async recordExport(
@@ -403,7 +400,7 @@ export class EventWorker {
       );
     } catch (err) {
       // Recording the export must not mask the dispatch result; just log.
-      console.error("Failed to record accounting_export:", err);
+      logger.error({ err }, 'failed to record accounting_export');
     }
   }
 
@@ -431,17 +428,17 @@ export class EventWorker {
               quoteNumber: quote.quoteNumber,
               expiredAt: quote.expiresAt?.toISOString(),
             });
-            console.log(`⏰ Quote expired and auto-rejected: ${quote.quoteNumber}`);
+            logger.info(`⏰ Quote expired and auto-rejected: ${quote.quoteNumber}`);
           }
         } catch (err) {
-          console.error(`❌ Failed to expire quote ${quote.id}:`, err);
+          logger.error({ quoteId: quote.id, err }, 'failed to expire quote');
         }
       }
       if (expired.length > 0) {
-        console.log(`⏰ Expiry scan: auto-rejected ${expired.length} quote(s)`);
+        logger.info(`⏰ Expiry scan: auto-rejected ${expired.length} quote(s)`);
       }
     } catch (error) {
-      console.error("❌ Error in quote expiry scan:", error);
+      logger.error({ err: error }, 'quote expiry scan error');
     } finally {
       this.isScanningExpiry = false;
     }

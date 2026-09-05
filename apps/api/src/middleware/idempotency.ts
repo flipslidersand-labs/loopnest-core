@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { createHash } from 'node:crypto';
 import { redis } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from './errorHandler.js';
+import { logger } from '../lib/logger.js';
 import { withRedisTimeout } from './redisTimeout.js';
 
 const IDEMPOTENCY_HEADER = 'idempotency-key';
@@ -100,11 +101,9 @@ export const idempotencyMiddleware = (
           };
           redis
             .set(key, JSON.stringify(completed), 'EX', TTL_SECONDS)
-            .catch((err) => console.error('Idempotency cache write failed:', err));
+            .catch((err) => logger.error({ err, key }, 'idempotency cache write failed'));
         } else {
-          redis.del(key).catch((err) => {
-            console.error('idempotency cache delete failed', { operation: 'del', key, error: String(err) });
-          });
+          redis.del(key).catch((err) => logger.error({ err, key }, 'idempotency cache delete failed'));
         }
         return originalJson(body);
       };
@@ -119,7 +118,7 @@ export const idempotencyMiddleware = (
       }
       // Any other failure (Redis down/timeout, JSON parse) fails open: process
       // the request without idempotency protection rather than blocking it.
-      console.error('Idempotency check failed, proceeding without it:', err);
+      logger.error({ err }, 'idempotency check failed, proceeding without it');
       next();
     });
 };

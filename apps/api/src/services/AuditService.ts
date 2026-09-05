@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../lib/logger.js';
 
 export interface AuditLogEntry {
   actorId: string;
@@ -76,7 +77,7 @@ export class AuditService {
         ]
       );
     } catch (error) {
-      console.error('[AUDIT_ERROR]', error);
+      logger.error({ err: error }, 'audit log write failed');
       throw error;
     }
   }

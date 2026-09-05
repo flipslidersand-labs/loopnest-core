@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { redis } from '@loopnest/bizcore-db';
 import { withRedisTimeout } from './redisTimeout.js';
 import { rateLimitRejectionsTotal } from '../observability/metrics.js';
+import { logger } from '../lib/logger.js';
 
 export interface RateLimitOptions {
   /** Time window in seconds. */
@@ -81,7 +82,7 @@ export const rateLimit = (options: RateLimitOptions) => {
       })
       .catch((err) => {
         // Fail open: a Redis hiccup should not take down the API.
-        console.error('Rate limit check failed, allowing request:', err);
+        logger.error({ err, bucket, key }, 'rate limit check failed, allowing request');
         next();
       });
   };
