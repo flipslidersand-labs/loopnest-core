@@ -183,7 +183,7 @@ export class EventWorker {
         logger.info(`🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`);
         break;
       case "dunning_action":
-        console.log(`📬 Dunning action '${payload?.action}' for invoice ${aggregateId} (${payload?.daysOverdue}d overdue)`);
+        logger.info(`📬 Dunning action '${payload?.action}' for invoice ${aggregateId} (${payload?.daysOverdue}d overdue)`);
         break;
       default:
         logger.warn(`Unknown event type: ${eventType}`);
@@ -528,20 +528,20 @@ export class EventWorker {
               this.webhooks
                 .deliver(row.organization_id, 'dunning.action', payload)
                 .catch((err: any) =>
-                  console.error('[DUNNING_WEBHOOK_ERROR]', row.id, err?.message),
+                  logger.error('[DUNNING_WEBHOOK_ERROR]', { invoiceId: row.id, error: err?.message }),
                 );
             }
             fired++;
           } catch (err: any) {
             if (err?.code === '23505') continue; // unique constraint — already logged
-            console.error(`[DUNNING] Failed rule ${rule.id} for invoice ${row.id}:`, err);
+            logger.error('[DUNNING] Failed rule', { ruleId: rule.id, invoiceId: row.id, error: String(err) });
           }
         }
       }
 
-      if (fired > 0) console.log(`📬 Dunning scan fired ${fired} action(s)`);
+      if (fired > 0) logger.info(`📬 Dunning scan fired ${fired} action(s)`);
     } catch (error) {
-      console.error('❌ Error in dunning scan:', error);
+      logger.error('❌ Error in dunning scan:', { error: String(error) });
     } finally {
       this.isScanningDunning = false;
     }
