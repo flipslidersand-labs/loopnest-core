@@ -95,23 +95,11 @@ else
   fail "PATCH /dunning-rules/:id → got name=${P_NAME} isActive=${P_ACTIVE}"
 fi
 
-# ── Test 9: GET /invoices/:id/dunning-logs — need a known invoice ─────────────
-# Create org/customer/product/quote/invoice quickly
-ORG=$(curl -sf -X POST "${BASE_URL}/organizations" \
-  -H "Authorization: Bearer ${AUTH_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Dunning Test Org","slug":"dunning-test-org"}' | jq -r '.data.id')
-
-CUST=$(curl -sf -X POST "${BASE_URL}/customers" \
-  -H "Authorization: Bearer ${AUTH_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"Dunning Co\",\"organizationId\":\"${ORG}\"}" | jq -r '.data.id')
-
-INV_LOGS=$(curl -sf "${BASE_URL}/invoices/${CUST}/dunning-logs" \
-  -H "Authorization: Bearer ${AUTH_TOKEN}" 2>/dev/null | jq '.data | length' 2>/dev/null || echo "0")
-# Just test endpoint returns (may be 0 logs for a non-invoice ID; 200 is success)
+# ── Test 9: GET /invoices/:id/dunning-logs — endpoint smoke test ──────────────
+# Use a deterministic UUID; endpoint returns [] for unknown invoiceId (no FK check on SELECT)
+FAKE_INV_ID="00000000-0000-0000-0000-000000000099"
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-  "${BASE_URL}/invoices/${CUST}/dunning-logs" \
+  "${BASE_URL}/invoices/${FAKE_INV_ID}/dunning-logs" \
   -H "Authorization: Bearer ${AUTH_TOKEN}")
 if [ "$HTTP" = "200" ]; then
   pass "GET /invoices/:id/dunning-logs → 200"
