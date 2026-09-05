@@ -18,6 +18,8 @@ export interface QuoteEntity {
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'invoiced';
   notes?: string;
   organizationId?: string;
+  currency: string;        // ISO 4217, default 'JPY'
+  exchangeRate: number;    // rate to JPY, default 1.0
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -151,6 +153,8 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
         notes: data.notes,
         expiresAt: data.expiresAt ?? null,
         organizationId: data.organizationId,
+        currency: (data as any).currency ?? 'JPY',
+        exchangeRate: (data as any).exchangeRate ?? 1.0,
         createdBy: data.createdBy,
       },
     });
@@ -311,6 +315,8 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
       status: quote.status,
       notes: quote.notes,
       organizationId: quote.organizationId ?? undefined,
+      currency: quote.currency ?? 'JPY',
+      exchangeRate: quote.exchangeRate ? Number.parseFloat(quote.exchangeRate.toString()) : 1.0,
       createdBy: quote.createdBy,
       createdAt: quote.createdAt,
       updatedAt: quote.updatedAt,

@@ -16,6 +16,8 @@ export interface InvoiceRecord {
   paidAt: Date | null;
   createdBy: string | null;
   createdAt: Date;
+  currency: string;         // ISO 4217, default 'JPY'
+  exchangeRate: number;     // rate to JPY, default 1.0
 }
 
 export interface InvoiceLineItem {
@@ -44,6 +46,8 @@ export interface InvoiceInput {
   totalAmount: number;
   status?: string;
   createdBy?: string;
+  currency?: string;        // ISO 4217, defaults to 'JPY'
+  exchangeRate?: number;    // rate to JPY, defaults to 1.0
 }
 
 export interface InvoiceFilter {
@@ -57,6 +61,7 @@ const COLS = [
   'id', 'quote_id', 'contract_id', 'invoice_number', 'customer_id',
   'subtotal_amount', 'tax_amount', 'discount_amount', 'total_amount',
   'status', 'paid_at', 'created_by', 'created_at',
+  'currency', 'exchange_rate',
 ] as const;
 
 export class InvoiceRepository {
@@ -87,6 +92,8 @@ export class InvoiceRepository {
         status: data.status || 'issued',
         created_by: data.createdBy,
         created_at: new Date(),
+        currency: data.currency ?? 'JPY',
+        exchange_rate: (data.exchangeRate ?? 1.0).toString(),
       })
       .returning(COLS)
       .executeTakeFirst();
@@ -232,6 +239,8 @@ export class InvoiceRepository {
       paidAt: r.paid_at ?? null,
       createdBy: r.created_by,
       createdAt: r.created_at,
+      currency: r.currency ?? 'JPY',
+      exchangeRate: r.exchange_rate ? parseFloat(r.exchange_rate.toString()) : 1.0,
     };
   }
 }

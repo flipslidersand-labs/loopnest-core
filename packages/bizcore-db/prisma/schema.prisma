@@ -75,6 +75,8 @@ model Quote {
   notes           String?     @db.Text
   expiresAt       DateTime?   @map("expires_at")
   organizationId  String?     @map("organization_id") @db.Uuid
+  currency        String      @default("JPY") @db.Char(3)
+  exchangeRate    Decimal     @default(1.000000) @map("exchange_rate") @db.Decimal(19, 6)
   createdBy       String      @map("created_by") @db.VarChar(255)
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
