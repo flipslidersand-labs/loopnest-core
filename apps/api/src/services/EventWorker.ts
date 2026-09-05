@@ -107,8 +107,8 @@ export class EventWorker {
 
       for (const event of events) {
         try {
-          if (event.created_at) {
-            outboxEventLagMs.observe(Date.now() - new Date(event.created_at).getTime());
+          if (event.createdAt) {
+            outboxEventLagMs.observe(Date.now() - new Date(event.createdAt).getTime());
           }
           await this.dispatch(event);
           await this.repos.outbox.markProcessed(event.id);
