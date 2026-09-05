@@ -61,6 +61,10 @@ docs/                   ADR, backlog, design, roadmap
 # Install dependencies
 pnpm install
 
+# Configure environment variables
+cp .env.example .env
+# Edit .env and set JWT_SECRET (and any other values you want to override)
+
 # Start Docker (PostgreSQL + Redis)
 docker compose up -d
 
