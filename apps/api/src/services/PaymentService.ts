@@ -229,7 +229,9 @@ export class PaymentService {
 
     // Release credit_used after the DB transaction commits (fire-and-forget on error).
     if (paidCustomerId && creditDecrement) {
-      await this.repos.customers.decrementCreditUsed(paidCustomerId, creditDecrement).catch(() => undefined);
+      await this.repos.customers.decrementCreditUsed(paidCustomerId, creditDecrement).catch((err) => {
+        console.error('credit decrement failed', { operation: 'decrementCreditUsed', customerId: paidCustomerId, amount: creditDecrement, error: String(err) });
+      });
     }
 
     return result;

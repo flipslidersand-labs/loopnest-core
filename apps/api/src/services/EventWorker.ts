@@ -352,7 +352,10 @@ export class EventWorker {
       throw new Error(`accounting API unreachable: ${err}`);
     }
 
-    const responseBody = await response.json().catch(() => null);
+    const responseBody = await response.json().catch((err) => {
+      console.error('response JSON parse failed', { operation: 'response.json', invoiceId: payload.invoiceId, statusCode: response.status, error: String(err) });
+      return null;
+    });
 
     if (!response.ok) {
       await this.recordExport(

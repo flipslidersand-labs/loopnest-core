@@ -102,7 +102,9 @@ export const idempotencyMiddleware = (
             .set(key, JSON.stringify(completed), 'EX', TTL_SECONDS)
             .catch((err) => console.error('Idempotency cache write failed:', err));
         } else {
-          redis.del(key).catch(() => undefined);
+          redis.del(key).catch((err) => {
+            console.error('idempotency cache delete failed', { operation: 'del', key, error: String(err) });
+          });
         }
         return originalJson(body);
       };
