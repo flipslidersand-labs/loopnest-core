@@ -5,6 +5,12 @@ import { randomUUID } from "node:crypto";
 import { WebhookService } from "./WebhookService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
 
+interface ListenClient {
+  query: (text: string) => Promise<unknown>;
+  on: (event: string, handler: (...args: unknown[]) => void) => void;
+  release: () => void;
+}
+
 function advanceDate(from: string, unit: string, value: number): string {
   const d = new Date(from + 'T00:00:00Z');
   switch (unit) {
@@ -30,11 +36,13 @@ export class EventWorker {
   private expiryTimer: NodeJS.Timeout | null = null;
   private recurringTimer: NodeJS.Timeout | null = null;
   private dunningTimer: NodeJS.Timeout | null = null;
+  private listenClient: ListenClient | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
   private isScanningExpiry = false;
   private isScanningRecurring = false;
   private isScanningDunning = false;
+  private stopped = false;
   private readonly accountingApiUrl: string;
   private readonly maxRetries: number;
 
@@ -42,6 +50,7 @@ export class EventWorker {
     private repos: RepositoryContainer,
     private pgPool: {
       query: (text: string, params?: unknown[]) => Promise<any>;
+      connect?: () => Promise<ListenClient>;
     },
     private webhooks?: WebhookService,
   ) {
@@ -53,8 +62,23 @@ export class EventWorker {
   start(
     intervalMs: number = Number(process.env.EVENT_WORKER_INTERVAL_MS) || 5000,
   ): void {
-    logger.info(`🔄 EventWorker started (interval: ${intervalMs}ms)`);
-    this.timer = setInterval(() => this.processBatch(), intervalMs);
+    this.stopped = false;
+
+    // LISTEN/NOTIFY: wake immediately on INSERT; fall back to slower poll.
+    // If pool.connect is not available (e.g. unit tests), skip LISTEN and
+    // keep the original polling interval unchanged.
+    if (this.pgPool.connect) {
+      const fallbackMs =
+        Number(process.env.LISTEN_NOTIFY_FALLBACK_MS) || 60_000;
+      logger.info(`🔄 EventWorker started (LISTEN/NOTIFY + ${fallbackMs}ms fallback)`);
+      void this.startListenNotify();
+      this.timer = setInterval(() => this.processBatch(), fallbackMs);
+      // Process immediately on start to drain any events queued before LISTEN.
+      void this.processBatch();
+    } else {
+      logger.info(`🔄 EventWorker started (poll interval: ${intervalMs}ms)`);
+      this.timer = setInterval(() => this.processBatch(), intervalMs);
+    }
 
     // Overdue detection runs on a slower cadence (default hourly) — a payment
     // becoming overdue is a once-a-day transition, not something to poll at 5s.
@@ -83,6 +107,7 @@ export class EventWorker {
   }
 
   stop(): void {
+    this.stopped = true;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -103,6 +128,35 @@ export class EventWorker {
     if (this.dunningTimer) {
       clearInterval(this.dunningTimer);
       this.dunningTimer = null;
+    }
+    if (this.listenClient) {
+      this.listenClient.release();
+      this.listenClient = null;
+    }
+  }
+
+  private async startListenNotify(retryDelayMs = 5000): Promise<void> {
+    if (this.stopped) return;
+    try {
+      const client = await this.pgPool.connect!();
+      await client.query('LISTEN outbox_event');
+      this.listenClient = client;
+      client.on('notification', () => {
+        void this.processBatch();
+      });
+      client.on('error', (err: unknown) => {
+        logger.error({ err }, 'LISTEN client error — reconnecting');
+        this.listenClient = null;
+        if (!this.stopped) {
+          setTimeout(() => void this.startListenNotify(), retryDelayMs);
+        }
+      });
+      logger.info('LISTEN outbox_event active');
+    } catch (err) {
+      logger.error({ err }, 'Failed to establish LISTEN connection — retrying');
+      if (!this.stopped) {
+        setTimeout(() => void this.startListenNotify(retryDelayMs), retryDelayMs);
+      }
     }
   }
 
