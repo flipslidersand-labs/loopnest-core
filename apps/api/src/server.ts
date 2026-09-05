@@ -1,7 +1,9 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
+import type { Server } from 'node:http';
 import { logger } from './lib/logger.js';
 import cors from 'cors';
 import { initializeDatabaseServices, redis, setKyselyQueryObserver } from '@loopnest/bizcore-db';
+import type { DatabaseServices } from '@loopnest/bizcore-db';
 import { ServiceContainer } from './services/index.js';
 import { organizationRoutes } from './routes/organizations.js';
 import { customerRoutes } from './routes/customers.js';
@@ -48,10 +50,10 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize database services
-let services: any;
-let server: any;
+let services: DatabaseServices | undefined;
+let server: Server | undefined;
 
-initializeDatabaseServices().then((dbServices: any) => {
+initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   services = dbServices;
 
   // Wire Kysely timing into the metrics histogram.
@@ -68,12 +70,12 @@ initializeDatabaseServices().then((dbServices: any) => {
   app.use(requestMetrics({ pgPool: dbServices.pgPool, sampleRate: 0.1 }));
 
   // Liveness: process is up. Cheap, no dependencies.
-  app.get('/health', (req: any, res: any) => {
+  app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // Readiness: dependencies reachable. Used by orchestrators to gate traffic.
-  app.get('/ready', async (req: any, res: any) => {
+  app.get('/ready', async (req: Request, res: Response) => {
     const checks: Record<string, 'ok' | 'fail'> = { postgres: 'fail', redis: 'fail' };
     await Promise.all([
       dbServices.pgPool
@@ -94,16 +96,16 @@ initializeDatabaseServices().then((dbServices: any) => {
   });
 
   // Prometheus metrics scrape endpoint.
-  app.get('/metrics', (req: any, res: any) => {
+  app.get('/metrics', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/plain; version=0.0.4');
     res.send(renderMetrics());
   });
 
   // API documentation: machine-readable spec + Swagger UI.
-  app.get('/openapi.json', (req: any, res: any) => {
+  app.get('/openapi.json', (req: Request, res: Response) => {
     res.json(openapiDocument);
   });
-  app.get('/docs', (req: any, res: any) => {
+  app.get('/docs', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(swaggerHtml);
   });

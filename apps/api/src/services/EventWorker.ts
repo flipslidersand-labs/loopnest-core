@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger.js";
 import { RepositoryContainer } from "@loopnest/bizcore-db";
+import type { OutboxEvent } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
 import { WebhookService } from "./WebhookService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
@@ -125,7 +126,7 @@ export class EventWorker {
     }
   }
 
-  private async dispatch(event: any): Promise<void> {
+  private async dispatch(event: OutboxEvent): Promise<void> {
     const { eventType, aggregateId, payload } = event;
 
     switch (eventType) {
@@ -208,7 +209,7 @@ export class EventWorker {
     }
   }
 
-  private async billContract(contract: any, today: string): Promise<void> {
+  private async billContract(contract: { id: string; amount: number; taxRate: number; customerId: string; nextBillingAt: string; intervalUnit: string; intervalValue: number }, today: string): Promise<void> {
     const seq = await this.repos.invoices.nextSequenceValue();
     const yyyymm = today.slice(0, 7).replace('-', '');
     const invoiceNumber = `REC-${yyyymm}-${String(seq).padStart(6, '0')}`;
@@ -326,7 +327,7 @@ export class EventWorker {
    */
   private async handleInvoiceCreated(
     quoteId: string,
-    payload: any,
+    payload: Record<string, unknown>,
   ): Promise<void> {
     const requestPayload = {
       quoteId,
@@ -422,7 +423,7 @@ export class EventWorker {
         try {
           const result = await this.repos.quotes.transitionStatus(
             quote.id,
-            quote.status as any,
+            quote.status,
             'rejected',
             { notes: `Auto-rejected: quote expired at ${quote.expiresAt?.toISOString()}` },
           );

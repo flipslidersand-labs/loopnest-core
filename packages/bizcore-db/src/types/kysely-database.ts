@@ -1,5 +1,8 @@
 import { Generated, Insertable, Selectable, Updateable } from 'kysely';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type JsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
+
 // ============================================
 // core.quote_requests
 // ============================================
@@ -8,7 +11,7 @@ export interface QuoteRequestTable {
   customer_id: string;
   requested_by: string;
   contact_email: string;
-  requested_items: any; // JSONB
+  requested_items: JsonValue; // JSONB
   notes: string | null;
   status: string;
   created_by: string;
@@ -73,7 +76,7 @@ export interface InvoiceTable {
   issue_date: Date;
   payment_due_date: Date;
   status: string;
-  metadata: any; // JSONB
+  metadata: JsonValue | null; // JSONB
   created_by: string;
   created_at: Generated<Date>;
 }
@@ -107,8 +110,8 @@ export interface AccountingExportTable {
   invoice_id: string;
   exported_at: Date;
   status: string;
-  request_payload: any; // JSONB
-  response_payload: any | null; // JSONB
+  request_payload: JsonValue; // JSONB
+  response_payload: JsonValue | null; // JSONB
   error_message: string | null;
 }
 
@@ -130,7 +133,7 @@ export interface PaymentTable {
   status: string; // 'confirmed' | 'reversed'
   reversed_at: Date | null;
   reversal_reason: string | null;
-  metadata: any | null; // JSONB
+  metadata: JsonValue | null; // JSONB
   created_by: string | null;
   created_at: Generated<Date>;
 }
@@ -146,7 +149,7 @@ export interface OutboxEventTable {
   id: string;
   event_type: string;
   aggregate_id: string;
-  payload: any; // JSONB
+  payload: JsonValue; // JSONB
   status: string;
   created_at: Generated<Date>;
   processed_at: Date | null;
@@ -190,7 +193,7 @@ export interface CreditNoteTable {
   applied_amount: number;
   refunded_amount: number;
   issued_at: Generated<Date>;
-  metadata: any | null;
+  metadata: JsonValue | null;
   created_by: string | null; // VARCHAR(255) — matches payments.created_by
   created_at: Generated<Date>;
 }
@@ -216,6 +219,40 @@ export type CreditNoteApplication = Selectable<CreditNoteApplicationTable>;
 export type NewCreditNoteApplication = Insertable<CreditNoteApplicationTable>;
 
 // ============================================
+// workflow.approval_requests
+// ============================================
+export interface ApprovalRequestTable {
+  id: Generated<string>;
+  quote_id: string;
+  total_amount: string; // NUMERIC stored as string in pg driver
+  route_type: string;
+  status: string;
+  created_at: Generated<Date>;
+  completed_at: Date | null;
+}
+
+export type ApprovalRequestRow = Selectable<ApprovalRequestTable>;
+export type NewApprovalRequest = Insertable<ApprovalRequestTable>;
+export type ApprovalRequestUpdate = Updateable<ApprovalRequestTable>;
+
+// ============================================
+// workflow.approval_steps
+// ============================================
+export interface ApprovalStepTable {
+  id: Generated<string>;
+  approval_request_id: string;
+  step_order: number;
+  approver_id: string;
+  status: string;
+  approved_at: Date | null;
+  comment: string | null;
+}
+
+export type ApprovalStepRow = Selectable<ApprovalStepTable>;
+export type NewApprovalStep = Insertable<ApprovalStepTable>;
+export type ApprovalStepUpdate = Updateable<ApprovalStepTable>;
+
+// ============================================
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
@@ -230,4 +267,6 @@ export interface KyselyDatabase {
   'finance.credit_note_applications': CreditNoteApplicationTable;
   'events.outbox_events': OutboxEventTable;
   'events.webhooks': WebhookTable;
+  'workflow.approval_requests': ApprovalRequestTable;
+  'workflow.approval_steps': ApprovalStepTable;
 }

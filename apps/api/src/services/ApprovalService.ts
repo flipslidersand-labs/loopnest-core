@@ -1,6 +1,8 @@
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import type { QuoteEntity, KyselyDatabase, ApprovalStepRow } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
 import { v4 as uuidv4 } from 'uuid';
+import type { Kysely } from 'kysely';
 
 export interface ApprovalStep {
   id: string;
@@ -33,7 +35,7 @@ const STEPS = 'workflow.approval_steps';
 export class ApprovalService {
   constructor(
     private repos: RepositoryContainer,
-    private db: any
+    private db: Kysely<KyselyDatabase>
   ) {}
 
   async createApprovalRequest(
@@ -60,7 +62,7 @@ export class ApprovalService {
     const existing = await this.db
       .selectFrom(REQUESTS)
       .selectAll()
-      .where((eb: any) => eb.and([eb('quote_id', '=', quoteId), eb('status', '=', 'pending')]))
+      .where((eb) => eb.and([eb('quote_id', '=', quoteId), eb('status', '=', 'pending')]))
       .executeTakeFirst();
     if (existing) {
       throw new ApiErrorResponse(
@@ -83,7 +85,7 @@ export class ApprovalService {
 
     // Request + steps must be created atomically, or a failure mid-loop would
     // leave an orphaned request row with missing steps.
-    await this.db.transaction().execute(async (trx: any) => {
+    await this.db.transaction().execute(async (trx) => {
       await trx
         .insertInto(REQUESTS)
         .values({
@@ -121,7 +123,7 @@ export class ApprovalService {
    * FOR UPDATE lock is held until the surrounding transaction commits.
    */
   private async loadDecidableStep(
-    trx: any,
+    trx: Kysely<KyselyDatabase>,
     approvalRequestId: string,
     stepId: string,
     userId: string
@@ -130,7 +132,7 @@ export class ApprovalService {
     const request = await trx
       .selectFrom(REQUESTS)
       .selectAll()
-      .where((eb: any) => eb('id', '=', approvalRequestId))
+      .where((eb) => eb('id', '=', approvalRequestId))
       .forUpdate()
       .executeTakeFirst();
     if (!request) {
@@ -148,7 +150,7 @@ export class ApprovalService {
     const step = await trx
       .selectFrom(STEPS)
       .selectAll()
-      .where((eb: any) =>
+      .where((eb) =>
         eb.and([eb('id', '=', stepId), eb('approval_request_id', '=', approvalRequestId)])
       )
       .forUpdate()
@@ -178,21 +180,21 @@ export class ApprovalService {
     const now = new Date();
     let stepOrder: number;
 
-    await this.db.transaction().execute(async (trx: any) => {
+    await this.db.transaction().execute(async (trx) => {
       const { step } = await this.loadDecidableStep(trx, approvalRequestId, stepId, userId);
       stepOrder = step.step_order;
 
       await trx
         .updateTable(STEPS)
         .set({ status: 'approved', approved_at: now, comment: notes || null })
-        .where((eb: any) => eb('id', '=', stepId))
+        .where((eb) => eb('id', '=', stepId))
         .execute();
 
       // If no steps remain pending, the whole request is approved.
       const remaining = await trx
         .selectFrom(STEPS)
         .select('id')
-        .where((eb: any) =>
+        .where((eb) =>
           eb.and([eb('approval_request_id', '=', approvalRequestId), eb('status', '=', 'pending')])
         )
         .execute();
@@ -201,7 +203,7 @@ export class ApprovalService {
         await trx
           .updateTable(REQUESTS)
           .set({ status: 'approved', completed_at: now })
-          .where((eb: any) => eb('id', '=', approvalRequestId))
+          .where((eb) => eb('id', '=', approvalRequestId))
           .execute();
       }
     });
@@ -229,21 +231,21 @@ export class ApprovalService {
     const now = new Date();
     let stepOrder: number;
 
-    await this.db.transaction().execute(async (trx: any) => {
+    await this.db.transaction().execute(async (trx) => {
       const { step } = await this.loadDecidableStep(trx, approvalRequestId, stepId, userId);
       stepOrder = step.step_order;
 
       await trx
         .updateTable(STEPS)
         .set({ status: 'rejected', approved_at: now, comment: reason })
-        .where((eb: any) => eb('id', '=', stepId))
+        .where((eb) => eb('id', '=', stepId))
         .execute();
 
       // Any rejection rejects the whole request.
       await trx
         .updateTable(REQUESTS)
         .set({ status: 'rejected', completed_at: now })
-        .where((eb: any) => eb('id', '=', approvalRequestId))
+        .where((eb) => eb('id', '=', approvalRequestId))
         .execute();
     });
 
@@ -259,7 +261,7 @@ export class ApprovalService {
   }
 
   async getApprovalStatus(quoteId: string): Promise<{
-    quote: any;
+    quote: QuoteEntity;
     approvalRequest?: ApprovalRequest;
     progress: {
       totalSteps: number;
@@ -276,7 +278,7 @@ export class ApprovalService {
     const approvalRequest = await this.db
       .selectFrom(REQUESTS)
       .selectAll()
-      .where((eb: any) => eb('quote_id', '=', quoteId))
+      .where((eb) => eb('quote_id', '=', quoteId))
       .orderBy('created_at', 'desc')
       .executeTakeFirst();
 
@@ -290,11 +292,11 @@ export class ApprovalService {
     const steps = await this.db
       .selectFrom(STEPS)
       .selectAll()
-      .where((eb: any) => eb('approval_request_id', '=', approvalRequest.id))
+      .where((eb) => eb('approval_request_id', '=', approvalRequest.id))
       .orderBy('step_order', 'asc')
       .execute();
 
-    const completedSteps = steps.filter((s: any) => s.status !== 'pending').length;
+    const completedSteps = steps.filter((s) => s.status !== 'pending').length;
     const totalSteps = steps.length;
 
     return {
@@ -303,7 +305,7 @@ export class ApprovalService {
         id: approvalRequest.id,
         quoteId,
         status: approvalRequest.status,
-        steps: steps.map((s: any) => this.mapStep(approvalRequest.id, s)),
+        steps: steps.map((s) => this.mapStep(approvalRequest.id, s)),
         createdAt: approvalRequest.created_at,
         completedAt: approvalRequest.completed_at,
       },
@@ -323,7 +325,7 @@ export class ApprovalService {
     const result = await this.db
       .updateTable(REQUESTS)
       .set({ status: 'cancelled', completed_at: new Date() })
-      .where((eb: any) =>
+      .where((eb) =>
         eb.and([eb('id', '=', approvalRequestId), eb('status', '=', 'pending')])
       )
       .executeTakeFirst();
@@ -332,7 +334,7 @@ export class ApprovalService {
       const existing = await this.db
         .selectFrom(REQUESTS)
         .select('status')
-        .where((eb: any) => eb('id', '=', approvalRequestId))
+        .where((eb) => eb('id', '=', approvalRequestId))
         .executeTakeFirst();
       if (!existing) {
         throw new ApiErrorResponse(404, 'NOT_FOUND', 'Approval request not found');
@@ -349,31 +351,31 @@ export class ApprovalService {
     const steps = await this.db
       .selectFrom(STEPS)
       .selectAll()
-      .where((eb: any) =>
+      .where((eb) =>
         eb.and([eb('approver_id', '=', userId), eb('status', '=', 'pending')])
       )
       .execute();
 
-    const requestIds = [...new Set(steps.map((s: any) => s.approval_request_id))] as string[];
+    const requestIds = [...new Set(steps.map((s) => s.approval_request_id))] as string[];
 
     return Promise.all(
       requestIds.map(async (id) => {
         const request = await this.db
           .selectFrom(REQUESTS)
           .selectAll()
-          .where((eb: any) => eb('id', '=', id))
+          .where((eb) => eb('id', '=', id))
           .executeTakeFirst();
         const allSteps = await this.db
           .selectFrom(STEPS)
           .selectAll()
-          .where((eb: any) => eb('approval_request_id', '=', id))
+          .where((eb) => eb('approval_request_id', '=', id))
           .orderBy('step_order', 'asc')
           .execute();
         return {
           id: request.id,
           quoteId: request.quote_id,
           status: request.status,
-          steps: allSteps.map((s: any) => this.mapStep(request.id, s)),
+          steps: allSteps.map((s) => this.mapStep(request.id, s)),
           createdAt: request.created_at,
           completedAt: request.completed_at,
         };
@@ -381,7 +383,7 @@ export class ApprovalService {
     );
   }
 
-  private mapStep(approvalRequestId: string, s: any): ApprovalStep {
+  private mapStep(approvalRequestId: string, s: ApprovalStepRow): ApprovalStep {
     return {
       id: s.id,
       approvalRequestId,

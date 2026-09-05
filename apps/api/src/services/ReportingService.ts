@@ -35,8 +35,10 @@ export interface AccountsReceivableReport {
   byCustomer: Array<{ customerId: string; outstanding: number }>;
 }
 
+import type { PgPool } from '../lib/pg-pool-types.js';
+
 export class ReportingService {
-  constructor(private readonly pgPool: any) {}
+  constructor(private readonly pgPool: PgPool) {}
 
   async getSummary(orgId?: string): Promise<DashboardSummary> {
     const orgQuoteFilter = orgId ? `AND organization_id = $1` : '';
@@ -93,7 +95,7 @@ export class ReportingService {
     const VALID_PERIODS = new Set(['day', 'week', 'month', 'quarter', 'year']);
     const safePeriod = VALID_PERIODS.has(period) ? period : 'month';
 
-    const params: any[] = [];
+    const params: unknown[] = [];
     const conditions: string[] = ["i.status = 'paid'"];
 
     if (dateFrom) { params.push(dateFrom); conditions.push(`i.paid_at >= $${params.length}`); }
@@ -116,7 +118,7 @@ export class ReportingService {
       params
     );
 
-    return result.rows.map((r: any) => ({
+    return result.rows.map((r) => ({
       period:       r.period instanceof Date ? r.period.toISOString() : String(r.period),
       invoiceCount: Number.parseInt(r.invoice_count, 10),
       revenue:      Number.parseFloat(r.revenue),
@@ -198,7 +200,7 @@ export class ReportingService {
    * both the aging buckets and per-customer outstanding totals.
    */
   async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     let asOfExpr = 'CURRENT_DATE';
     if (asOf) {

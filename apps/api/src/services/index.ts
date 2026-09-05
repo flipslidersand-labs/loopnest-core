@@ -11,6 +11,9 @@ export { EventWorker } from './EventWorker.js';
 export { PdfService } from './PdfService.js';
 
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import type { Kysely } from 'kysely';
+import type { KyselyDatabase } from '@loopnest/bizcore-db';
+import type { PgPool } from '../lib/pg-pool-types.js';
 import { QuoteService } from './QuoteService.js';
 import { ApprovalService } from './ApprovalService.js';
 import { InvoiceService } from './InvoiceService.js';
@@ -38,8 +41,8 @@ export class ServiceContainer {
 
   constructor(
     repos: RepositoryContainer,
-    pgPool: any,
-    kyselyDb: any
+    pgPool: PgPool,
+    kyselyDb: Kysely<KyselyDatabase>
   ) {
     this.quotes = new QuoteService(repos);
     this.approvals = new ApprovalService(repos, kyselyDb);

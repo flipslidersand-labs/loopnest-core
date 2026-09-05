@@ -63,7 +63,7 @@ export class PdfService {
       customerAddress: customer?.address,
       customerPhone: customer?.phone,
       issuerName: org?.name ?? 'LoopNest Tech 株式会社',
-      registrationNumber: (invoice as any).registrationNumber,
+      registrationNumber: (invoice as unknown as { registrationNumber?: string }).registrationNumber,
       items: invoice.items.map(i => ({
         productName: i.productName,
         productSku: i.productSku,

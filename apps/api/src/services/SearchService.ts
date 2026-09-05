@@ -8,8 +8,10 @@ export interface SearchResult {
 
 const ALLOWED_TYPES = new Set(['customer', 'product', 'quote']);
 
+import type { PgPool } from '../lib/pg-pool-types.js';
+
 export class SearchService {
-  constructor(private readonly pgPool: any) {}
+  constructor(private readonly pgPool: PgPool) {}
 
   async search(
     query: string,
@@ -35,7 +37,7 @@ export class SearchService {
 
     // Build UNION from requested types only
     const unions: string[] = [];
-    const params: any[] = [pattern];
+    const params: unknown[] = [pattern];
 
     const orgCondition = orgId
       ? (() => { params.push(orgId); return `AND organization_id = $${params.length}`; })()
@@ -102,7 +104,7 @@ export class SearchService {
     ]);
 
     return {
-      results: dataResult.rows.map((r: any) => ({
+      results: dataResult.rows.map((r) => ({
         type:      r.type,
         id:        r.id,
         title:     r.title,

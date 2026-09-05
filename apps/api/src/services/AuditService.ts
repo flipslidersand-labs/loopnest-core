@@ -1,12 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../lib/logger.js';
+import type { PgPool } from '../lib/pg-pool-types.js';
 
 export interface AuditLogEntry {
   actorId: string;
   action: string;
   resourceType: string;
   resourceId: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   correlationId?: string;
 }
 
@@ -16,7 +17,7 @@ export interface AuditLogRecord {
   action: string;
   resourceType: string;
   resourceId: string;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
   correlationId: string | null;
   createdAt: Date;
 }
@@ -55,7 +56,7 @@ export interface RequestLogFilter {
 }
 
 export class AuditService {
-  constructor(private readonly pgPool: any) {}
+  constructor(private readonly pgPool: PgPool) {}
 
   async log(entry: AuditLogEntry): Promise<void> {
     const correlationId = entry.correlationId || uuidv4();
@@ -171,11 +172,11 @@ export class AuditService {
     await this.log({ actorId: userId, action: 'INVOICE_CREATED', resourceType: 'invoice', resourceId: invoiceId, metadata: { sourceQuote: quoteId } });
   }
 
-  async logResourceCreated(resourceType: string, resourceId: string, userId: string, metadata?: Record<string, any>): Promise<void> {
+  async logResourceCreated(resourceType: string, resourceId: string, userId: string, metadata?: Record<string, unknown>): Promise<void> {
     await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_CREATED`, resourceType, resourceId, metadata });
   }
 
-  async logResourceUpdated(resourceType: string, resourceId: string, userId: string, changes: Record<string, any>): Promise<void> {
+  async logResourceUpdated(resourceType: string, resourceId: string, userId: string, changes: Record<string, unknown>): Promise<void> {
     await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_UPDATED`, resourceType, resourceId, metadata: { changes } });
   }
 
@@ -185,9 +186,9 @@ export class AuditService {
 
   // ── Private helpers ─────────────────────────────────────────────────────────
 
-  private buildLogConditions(f: AuditLogFilter): { conditions: string[]; params: any[] } {
+  private buildLogConditions(f: AuditLogFilter): { conditions: string[]; params: unknown[] } {
     const conditions: string[] = [];
-    const params: any[] = [];
+    const params: unknown[] = [];
     const p = () => `$${params.length}`;
 
     if (f.actorId)       { params.push(f.actorId);       conditions.push(`actor_id = ${p()}`); }
@@ -200,9 +201,9 @@ export class AuditService {
     return { conditions, params };
   }
 
-  private buildRequestConditions(f: RequestLogFilter): { conditions: string[]; params: any[] } {
+  private buildRequestConditions(f: RequestLogFilter): { conditions: string[]; params: unknown[] } {
     const conditions: string[] = [];
-    const params: any[] = [];
+    const params: unknown[] = [];
     const p = () => `$${params.length}`;
 
     if (f.actorId)    { params.push(f.actorId);    conditions.push(`actor_id = ${p()}`); }
@@ -215,29 +216,29 @@ export class AuditService {
     return { conditions, params };
   }
 
-  private mapLogRow(row: any): AuditLogRecord {
+  private mapLogRow(row: Record<string, unknown>): AuditLogRecord {
     return {
-      id: row.id,
-      actorId: row.actor_id,
-      action: row.action,
-      resourceType: row.resource_type,
-      resourceId: row.resource_id,
-      metadata: row.metadata,
-      correlationId: row.correlation_id,
-      createdAt: row.created_at,
+      id: row.id as string,
+      actorId: row.actor_id as string,
+      action: row.action as string,
+      resourceType: row.resource_type as string,
+      resourceId: row.resource_id as string,
+      metadata: row.metadata as Record<string, unknown> | null,
+      correlationId: row.correlation_id as string | null,
+      createdAt: row.created_at as Date,
     };
   }
 
-  private mapRequestRow(row: any): RequestLogRecord {
+  private mapRequestRow(row: Record<string, unknown>): RequestLogRecord {
     return {
-      id: row.id,
-      method: row.method,
-      path: row.path,
-      statusCode: row.status_code,
-      durationMs: row.duration_ms,
-      correlationId: row.correlation_id,
-      actorId: row.actor_id,
-      createdAt: row.created_at,
+      id: row.id as string,
+      method: row.method as string,
+      path: row.path as string,
+      statusCode: row.status_code as number,
+      durationMs: row.duration_ms as number,
+      correlationId: row.correlation_id as string | null,
+      actorId: row.actor_id as string | null,
+      createdAt: row.created_at as Date,
     };
   }
 }

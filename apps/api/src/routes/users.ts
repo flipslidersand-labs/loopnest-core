@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import type { User } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 
@@ -16,10 +17,10 @@ export function userRoutes(repos: RepositoryContainer) {
       let users, count;
       if (organizationId) {
         users = await repos.users.findByOrganization(organizationId, { skip, take });
-        count = await repos.users.count({ organizationId } as any);
+        count = await repos.users.count({ organizationId });
       } else if (role) {
-        users = await repos.users.findByRole(role as any, { skip, take });
-        count = await repos.users.count({ role } as any);
+        users = await repos.users.findByRole(role as User['role'], { skip, take });
+        count = await repos.users.count({ role: role as User['role'] });
       } else {
         users = await repos.users.findAll({ skip, take });
         count = await repos.users.count();
