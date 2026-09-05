@@ -112,6 +112,8 @@ bash tests/integration/credit_notes.sh
 | GET | `/health` | Health check |
 | GET | `/docs` | Swagger UI |
 
+For a complete list of API error codes with HTTP status and recommended client actions, see **[docs/error-codes.md](docs/error-codes.md)**.
+
 ---
 
 ## 日本語
@@ -214,3 +216,5 @@ bash tests/integration/credit_notes.sh
 | GET | `/api/reports/ar-aging` | AR エイジングレポート |
 | GET | `/health` | ヘルスチェック |
 | GET | `/docs` | Swagger UI |
+
+API エラーコードの一覧（HTTP ステータス・推奨アクション付き）は **[docs/error-codes.md](docs/error-codes.md)** を参照してください。
