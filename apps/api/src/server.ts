@@ -1,7 +1,7 @@
 import express from 'express';
 import { logger } from './lib/logger.js';
 import cors from 'cors';
-import { initializeDatabaseServices, redis } from '@loopnest/bizcore-db';
+import { initializeDatabaseServices, redis, setKyselyQueryObserver } from '@loopnest/bizcore-db';
 import { ServiceContainer } from './services/index.js';
 import { organizationRoutes } from './routes/organizations.js';
 import { customerRoutes } from './routes/customers.js';
@@ -25,7 +25,7 @@ import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { requestMetrics } from './middleware/requestMetrics.js';
-import { renderMetrics } from './observability/metrics.js';
+import { renderMetrics, dbQueryDurationMs } from './observability/metrics.js';
 import { openapiDocument, swaggerHtml } from './openapi.js';
 
 const app = express();
@@ -53,6 +53,10 @@ let server: any;
 
 initializeDatabaseServices().then((dbServices: any) => {
   services = dbServices;
+
+  // Wire Kysely timing into the metrics histogram.
+  setKyselyQueryObserver((kind: string, ms: number) => dbQueryDurationMs.observe(ms, { kind }));
+
   const serviceContainer = new ServiceContainer(dbServices.repos, dbServices.pgPool, dbServices.kyselyDb);
 
   // Start EventWorker
