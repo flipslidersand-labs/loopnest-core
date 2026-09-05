@@ -111,7 +111,7 @@ export class AuditService {
       ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
     `;
     const result = await this.pgPool.query(sql, params);
-    return Number.parseInt(result.rows[0].count, 10);
+    return Number.parseInt(result.rows[0].count as string, 10);
   }
 
   async getResourceHistory(resourceType: string, resourceId: string): Promise<AuditLogRecord[]> {
@@ -151,7 +151,7 @@ export class AuditService {
       ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
     `;
     const result = await this.pgPool.query(sql, params);
-    return Number.parseInt(result.rows[0].count, 10);
+    return Number.parseInt(result.rows[0].count as string, 10);
   }
 
   // ── Convenience log helpers ─────────────────────────────────────────────────

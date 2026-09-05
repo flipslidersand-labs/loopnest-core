@@ -347,7 +347,7 @@ export class EventWorker {
       });
     } catch (err) {
       await this.recordExport(
-        payload.invoiceId,
+        String(payload.invoiceId),
         "failed",
         requestPayload,
         null,
@@ -363,7 +363,7 @@ export class EventWorker {
 
     if (!response.ok) {
       await this.recordExport(
-        payload.invoiceId,
+        String(payload.invoiceId),
         "failed",
         requestPayload,
         responseBody,
@@ -373,7 +373,7 @@ export class EventWorker {
     }
 
     await this.recordExport(
-      payload.invoiceId,
+      String(payload.invoiceId),
       "success",
       requestPayload,
       responseBody,

@@ -304,10 +304,10 @@ export class ApprovalService {
       approvalRequest: {
         id: approvalRequest.id,
         quoteId,
-        status: approvalRequest.status,
+        status: approvalRequest.status as 'pending' | 'approved' | 'rejected' | 'cancelled',
         steps: steps.map((s) => this.mapStep(approvalRequest.id, s)),
         createdAt: approvalRequest.created_at,
-        completedAt: approvalRequest.completed_at,
+        completedAt: approvalRequest.completed_at ?? undefined,
       },
       progress: {
         totalSteps,
@@ -374,10 +374,10 @@ export class ApprovalService {
         return {
           id: request.id,
           quoteId: request.quote_id,
-          status: request.status,
+          status: request.status as 'pending' | 'approved' | 'rejected' | 'cancelled',
           steps: allSteps.map((s) => this.mapStep(request.id, s)),
           createdAt: request.created_at,
-          completedAt: request.completed_at,
+          completedAt: request.completed_at ?? undefined,
         };
       })
     );
@@ -389,9 +389,9 @@ export class ApprovalService {
       approvalRequestId,
       stepNumber: s.step_order,
       approverUserId: s.approver_id,
-      status: s.status,
-      notes: s.comment,
-      decidedAt: s.approved_at,
+      status: s.status as 'pending' | 'approved' | 'rejected',
+      notes: s.comment ?? undefined,
+      decidedAt: s.approved_at ?? undefined,
     };
   }
 }

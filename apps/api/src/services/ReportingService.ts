@@ -79,10 +79,10 @@ export class ReportingService {
     ]);
 
     return {
-      totalCustomers:    Number.parseInt(custR.rows[0].count, 10),
-      activeQuotes:      Number.parseInt(activeR.rows[0].count, 10),
-      outstandingAmount: Number.parseFloat(outstandingR.rows[0].total),
-      paidThisMonth:     Number.parseFloat(paidR.rows[0].total),
+      totalCustomers:    Number.parseInt(custR.rows[0].count as string, 10),
+      activeQuotes:      Number.parseInt(activeR.rows[0].count as string, 10),
+      outstandingAmount: Number.parseFloat(outstandingR.rows[0].total as string),
+      paidThisMonth:     Number.parseFloat(paidR.rows[0].total as string),
     };
   }
 
@@ -120,8 +120,8 @@ export class ReportingService {
 
     return result.rows.map((r) => ({
       period:       r.period instanceof Date ? r.period.toISOString() : String(r.period),
-      invoiceCount: Number.parseInt(r.invoice_count, 10),
-      revenue:      Number.parseFloat(r.revenue),
+      invoiceCount: Number.parseInt(r.invoice_count as string, 10),
+      revenue:      Number.parseFloat(r.revenue as string),
     }));
   }
 
@@ -140,8 +140,8 @@ export class ReportingService {
     const byStatus: Record<string, number> = {};
     let total = 0;
     for (const row of result.rows) {
-      byStatus[row.status] = Number.parseInt(row.count, 10);
-      total += byStatus[row.status];
+      byStatus[row.status as string] = Number.parseInt(row.count as string, 10);
+      total += byStatus[row.status as string];
     }
 
     // Conversion: how many that entered the approval flow ended up approved/invoiced
