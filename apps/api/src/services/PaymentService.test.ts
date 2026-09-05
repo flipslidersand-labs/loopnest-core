@@ -73,7 +73,7 @@ describe('PaymentService', () => {
   it('applyPayment — normal allocation sets status to partially_paid', async () => {
     const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(invoice, repos);
-    const svc = new PaymentService(repos as any, db);
+    const svc = new PaymentService(repos as any, db as any);
 
     const result = await svc.recordPayment('inv-1', { amount: 400, method: 'bank_transfer' }, 'user-1');
 
@@ -85,7 +85,7 @@ describe('PaymentService', () => {
   it('applyPayment — full payment sets status to paid', async () => {
     const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(invoice, repos);
-    const svc = new PaymentService(repos as any, db);
+    const svc = new PaymentService(repos as any, db as any);
 
     const result = await svc.recordPayment('inv-1', { amount: 1000, method: 'bank_transfer' }, 'user-1');
 
@@ -96,7 +96,7 @@ describe('PaymentService', () => {
   it('applyPayment — overpayment throws OVERPAYMENT', async () => {
     const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(invoice, repos);
-    const svc = new PaymentService(repos as any, db);
+    const svc = new PaymentService(repos as any, db as any);
 
     await expect(
       svc.recordPayment('inv-1', { amount: 1001, method: 'bank_transfer' }, 'user-1')
@@ -106,7 +106,7 @@ describe('PaymentService', () => {
   it('applyPayment — cancelled invoice throws INVALID_STATUS', async () => {
     const invoice = makeInvoice({ status: 'cancelled' });
     const db = makeDb(invoice, repos);
-    const svc = new PaymentService(repos as any, db);
+    const svc = new PaymentService(repos as any, db as any);
 
     await expect(
       svc.recordPayment('inv-1', { amount: 100, method: 'bank_transfer' }, 'user-1')
@@ -117,7 +117,7 @@ describe('PaymentService', () => {
     repos.customers.decrementCreditUsed = vi.fn().mockRejectedValue(new Error('DB error'));
     const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(invoice, repos);
-    const svc = new PaymentService(repos as any, db);
+    const svc = new PaymentService(repos as any, db as any);
 
     // Should resolve without throwing even if credit decrement fails
     await expect(

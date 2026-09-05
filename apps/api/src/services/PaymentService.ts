@@ -5,7 +5,9 @@ import {
   PaymentMethod,
   PaymentFilter,
 } from "@loopnest/bizcore-db";
+import type { KyselyDatabase } from "@loopnest/bizcore-db";
 import { ApiErrorResponse } from "../middleware/errorHandler.js";
+import type { Kysely } from "kysely";
 
 const METHODS: PaymentMethod[] = [
   "bank_transfer",
@@ -50,14 +52,14 @@ function money(n: number): number {
 export class PaymentService {
   constructor(
     private repos: RepositoryContainer,
-    private db: any,
+    private db: Kysely<KyselyDatabase>,
   ) {}
 
   private async enqueue(
-    trx: any,
+    trx: Kysely<KyselyDatabase>,
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>,
+    payload: Record<string, unknown>,
   ): Promise<void> {
     await trx
       .insertInto("events.outbox_events")
@@ -77,7 +79,7 @@ export class PaymentService {
    * (M07 scoped core tables only), so the org is inherited from the originating
    * quote. Used to stamp payments and enforce tenant isolation.
    */
-  private async resolveInvoiceOrg(trx: any, inv: any): Promise<string | null> {
+  private async resolveInvoiceOrg(trx: Kysely<KyselyDatabase>, inv: { organization_id?: string | null; quote_id?: string | null }): Promise<string | null> {
     if (inv.organization_id) return inv.organization_id;
     if (!inv.quote_id) return null;
     const q = await trx
@@ -127,7 +129,7 @@ export class PaymentService {
     let paidCustomerId: string | null = null;
     let creditDecrement: number | null = null;
 
-    const result = await this.db.transaction().execute(async (trx: any) => {
+    const result = await this.db.transaction().execute(async (trx) => {
       const inv = await trx
         .selectFrom("finance.invoices")
         .selectAll()
@@ -247,7 +249,7 @@ export class PaymentService {
       throw new ApiErrorResponse(400, "VALIDATION_ERROR", "reason is required");
     }
 
-    return this.db.transaction().execute(async (trx: any) => {
+    return this.db.transaction().execute(async (trx) => {
       const payment = await this.repos.payments.findById(paymentId, trx);
       if (!payment) {
         throw new ApiErrorResponse(404, "NOT_FOUND", "Payment not found");

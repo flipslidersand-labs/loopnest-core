@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CreditNoteService } from './CreditNoteService.js';
+import type { Kysely, KyselyDatabase } from '@loopnest/bizcore-db';
 
 function makeCreditNote(overrides: Record<string, any> = {}) {
   return {
@@ -62,16 +63,16 @@ function makeTrxForApply(creditNote: any, invoice: any) {
   return trx;
 }
 
-function makeDb(creditNote: any, invoice: any) {
+function makeDb(creditNote: any, invoice: any): Kysely<KyselyDatabase> {
   const trx = makeTrxForApply(creditNote, invoice);
   return {
     transaction: () => ({
       execute: (fn: (trx: any) => Promise<any>) => fn(trx),
     }),
-  };
+  } as unknown as Kysely<KyselyDatabase>;
 }
 
-function makeDbForIssue(invoice: any) {
+function makeDbForIssue(invoice: any): Kysely<KyselyDatabase> {
   const trx: any = {
     selectFrom: vi.fn().mockReturnThis(),
     selectAll: vi.fn().mockReturnThis(),
@@ -87,7 +88,7 @@ function makeDbForIssue(invoice: any) {
     transaction: () => ({
       execute: (fn: (trx: any) => Promise<any>) => fn(trx),
     }),
-  };
+  } as unknown as Kysely<KyselyDatabase>;
 }
 
 describe('CreditNoteService', () => {
@@ -102,7 +103,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ amount: '1000.00' });
     const inv = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     repos.creditNotes.insertApplication.mockResolvedValue({ id: 'app-1' });
     repos.creditNotes.appliedToInvoice = vi.fn().mockResolvedValue(0);
@@ -117,7 +118,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ amount: '300.00' });
     const inv = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     repos.creditNotes.creditAppliedToInvoice = vi.fn().mockResolvedValue(0);
     repos.payments.confirmedTotal = vi.fn().mockResolvedValue(0);
@@ -130,7 +131,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ amount: '500.00', applied_amount: '400.00' });
     const inv = makeInvoice();
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     await expect(
       svc.applyCreditNote('cn-1', { targetInvoiceId: 'inv-1', amount: 200 }, 'user-1')
@@ -141,7 +142,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ status: 'fully_applied' });
     const inv = makeInvoice();
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     await expect(
       svc.applyCreditNote('cn-1', { targetInvoiceId: 'inv-1', amount: 100 }, 'user-1')

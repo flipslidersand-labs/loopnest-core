@@ -18,7 +18,7 @@ export class ApiErrorResponse extends Error {
 }
 
 export const errorHandler = (
-  err: any,
+  err: ApiError & { name?: string },
   req: Request,
   res: Response,
   next: NextFunction
@@ -72,7 +72,7 @@ export const errorHandler = (
 };
 
 export const asyncHandler = (
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
 ) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);

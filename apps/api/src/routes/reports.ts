@@ -24,7 +24,7 @@ export function reportRoutes(reportingService: ReportingService) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'period must be day, week, month, quarter, or year');
       }
       const revenue = await reportingService.getRevenue(
-        period as any,
+        period as 'day' | 'week' | 'month' | 'quarter' | 'year',
         req.query.dateFrom as string | undefined,
         req.query.dateTo as string | undefined,
         req.user?.orgId

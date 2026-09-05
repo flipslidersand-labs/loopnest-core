@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { ServiceContainer } from '../services/index.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
@@ -202,7 +202,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
 
   // ── Invoice lifecycle ────────────────────────────────────────────────────
 
-  const requireInvoice = asyncHandler(async (req: Request, _res: Response, next: any) => {
+  const requireInvoice = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     const inv = await repos.invoices.findById(req.params.id);
     if (!inv) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
     next();

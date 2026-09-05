@@ -6,7 +6,9 @@ import {
   CreditNoteType,
   CreditNoteFilter,
 } from '@loopnest/bizcore-db';
+import type { KyselyDatabase } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
+import type { Kysely } from 'kysely';
 
 const CN_TYPES: CreditNoteType[] = ['return', 'pricing_error', 'goodwill', 'adjustment'];
 
@@ -14,7 +16,7 @@ export interface IssueCreditNoteInput {
   amount: number;
   reason: string;
   cnType?: CreditNoteType;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ApplyCreditNoteInput {
@@ -54,14 +56,14 @@ function money(n: number): number {
 export class CreditNoteService {
   constructor(
     private repos: RepositoryContainer,
-    private db: any
+    private db: Kysely<KyselyDatabase>
   ) {}
 
   private async enqueue(
-    trx: any,
+    trx: Kysely<KyselyDatabase>,
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>
+    payload: Record<string, unknown>
   ): Promise<void> {
     await trx
       .insertInto('events.outbox_events')
@@ -76,7 +78,7 @@ export class CreditNoteService {
       .execute();
   }
 
-  private async resolveOrgForInvoice(trx: any, inv: any): Promise<string | null> {
+  private async resolveOrgForInvoice(trx: Kysely<KyselyDatabase>, inv: { organization_id?: string | null; quote_id?: string | null }): Promise<string | null> {
     if (inv.organization_id) return inv.organization_id;
     if (!inv.quote_id) return null;
     const q = await trx
@@ -132,7 +134,7 @@ export class CreditNoteService {
       );
     }
 
-    return this.db.transaction().execute(async (trx: any) => {
+    return this.db.transaction().execute(async (trx) => {
       const inv = await trx
         .selectFrom('finance.invoices')
         .selectAll()
@@ -200,7 +202,7 @@ export class CreditNoteService {
       throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'amount must be a positive number');
     }
 
-    return this.db.transaction().execute(async (trx: any) => {
+    return this.db.transaction().execute(async (trx) => {
       const cn = await trx
         .selectFrom('finance.credit_notes')
         .selectAll()
@@ -339,7 +341,7 @@ export class CreditNoteService {
     creditNoteId: string,
     userId: string
   ): Promise<{ creditNote: CreditNoteRecord; refundedAmount: number }> {
-    return this.db.transaction().execute(async (trx: any) => {
+    return this.db.transaction().execute(async (trx) => {
       const cn = await trx
         .selectFrom('finance.credit_notes')
         .selectAll()
@@ -385,7 +387,7 @@ export class CreditNoteService {
     creditNoteId: string,
     _userId: string
   ): Promise<CreditNoteRecord> {
-    return this.db.transaction().execute(async (trx: any) => {
+    return this.db.transaction().execute(async (trx) => {
       const cn = await trx
         .selectFrom('finance.credit_notes')
         .selectAll()
