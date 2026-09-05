@@ -80,7 +80,8 @@ else
 fi
 
 # ── Test 7: POST — requires admin ─────────────────────────────────────────────
-HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+# Use command curl to bypass the _common.sh token-injection shim
+HTTP=$(command curl -s -o /dev/null -w "%{http_code}" \
   -X POST "${BASE_URL}/api/exchange-rates" \
   -H "Content-Type: application/json" \
   -d '{"currencyCode":"EUR","rateToJpy":165.0,"effectiveDate":"2026-09-05"}')
