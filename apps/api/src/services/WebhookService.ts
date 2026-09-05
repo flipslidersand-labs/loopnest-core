@@ -45,15 +45,19 @@ export class WebhookService {
   }
 
   private async dispatch(hook: WebhookRecord, eventType: string, payload: object): Promise<void> {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
     const body = JSON.stringify({
       event:     eventType,
       data:      payload,
       timestamp: new Date().toISOString(),
     });
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-LoopNest-Timestamp': timestamp,
+    };
     if (hook.secret) {
-      const sig = createHmac('sha256', hook.secret).update(body).digest('hex');
+      const sig = createHmac('sha256', hook.secret).update(`${timestamp}.${body}`).digest('hex');
       headers['X-LoopNest-Signature'] = `sha256=${sig}`;
     }
 
