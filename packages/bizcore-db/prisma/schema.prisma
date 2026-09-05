@@ -115,6 +115,7 @@ model ExchangeRate {
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("exchange_rates")
+  @@schema("core")
 }
 
 // Master table: Users
