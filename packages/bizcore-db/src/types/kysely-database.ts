@@ -26,8 +26,8 @@ export type QuoteRequestUpdate = Updateable<QuoteRequestTable>;
 // core.exchange_rates
 // ============================================
 export interface ExchangeRateTable {
-  currency_code: string;
-  rate_to_jpy: number;
+  currency_code: string;   // ISO 4217 PK (e.g. 'USD')
+  rate_to_jpy: number;     // 1 unit of this currency = N JPY
   effective_date: Date;
   updated_at: Generated<Date>;
 }
@@ -51,8 +51,8 @@ export interface QuoteTable {
   status: string;
   notes: string | null;
   created_by: string;
-  currency: Generated<string>;
-  exchange_rate: Generated<number>;
+  currency: Generated<string>;        // ISO 4217, default 'JPY'
+  exchange_rate: Generated<number>;   // rate to JPY, default 1.0
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -94,8 +94,8 @@ export interface InvoiceTable {
   payment_due_date: Date;
   status: string;
   paid_at: Date | null;
-  currency: Generated<string>;
-  exchange_rate: Generated<number>;
+  currency: Generated<string>;        // ISO 4217, default 'JPY'
+  exchange_rate: Generated<number>;   // rate to JPY, default 1.0
   metadata: JsonValue | null; // JSONB
   created_by: string;
   created_at: Generated<Date>;
