@@ -42,34 +42,23 @@ export const errorHandler = (
     });
   }
 
-  // Prisma validation errors (invalid UUID format, etc.)
-  if (err.code === 'P2023') {
-    return res.status(404).json({
-      error: {
-        code: 'NOT_FOUND',
-        message: 'Resource not found or invalid ID format',
-      },
-    });
-  }
-
-  // Prisma foreign key constraint violations
-  if (err.code === 'P2003') {
-    return res.status(400).json({
-      error: {
-        code: 'INVALID_REFERENCE',
-        message: 'Referenced resource does not exist',
-      },
-    });
-  }
-
-  // Prisma unique constraint violations
-  if (err.code === 'P2002') {
-    return res.status(409).json({
-      error: {
-        code: 'DUPLICATE_ENTRY',
-        message: 'A record with this value already exists',
-      },
-    });
+  // Prisma known request errors
+  if (err?.name === 'PrismaClientKnownRequestError') {
+    switch (err.code) {
+      case 'P2025':
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Record not found' } });
+      case 'P2002':
+        return res.status(409).json({ error: { code: 'DUPLICATE_ENTRY', message: 'A record with this value already exists' } });
+      case 'P2003':
+        return res.status(400).json({ error: { code: 'INVALID_REFERENCE', message: 'Referenced resource does not exist' } });
+      case 'P2022':
+      case 'P2016':
+      case 'P2018':
+      case 'P2014':
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+      case 'P2023':
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } });
+    }
   }
 
   // Default error
