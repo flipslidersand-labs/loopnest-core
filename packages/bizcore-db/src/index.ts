@@ -7,6 +7,7 @@ export { redis, closeRedis } from './clients/redis-client.js';
 
 // Export types
 export * from './types/kysely-database.js';
+export type { Kysely } from 'kysely';
 
 // Export Drizzle schema and types (selectively to avoid conflicts)
 export { outboxEvents, invoices, approvalRequests, approvalSteps } from '../drizzle/schema.js';
