@@ -20,6 +20,7 @@ import { creditNoteRoutes, invoiceCreditNoteRoutes } from './routes/creditNotes.
 import { taxRateRoutes } from './routes/taxRates.js';
 import { quoteTemplateRoutes } from './routes/quoteTemplates.js';
 import { recurringContractRoutes } from './routes/recurringContracts.js';
+import { dunningRuleRoutes, invoiceDunningRoutes } from './routes/dunning.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -161,6 +162,8 @@ initializeDatabaseServices().then((dbServices: any) => {
   );
 
   app.use('/api/recurring-contracts', recurringContractRoutes(dbServices.repos));
+  app.use('/api/dunning-rules', dunningRuleRoutes(dbServices.repos));
+  app.use('/api/invoices/:invoiceId/dunning-logs', invoiceDunningRoutes(dbServices.repos));
 
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
   app.use(
