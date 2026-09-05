@@ -528,20 +528,20 @@ export class EventWorker {
               this.webhooks
                 .deliver(row.organization_id, 'dunning.action', payload)
                 .catch((err: any) =>
-                  logger.error('[DUNNING_WEBHOOK_ERROR]', { invoiceId: row.id, error: err?.message }),
+                  logger.error({ invoiceId: row.id, err: err?.message }, '[DUNNING_WEBHOOK_ERROR]'),
                 );
             }
             fired++;
           } catch (err: any) {
             if (err?.code === '23505') continue; // unique constraint — already logged
-            logger.error('[DUNNING] Failed rule', { ruleId: rule.id, invoiceId: row.id, error: String(err) });
+            logger.error({ ruleId: rule.id, invoiceId: row.id, err: String(err) }, '[DUNNING] Failed rule');
           }
         }
       }
 
       if (fired > 0) logger.info(`📬 Dunning scan fired ${fired} action(s)`);
     } catch (error) {
-      logger.error('❌ Error in dunning scan:', { error: String(error) });
+      logger.error({ err: String(error) }, '❌ Error in dunning scan');
     } finally {
       this.isScanningDunning = false;
     }
