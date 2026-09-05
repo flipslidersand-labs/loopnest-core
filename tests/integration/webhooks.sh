@@ -153,8 +153,11 @@ check "payload has quoteId" "true" \
 echo ""
 echo "HMAC signature"
 SIG=$(echo "$RECV" | jq -r '[.items[] | select(.body.event=="quote.submitted")] | .[0].headers["x-loopnest-signature"] // ""')
+TS=$(echo "$RECV"  | jq -r '[.items[] | select(.body.event=="quote.submitted")] | .[0].headers["x-loopnest-timestamp"] // ""')
 check "X-LoopNest-Signature header present" "true" "$([ -n "$SIG" ] && [ "$SIG" != "null" ] && echo true || echo false)"
 check "signature starts with sha256=" "true" "$(echo "$SIG" | grep -q '^sha256=' && echo true || echo false)"
+check "X-LoopNest-Timestamp header present" "true" "$([ -n "$TS" ] && [ "$TS" != "null" ] && echo true || echo false)"
+check "X-LoopNest-Timestamp is a unix epoch (numeric)" "true" "$(echo "$TS" | grep -qE '^[0-9]+$' && echo true || echo false)"
 
 # ── 8. No delivery after deactivate ──────────────────────────────────────────
 echo ""
