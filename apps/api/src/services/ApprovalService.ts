@@ -364,6 +364,8 @@ export class ApprovalService {
           .selectAll()
           .where((eb) => eb('id', '=', id))
           .executeTakeFirst();
+        // requestId was derived from steps rows, so the parent request must exist.
+        if (!request) throw new ApiErrorResponse(404, 'NOT_FOUND', `Approval request ${id} not found`);
         const allSteps = await this.db
           .selectFrom(STEPS)
           .selectAll()
