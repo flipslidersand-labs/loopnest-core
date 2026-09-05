@@ -1,5 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import type { QuoteEntity } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { PdfService } from '../services/PdfService.js';
@@ -21,7 +22,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
         quotes = await repos.quotes.findByCustomer(customerId, { skip, take, organizationId: orgId });
         count = await repos.quotes.count({ customerId, organizationId: orgId });
       } else if (status) {
-        quotes = await repos.quotes.findByStatus(status as any, { skip, take, organizationId: orgId });
+        quotes = await repos.quotes.findByStatus(status as QuoteEntity['status'], { skip, take, organizationId: orgId });
         count = await repos.quotes.count({ status, organizationId: orgId });
       } else {
         quotes = await repos.quotes.findAll({ skip, take, organizationId: orgId });
@@ -106,7 +107,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
 
   // ── Line items sub-resource (/api/quotes/:id/items) ───────────────────────
 
-  const requireDraftQuote = asyncHandler(async (req: Request, _res: Response, next: any) => {
+  const requireDraftQuote = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     const quote = await repos.quotes.findById(req.params.id, req.user?.orgId);
     if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
     if (quote.status !== 'draft') {

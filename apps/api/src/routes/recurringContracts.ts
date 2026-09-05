@@ -14,7 +14,7 @@ export function recurringContractRoutes(repos: RepositoryContainer) {
       const customerId = req.query.customerId as string | undefined;
       const status = req.query.status as string | undefined;
 
-      const contracts = await repos.recurringContracts.findAll({ customerId, status: status as any, skip, take });
+      const contracts = await repos.recurringContracts.findAll({ customerId, status: status as 'active' | 'paused' | 'cancelled' | 'completed' | undefined, skip, take });
       res.json({ data: contracts, pagination: { skip, take } });
     })
   );

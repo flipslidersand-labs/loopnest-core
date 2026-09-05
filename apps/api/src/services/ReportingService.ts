@@ -35,8 +35,10 @@ export interface AccountsReceivableReport {
   byCustomer: Array<{ customerId: string; outstanding: number }>;
 }
 
+import type { PgPool } from '../lib/pg-pool-types.js';
+
 export class ReportingService {
-  constructor(private readonly pgPool: any) {}
+  constructor(private readonly pgPool: PgPool) {}
 
   async getSummary(orgId?: string): Promise<DashboardSummary> {
     const orgQuoteFilter = orgId ? `AND organization_id = $1` : '';
@@ -77,10 +79,10 @@ export class ReportingService {
     ]);
 
     return {
-      totalCustomers:    Number.parseInt(custR.rows[0].count, 10),
-      activeQuotes:      Number.parseInt(activeR.rows[0].count, 10),
-      outstandingAmount: Number.parseFloat(outstandingR.rows[0].total),
-      paidThisMonth:     Number.parseFloat(paidR.rows[0].total),
+      totalCustomers:    Number.parseInt(custR.rows[0].count as string, 10),
+      activeQuotes:      Number.parseInt(activeR.rows[0].count as string, 10),
+      outstandingAmount: Number.parseFloat(outstandingR.rows[0].total as string),
+      paidThisMonth:     Number.parseFloat(paidR.rows[0].total as string),
     };
   }
 
@@ -93,7 +95,7 @@ export class ReportingService {
     const VALID_PERIODS = new Set(['day', 'week', 'month', 'quarter', 'year']);
     const safePeriod = VALID_PERIODS.has(period) ? period : 'month';
 
-    const params: any[] = [];
+    const params: unknown[] = [];
     const conditions: string[] = ["i.status = 'paid'"];
 
     if (dateFrom) { params.push(dateFrom); conditions.push(`i.paid_at >= $${params.length}`); }
@@ -116,10 +118,10 @@ export class ReportingService {
       params
     );
 
-    return result.rows.map((r: any) => ({
+    return result.rows.map((r) => ({
       period:       r.period instanceof Date ? r.period.toISOString() : String(r.period),
-      invoiceCount: Number.parseInt(r.invoice_count, 10),
-      revenue:      Number.parseFloat(r.revenue),
+      invoiceCount: Number.parseInt(r.invoice_count as string, 10),
+      revenue:      Number.parseFloat(r.revenue as string),
     }));
   }
 
@@ -138,8 +140,8 @@ export class ReportingService {
     const byStatus: Record<string, number> = {};
     let total = 0;
     for (const row of result.rows) {
-      byStatus[row.status] = Number.parseInt(row.count, 10);
-      total += byStatus[row.status];
+      byStatus[row.status as string] = Number.parseInt(row.count as string, 10);
+      total += byStatus[row.status as string];
     }
 
     // Conversion: how many that entered the approval flow ended up approved/invoiced
@@ -178,16 +180,16 @@ export class ReportingService {
 
     const byStatus: Record<string, { count: number; totalAmount: number }> = {};
     for (const row of statusR.rows) {
-      byStatus[row.status] = {
-        count:       Number.parseInt(row.count, 10),
-        totalAmount: Number.parseFloat(row.total_amount),
+      byStatus[row.status as string] = {
+        count:       Number.parseInt(row.count as string, 10),
+        totalAmount: Number.parseFloat(row.total_amount as string),
       };
     }
 
     return {
       byStatus,
-      overdueCount:  Number.parseInt(overdueR.rows[0].count, 10),
-      overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount),
+      overdueCount:  Number.parseInt(overdueR.rows[0].count as string, 10),
+      overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount as string),
     };
   }
 
@@ -198,7 +200,7 @@ export class ReportingService {
    * both the aging buckets and per-customer outstanding totals.
    */
   async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     let asOfExpr = 'CURRENT_DATE';
     if (asOf) {
@@ -244,9 +246,9 @@ export class ReportingService {
     let totalOutstanding = 0;
 
     for (const row of result.rows) {
-      const outstanding = Number.parseFloat(row.outstanding);
+      const outstanding = Number.parseFloat(row.outstanding as string);
       if (!(outstanding > 0)) continue;
-      const days = Number.parseInt(row.days_overdue, 10);
+      const days = Number.parseInt(row.days_overdue as string, 10);
 
       if (days <= 30) buckets.current += outstanding;
       else if (days <= 60) buckets.c31 += outstanding;
@@ -254,7 +256,7 @@ export class ReportingService {
       else buckets.c90 += outstanding;
 
       totalOutstanding += outstanding;
-      byCustomer.set(row.customer_id, (byCustomer.get(row.customer_id) ?? 0) + outstanding);
+      byCustomer.set(row.customer_id as string, (byCustomer.get(row.customer_id as string) ?? 0) + outstanding);
     }
 
     return {
