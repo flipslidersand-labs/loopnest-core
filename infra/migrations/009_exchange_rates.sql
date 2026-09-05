@@ -1,5 +1,5 @@
 -- M16: exchange_rates master table
-CREATE TABLE IF NOT EXISTS exchange_rates (
+CREATE TABLE IF NOT EXISTS core.exchange_rates (
   currency_code CHAR(3)        NOT NULL,
   rate_to_jpy   DECIMAL(19, 6) NOT NULL,
   effective_date DATE          NOT NULL,

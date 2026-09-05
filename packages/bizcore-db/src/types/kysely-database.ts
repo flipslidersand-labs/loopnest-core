@@ -23,7 +23,7 @@ export type NewQuoteRequest = Insertable<QuoteRequestTable>;
 export type QuoteRequestUpdate = Updateable<QuoteRequestTable>;
 
 // ============================================
-// exchange_rates
+// core.exchange_rates
 // ============================================
 export interface ExchangeRateTable {
   currency_code: string;
@@ -276,7 +276,7 @@ export type ApprovalStepUpdate = Updateable<ApprovalStepTable>;
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
-  'exchange_rates': ExchangeRateTable;
+  'core.exchange_rates': ExchangeRateTable;
   'core.quote_requests': QuoteRequestTable;
   'core.quotes': QuoteTable;
   'core.quote_items': QuoteItemTable;

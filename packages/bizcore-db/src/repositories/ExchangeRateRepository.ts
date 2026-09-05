@@ -18,7 +18,7 @@ export class ExchangeRateRepository {
 
   async findAll(): Promise<ExchangeRate[]> {
     const rows = await this.db
-      .selectFrom('exchange_rates')
+      .selectFrom('core.exchange_rates')
       .select(COLS)
       .orderBy('currency_code', 'asc')
       .execute();
@@ -27,7 +27,7 @@ export class ExchangeRateRepository {
 
   async findByCode(code: string): Promise<ExchangeRate | null> {
     const r = await this.db
-      .selectFrom('exchange_rates')
+      .selectFrom('core.exchange_rates')
       .select(COLS)
       .where('currency_code', '=', code.toUpperCase())
       .executeTakeFirst();
@@ -36,7 +36,7 @@ export class ExchangeRateRepository {
 
   async upsert(data: ExchangeRateInput): Promise<ExchangeRate> {
     const r = await this.db
-      .insertInto('exchange_rates')
+      .insertInto('core.exchange_rates')
       .values({
         currency_code: data.currencyCode.toUpperCase(),
         rate_to_jpy: data.rateToJpy.toString(),
