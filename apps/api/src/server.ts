@@ -24,6 +24,7 @@ import { exchangeRateRoutes } from './routes/exchangeRates.js';
 import { quoteTemplateRoutes } from './routes/quoteTemplates.js';
 import { recurringContractRoutes } from './routes/recurringContracts.js';
 import { dunningRuleRoutes, invoiceDunningRoutes } from './routes/dunning.js';
+import { exchangeRateRoutes } from './routes/exchangeRates.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
