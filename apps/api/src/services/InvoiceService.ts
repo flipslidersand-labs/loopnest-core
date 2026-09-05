@@ -104,6 +104,34 @@ export class InvoiceService {
   }
 
   /**
+   * Pre-check credit limit before the atomic quote→invoice status transition.
+   * Called in the route handler to avoid stranding the quote in 'invoiced' status
+   * when the credit limit would block the invoice (TOCTOU fix side-effect).
+   * createFromQuote repeats this check as belt-and-suspenders.
+   */
+  async assertCreditAllows(quoteId: string): Promise<void> {
+    const quote = await this.repos.quotes.findWithItems(quoteId);
+    if (!quote) return; // let downstream handle not-found
+    const taxRate = await this.repos.taxRates.findDefault();
+    const rate = taxRate?.rate ?? 0.1;
+    const subtotal = quote.subtotalAmount || 0;
+    const discountAmount = quote.discountAmount ?? 0;
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
+    const totalAmount = taxableAmount + this.calculateTax(taxableAmount, rate);
+    const creditStatus = await this.repos.customers.getCreditStatus(quote.customerId);
+    if (creditStatus && !creditStatus.isUnlimited) {
+      const available = creditStatus.creditAvailable ?? 0;
+      if (totalAmount > available) {
+        throw new ApiErrorResponse(
+          422,
+          'CREDIT_LIMIT_EXCEEDED',
+          `Invoice total ${totalAmount} exceeds available credit ${available} (limit: ${creditStatus.creditLimit}, used: ${creditStatus.creditUsed})`
+        );
+      }
+    }
+  }
+
+  /**
    * Calculate invoice subtotal from line items
    */
   calculateSubtotal(items: Array<{ quantity: number; unitPrice: number }>): number {
