@@ -1,4 +1,5 @@
 import { createHmac } from 'crypto';
+import { logger } from '../lib/logger.js';
 import {
   WebhookRepository,
   WebhookRecord,
@@ -38,7 +39,7 @@ export class WebhookService {
     const hooks = await this.repo.findActiveForEvent(eventType, orgId);
     for (const hook of hooks) {
       this.dispatch(hook, eventType, payload).catch(err => {
-        console.error('[WEBHOOK_DELIVERY_ERROR]', hook.id, hook.url, err.message);
+        logger.error({ hookId: hook.id, url: hook.url, err }, 'webhook delivery failed');
       });
     }
   }

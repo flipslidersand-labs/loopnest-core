@@ -1,4 +1,5 @@
 import express from 'express';
+import { logger } from './lib/logger.js';
 import cors from 'cors';
 import { initializeDatabaseServices, redis } from '@loopnest/bizcore-db';
 import { ServiceContainer } from './services/index.js';
@@ -57,7 +58,7 @@ initializeDatabaseServices().then((dbServices: any) => {
   // Start EventWorker
   // Interval comes from EVENT_WORKER_INTERVAL_MS (default 5000) inside start().
   serviceContainer.eventWorker.start();
-  console.log('🔄 EventWorker started');
+  logger.info('EventWorker started');
 
   // Observability: correlation id, metrics, structured access log (all routes)
   app.use(requestMetrics({ pgPool: dbServices.pgPool, sampleRate: 0.1 }));
@@ -170,17 +171,16 @@ initializeDatabaseServices().then((dbServices: any) => {
 
   // Start server
   server = app.listen(PORT, () => {
-    console.log(`🚀 API Server running on http://localhost:${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    logger.info({ port: PORT }, 'API server started');
   });
 
   // Graceful shutdown
   process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down...');
+    logger.info('SIGTERM received, shutting down');
     serviceContainer.eventWorker.stop();
     if (server) {
       server.close(() => {
-        console.log('Server closed');
+        logger.info('server closed');
       });
     }
     await dbServices.close();
