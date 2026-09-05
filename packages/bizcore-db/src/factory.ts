@@ -4,6 +4,7 @@ import { drizzleDb, closeDrizzle } from './clients/drizzle-client.js';
 import { pgPool, closePgPool } from './clients/pg-client.js';
 import { redis, closeRedis } from './clients/redis-client.js';
 import { RepositoryContainer } from './repositories/RepositoryContainer.js';
+import type { PrismaClient } from '@prisma/client';
 import type { Pool } from 'pg';
 import type { Kysely } from 'kysely';
 import type { KyselyDatabase } from './types/kysely-database.js';
@@ -46,6 +47,6 @@ export async function initializeDatabaseServices(): Promise<DatabaseServices> {
 /**
  * Get repository container from existing clients (for testing or advanced usage).
  */
-export function getRepositoryContainer(prisma: unknown, db: Kysely<KyselyDatabase>): RepositoryContainer {
+export function getRepositoryContainer(prisma: PrismaClient, db: Kysely<KyselyDatabase>): RepositoryContainer {
   return new RepositoryContainer(prisma, db);
 }
