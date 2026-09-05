@@ -45,4 +45,6 @@ export type {
 } from './RecurringContractRepository.js';
 export { DunningRepository } from './DunningRepository.js';
 export type { DunningRule, DunningLog, DunningAction, CreateDunningRuleInput } from './DunningRepository.js';
+export { ExchangeRateRepository } from './ExchangeRateRepository.js';
+export type { ExchangeRate, ExchangeRateInput } from './ExchangeRateRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';

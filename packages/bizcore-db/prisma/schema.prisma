@@ -80,6 +80,9 @@ model Quote {
   updatedAt       DateTime    @updatedAt @map("updated_at")
   quoteItems      QuoteItem[] @relation("quoteToItems")
 
+  currency      String   @default("JPY") @db.Char(3)
+  exchangeRate  Decimal  @default(1.0) @map("exchange_rate") @db.Decimal(19, 6)
+
   @@map("quotes")
   @@schema("core")
   @@index([customerId])
@@ -102,6 +105,16 @@ model QuoteItem {
   @@schema("core")
   @@index([quoteId])
   @@index([productId])
+}
+
+// Master table: Exchange Rates
+model ExchangeRate {
+  currencyCode  String   @id @map("currency_code") @db.Char(3)
+  rateToJpy     Decimal  @map("rate_to_jpy") @db.Decimal(19, 6)
+  effectiveDate DateTime @map("effective_date") @db.Date
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("exchange_rates")
 }
 
 // Master table: Users

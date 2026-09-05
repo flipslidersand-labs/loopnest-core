@@ -23,6 +23,20 @@ export type NewQuoteRequest = Insertable<QuoteRequestTable>;
 export type QuoteRequestUpdate = Updateable<QuoteRequestTable>;
 
 // ============================================
+// exchange_rates
+// ============================================
+export interface ExchangeRateTable {
+  currency_code: string;
+  rate_to_jpy: number;
+  effective_date: Date;
+  updated_at: Generated<Date>;
+}
+
+export type ExchangeRateRow = Selectable<ExchangeRateTable>;
+export type NewExchangeRate = Insertable<ExchangeRateTable>;
+export type ExchangeRateUpdate = Updateable<ExchangeRateTable>;
+
+// ============================================
 // core.quotes
 // ============================================
 export interface QuoteTable {
@@ -37,6 +51,8 @@ export interface QuoteTable {
   status: string;
   notes: string | null;
   created_by: string;
+  currency: Generated<string>;
+  exchange_rate: Generated<number>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -78,6 +94,8 @@ export interface InvoiceTable {
   payment_due_date: Date;
   status: string;
   paid_at: Date | null;
+  currency: Generated<string>;
+  exchange_rate: Generated<number>;
   metadata: JsonValue | null; // JSONB
   created_by: string;
   created_at: Generated<Date>;
@@ -258,6 +276,7 @@ export type ApprovalStepUpdate = Updateable<ApprovalStepTable>;
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
+  'exchange_rates': ExchangeRateTable;
   'core.quote_requests': QuoteRequestTable;
   'core.quotes': QuoteTable;
   'core.quote_items': QuoteItemTable;
