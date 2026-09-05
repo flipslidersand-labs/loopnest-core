@@ -115,12 +115,23 @@ export class ApprovalService {
     return { id: approvalRequestId, quoteId, status: 'pending', steps, createdAt: now };
   }
 
-  /** Load a step and its parent request, enforcing the common preconditions. */
-  private async loadDecidableStep(approvalRequestId: string, stepId: string, userId: string) {
-    const request = await this.db
+  /**
+   * Load a step and its parent request within a transaction, enforcing common
+   * preconditions. Callers MUST pass the transaction (`trx`) so that the
+   * FOR UPDATE lock is held until the surrounding transaction commits.
+   */
+  private async loadDecidableStep(
+    trx: any,
+    approvalRequestId: string,
+    stepId: string,
+    userId: string
+  ) {
+    // FOR UPDATE locks the request row so concurrent decisions serialize.
+    const request = await trx
       .selectFrom(REQUESTS)
       .selectAll()
       .where((eb: any) => eb('id', '=', approvalRequestId))
+      .forUpdate()
       .executeTakeFirst();
     if (!request) {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Approval request not found');
@@ -133,12 +144,14 @@ export class ApprovalService {
       );
     }
 
-    const step = await this.db
+    // FOR UPDATE locks the step row to prevent a double-decide on the same step.
+    const step = await trx
       .selectFrom(STEPS)
       .selectAll()
       .where((eb: any) =>
         eb.and([eb('id', '=', stepId), eb('approval_request_id', '=', approvalRequestId)])
       )
+      .forUpdate()
       .executeTakeFirst();
     if (!step) {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Approval step not found');
@@ -162,36 +175,41 @@ export class ApprovalService {
     userId: string,
     notes?: string
   ): Promise<ApprovalStep> {
-    const { step } = await this.loadDecidableStep(approvalRequestId, stepId, userId);
     const now = new Date();
+    let stepOrder: number;
 
-    await this.db
-      .updateTable(STEPS)
-      .set({ status: 'approved', approved_at: now, comment: notes || null })
-      .where((eb: any) => eb('id', '=', stepId))
-      .execute();
+    await this.db.transaction().execute(async (trx: any) => {
+      const { step } = await this.loadDecidableStep(trx, approvalRequestId, stepId, userId);
+      stepOrder = step.step_order;
 
-    // If no steps remain pending, the whole request is approved.
-    const remaining = await this.db
-      .selectFrom(STEPS)
-      .select('id')
-      .where((eb: any) =>
-        eb.and([eb('approval_request_id', '=', approvalRequestId), eb('status', '=', 'pending')])
-      )
-      .execute();
-
-    if (remaining.length === 0) {
-      await this.db
-        .updateTable(REQUESTS)
-        .set({ status: 'approved', completed_at: now })
-        .where((eb: any) => eb('id', '=', approvalRequestId))
+      await trx
+        .updateTable(STEPS)
+        .set({ status: 'approved', approved_at: now, comment: notes || null })
+        .where((eb: any) => eb('id', '=', stepId))
         .execute();
-    }
+
+      // If no steps remain pending, the whole request is approved.
+      const remaining = await trx
+        .selectFrom(STEPS)
+        .select('id')
+        .where((eb: any) =>
+          eb.and([eb('approval_request_id', '=', approvalRequestId), eb('status', '=', 'pending')])
+        )
+        .execute();
+
+      if (remaining.length === 0) {
+        await trx
+          .updateTable(REQUESTS)
+          .set({ status: 'approved', completed_at: now })
+          .where((eb: any) => eb('id', '=', approvalRequestId))
+          .execute();
+      }
+    });
 
     return {
       id: stepId,
       approvalRequestId,
-      stepNumber: step.step_order,
+      stepNumber: stepOrder!,
       approverUserId: userId,
       status: 'approved',
       notes,
@@ -208,26 +226,31 @@ export class ApprovalService {
     if (!reason) {
       throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
     }
-    const { step } = await this.loadDecidableStep(approvalRequestId, stepId, userId);
     const now = new Date();
+    let stepOrder: number;
 
-    await this.db
-      .updateTable(STEPS)
-      .set({ status: 'rejected', approved_at: now, comment: reason })
-      .where((eb: any) => eb('id', '=', stepId))
-      .execute();
+    await this.db.transaction().execute(async (trx: any) => {
+      const { step } = await this.loadDecidableStep(trx, approvalRequestId, stepId, userId);
+      stepOrder = step.step_order;
 
-    // Any rejection rejects the whole request.
-    await this.db
-      .updateTable(REQUESTS)
-      .set({ status: 'rejected', completed_at: now })
-      .where((eb: any) => eb('id', '=', approvalRequestId))
-      .execute();
+      await trx
+        .updateTable(STEPS)
+        .set({ status: 'rejected', approved_at: now, comment: reason })
+        .where((eb: any) => eb('id', '=', stepId))
+        .execute();
+
+      // Any rejection rejects the whole request.
+      await trx
+        .updateTable(REQUESTS)
+        .set({ status: 'rejected', completed_at: now })
+        .where((eb: any) => eb('id', '=', approvalRequestId))
+        .execute();
+    });
 
     return {
       id: stepId,
       approvalRequestId,
-      stepNumber: step.step_order,
+      stepNumber: stepOrder!,
       approverUserId: userId,
       status: 'rejected',
       notes: `Rejected: ${reason}`,
@@ -295,26 +318,31 @@ export class ApprovalService {
   }
 
   async cancelApprovalRequest(approvalRequestId: string, _userId: string): Promise<void> {
-    const request = await this.db
-      .selectFrom(REQUESTS)
-      .selectAll()
-      .where((eb: any) => eb('id', '=', approvalRequestId))
+    // Conditional UPDATE is atomic: only one concurrent caller can flip
+    // status from 'pending' → 'cancelled'; others see rowCount=0 and get 409.
+    const result = await this.db
+      .updateTable(REQUESTS)
+      .set({ status: 'cancelled', completed_at: new Date() })
+      .where((eb: any) =>
+        eb.and([eb('id', '=', approvalRequestId), eb('status', '=', 'pending')])
+      )
       .executeTakeFirst();
-    if (!request) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Approval request not found');
-    }
-    if (request.status !== 'pending') {
+
+    if (!result || result.numUpdatedRows === BigInt(0)) {
+      const existing = await this.db
+        .selectFrom(REQUESTS)
+        .select('status')
+        .where((eb: any) => eb('id', '=', approvalRequestId))
+        .executeTakeFirst();
+      if (!existing) {
+        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Approval request not found');
+      }
       throw new ApiErrorResponse(
         409,
         'INVALID_STATUS',
-        `Cannot cancel an approval request that is already ${request.status}`
+        `Cannot cancel an approval request that is already ${existing.status}`
       );
     }
-    await this.db
-      .updateTable(REQUESTS)
-      .set({ status: 'cancelled', completed_at: new Date() })
-      .where((eb: any) => eb('id', '=', approvalRequestId))
-      .execute();
   }
 
   async getPendingApprovalsForUser(userId: string): Promise<ApprovalRequest[]> {
