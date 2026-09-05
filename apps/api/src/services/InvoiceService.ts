@@ -37,7 +37,7 @@ export class InvoiceService {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
     }
 
-    if (quote.status !== 'approved') {
+    if (quote.status !== 'approved' && quote.status !== 'invoiced') {
       throw new ApiErrorResponse(
         409,
         'INVALID_STATUS',
