@@ -2,6 +2,7 @@ import { logger } from "../lib/logger.js";
 import { RepositoryContainer } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
 import { WebhookService } from "./WebhookService.js";
+import { outboxEventLagMs } from "../observability/metrics.js";
 
 function advanceDate(from: string, unit: string, value: number): string {
   const d = new Date(from + 'T00:00:00Z');
@@ -106,6 +107,9 @@ export class EventWorker {
 
       for (const event of events) {
         try {
+          if (event.createdAt) {
+            outboxEventLagMs.observe(Date.now() - new Date(event.createdAt).getTime());
+          }
           await this.dispatch(event);
           await this.repos.outbox.markProcessed(event.id);
         } catch (error) {

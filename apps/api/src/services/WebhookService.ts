@@ -1,5 +1,6 @@
 import { createHmac } from 'crypto';
 import { logger } from '../lib/logger.js';
+import { webhookDeliveryFailureTotal } from '../observability/metrics.js';
 import {
   WebhookRepository,
   WebhookRecord,
@@ -64,6 +65,9 @@ export class WebhookService {
       signal: AbortSignal.timeout(5000),
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${hook.url}`);
+    if (!res.ok) {
+      webhookDeliveryFailureTotal.inc({ event_type: eventType, status: String(res.status) });
+      throw new Error(`HTTP ${res.status} from ${hook.url}`);
+    }
   }
 }
