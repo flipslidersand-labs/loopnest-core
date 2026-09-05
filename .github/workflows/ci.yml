@@ -89,6 +89,10 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
 
+      - name: Unit tests
+        working-directory: apps/api
+        run: npm run test:unit
+
       - name: Apply migrations
         run: bash infra/migrations/run.sh
 
