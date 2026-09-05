@@ -15,6 +15,7 @@ import { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
 import { InstallmentRepository } from './InstallmentRepository.js';
 import { RecurringContractRepository } from './RecurringContractRepository.js';
 import { DunningRepository } from './DunningRepository.js';
+import { ExchangeRateRepository } from './ExchangeRateRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -33,6 +34,7 @@ export class RepositoryContainer {
   private readonly installmentRepo: InstallmentRepository;
   private readonly recurringContractRepo: RecurringContractRepository;
   private readonly dunningRepo: DunningRepository;
+  private readonly exchangeRateRepo: ExchangeRateRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -54,6 +56,7 @@ export class RepositoryContainer {
     this.installmentRepo = new InstallmentRepository(db);
     this.recurringContractRepo = new RecurringContractRepository(db);
     this.dunningRepo = new DunningRepository(db);
+    this.exchangeRateRepo = new ExchangeRateRepository(db);
   }
 
   get organizations(): OrganizationRepository { return this.organizationRepo; }
@@ -72,6 +75,7 @@ export class RepositoryContainer {
   get installments(): InstallmentRepository { return this.installmentRepo; }
   get recurringContracts(): RecurringContractRepository { return this.recurringContractRepo; }
   get dunning(): DunningRepository { return this.dunningRepo; }
+  get exchangeRates(): ExchangeRateRepository { return this.exchangeRateRepo; }
 
   async beginTransaction<T>(
     callback: (container: RepositoryContainer) => Promise<T>

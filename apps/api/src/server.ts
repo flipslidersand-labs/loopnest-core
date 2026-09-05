@@ -20,6 +20,7 @@ import { memberRoutes } from './routes/members.js';
 import { paymentRoutes, invoicePaymentRoutes } from './routes/payments.js';
 import { creditNoteRoutes, invoiceCreditNoteRoutes } from './routes/creditNotes.js';
 import { taxRateRoutes } from './routes/taxRates.js';
+import { exchangeRateRoutes } from './routes/exchangeRates.js';
 import { quoteTemplateRoutes } from './routes/quoteTemplates.js';
 import { recurringContractRoutes } from './routes/recurringContracts.js';
 import { dunningRuleRoutes, invoiceDunningRoutes } from './routes/dunning.js';
@@ -165,6 +166,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
 
   app.use('/api/recurring-contracts', recurringContractRoutes(dbServices.repos));
   app.use('/api/dunning-rules', dunningRuleRoutes(dbServices.repos));
+  app.use('/api/exchange-rates', exchangeRateRoutes(dbServices.repos));
   app.use('/api/invoices/:invoiceId/dunning-logs', invoiceDunningRoutes(dbServices.repos));
 
   // Business Logic Routes (Workflow operations) — tighter limit + idempotency keys
