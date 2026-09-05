@@ -3,7 +3,7 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh" 2>/dev/null || true
 
-BASE_URL="${BASE_URL:-http://localhost:3000}"
+BASE_URL="${BASE_URL:-http://localhost:3000/api}"
 PASS=0; FAIL=0
 pass() { echo "  ✓ $1"; ((PASS++)); }
 fail() { echo "  ✗ $1"; ((FAIL++)); }
@@ -11,7 +11,7 @@ fail() { echo "  ✗ $1"; ((FAIL++)); }
 echo "=== Dunning Management (M15) ==="
 
 # ── Test 1: GET /api/dunning-rules — seeded rules exist ─────────────────────
-RULES=$(curl -sf "${BASE_URL}/api/dunning-rules" \
+RULES=$(curl -sf "${BASE_URL}/dunning-rules" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" | jq '.data | length')
 if [ "$RULES" -ge 5 ]; then
   pass "GET /dunning-rules → seeded rules returned (${RULES})"
@@ -20,7 +20,7 @@ else
 fi
 
 # ── Test 2: GET with ?active=true ────────────────────────────────────────────
-ACTIVE=$(curl -sf "${BASE_URL}/api/dunning-rules?active=true" \
+ACTIVE=$(curl -sf "${BASE_URL}/dunning-rules?active=true" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" | jq '.data | length')
 if [ "$ACTIVE" -ge 1 ]; then
   pass "GET /dunning-rules?active=true → ${ACTIVE} active rule(s)"
@@ -29,7 +29,7 @@ else
 fi
 
 # ── Test 3: POST create a custom rule ────────────────────────────────────────
-NEW_RULE=$(curl -sf -X POST "${BASE_URL}/api/dunning-rules" \
+NEW_RULE=$(curl -sf -X POST "${BASE_URL}/dunning-rules" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test rule","daysOverdue":45,"action":"warning","messageTemplate":"Test {{invoice_number}}"}')
@@ -41,7 +41,7 @@ else
 fi
 
 # ── Test 4: GET by id ────────────────────────────────────────────────────────
-GOT=$(curl -sf "${BASE_URL}/api/dunning-rules/${RULE_ID}" \
+GOT=$(curl -sf "${BASE_URL}/dunning-rules/${RULE_ID}" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" | jq -r '.data.name')
 if [ "$GOT" = "Test rule" ]; then
   pass "GET /dunning-rules/:id → name correct"
@@ -50,7 +50,7 @@ else
 fi
 
 # ── Test 5: POST validation — missing name ───────────────────────────────────
-HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/dunning-rules" \
+HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/dunning-rules" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"daysOverdue":5}')
@@ -61,7 +61,7 @@ else
 fi
 
 # ── Test 6: POST validation — invalid action ─────────────────────────────────
-HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/dunning-rules" \
+HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/dunning-rules" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"name":"bad","daysOverdue":5,"action":"nuke"}')
@@ -72,7 +72,7 @@ else
 fi
 
 # ── Test 7: POST duplicate (same daysOverdue + action) → 409 ─────────────────
-HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/dunning-rules" \
+HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/dunning-rules" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"name":"dup","daysOverdue":45,"action":"warning"}')
@@ -83,7 +83,7 @@ else
 fi
 
 # ── Test 8: PATCH update rule ────────────────────────────────────────────────
-PATCHED=$(curl -sf -X PATCH "${BASE_URL}/api/dunning-rules/${RULE_ID}" \
+PATCHED=$(curl -sf -X PATCH "${BASE_URL}/dunning-rules/${RULE_ID}" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"name":"Updated rule","isActive":false}')
@@ -97,21 +97,21 @@ fi
 
 # ── Test 9: GET /invoices/:id/dunning-logs — need a known invoice ─────────────
 # Create org/customer/product/quote/invoice quickly
-ORG=$(curl -sf -X POST "${BASE_URL}/api/organizations" \
+ORG=$(curl -sf -X POST "${BASE_URL}/organizations" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"name":"Dunning Test Org","slug":"dunning-test-org"}' | jq -r '.data.id')
 
-CUST=$(curl -sf -X POST "${BASE_URL}/api/customers" \
+CUST=$(curl -sf -X POST "${BASE_URL}/customers" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"Dunning Co\",\"organizationId\":\"${ORG}\"}" | jq -r '.data.id')
 
-INV_LOGS=$(curl -sf "${BASE_URL}/api/invoices/${CUST}/dunning-logs" \
+INV_LOGS=$(curl -sf "${BASE_URL}/invoices/${CUST}/dunning-logs" \
   -H "Authorization: Bearer ${AUTH_TOKEN}" 2>/dev/null | jq '.data | length' 2>/dev/null || echo "0")
 # Just test endpoint returns (may be 0 logs for a non-invoice ID; 200 is success)
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-  "${BASE_URL}/api/invoices/${CUST}/dunning-logs" \
+  "${BASE_URL}/invoices/${CUST}/dunning-logs" \
   -H "Authorization: Bearer ${AUTH_TOKEN}")
 if [ "$HTTP" = "200" ]; then
   pass "GET /invoices/:id/dunning-logs → 200"
@@ -121,7 +121,7 @@ fi
 
 # ── Test 10: DELETE rule ─────────────────────────────────────────────────────
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-  "${BASE_URL}/api/dunning-rules/${RULE_ID}" \
+  "${BASE_URL}/dunning-rules/${RULE_ID}" \
   -H "Authorization: Bearer ${AUTH_TOKEN}")
 if [ "$HTTP" = "204" ]; then
   pass "DELETE /dunning-rules/:id → 204"
