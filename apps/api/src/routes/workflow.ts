@@ -78,8 +78,11 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       const { userId } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const invoiceResult = await services.invoices.createFromQuote(req.params.id, userId);
+      // Pre-check credit limit before the atomic status transition so a rejection
+      // does not strand the quote in 'invoiced' status with no actual invoice.
+      await services.invoices.assertCreditAllows(req.params.id);
       const quote = await services.quotes.convertToInvoice(req.params.id, userId);
+      const invoiceResult = await services.invoices.createFromQuote(req.params.id, userId);
       await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, userId);
       wh.deliver(req.user?.orgId, 'invoice.created', { invoiceId: invoiceResult.invoiceId, quoteId: req.params.id, totalAmount: invoiceResult.totalAmount });
       res.json({ data: { quote, invoice: invoiceResult }, message: 'Invoice created from approved quote' });
