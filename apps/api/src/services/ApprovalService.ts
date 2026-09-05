@@ -363,7 +363,7 @@ export class ApprovalService {
           .selectFrom(REQUESTS)
           .selectAll()
           .where((eb) => eb('id', '=', id))
-          .executeTakeFirst();
+          .executeTakeFirstOrThrow();
         const allSteps = await this.db
           .selectFrom(STEPS)
           .selectAll()

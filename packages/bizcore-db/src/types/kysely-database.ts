@@ -30,6 +30,7 @@ export interface QuoteTable {
   quote_number: string;
   quote_request_id: string;
   customer_id: string;
+  organization_id: string | null; // added by migration 006_add_org_scoping
   subtotal_amount: number;
   tax_amount: number;
   total_amount: number;
@@ -76,6 +77,7 @@ export interface InvoiceTable {
   issue_date: Date;
   payment_due_date: Date;
   status: string;
+  paid_at: Date | null;
   metadata: JsonValue | null; // JSONB
   created_by: string;
   created_at: Generated<Date>;

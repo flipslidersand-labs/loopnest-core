@@ -73,6 +73,7 @@ export class CreditNoteService {
         aggregate_id: aggregateId,
         payload,
         status: 'pending',
+        retry_count: 0,
         created_at: new Date(),
       })
       .execute();

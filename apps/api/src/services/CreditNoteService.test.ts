@@ -102,7 +102,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ amount: '1000.00' });
     const inv = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     repos.creditNotes.insertApplication.mockResolvedValue({ id: 'app-1' });
     repos.creditNotes.appliedToInvoice = vi.fn().mockResolvedValue(0);
@@ -117,7 +117,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ amount: '300.00' });
     const inv = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     repos.creditNotes.creditAppliedToInvoice = vi.fn().mockResolvedValue(0);
     repos.payments.confirmedTotal = vi.fn().mockResolvedValue(0);
@@ -130,7 +130,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ amount: '500.00', applied_amount: '400.00' });
     const inv = makeInvoice();
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     await expect(
       svc.applyCreditNote('cn-1', { targetInvoiceId: 'inv-1', amount: 200 }, 'user-1')
@@ -141,7 +141,7 @@ describe('CreditNoteService', () => {
     const cn = makeCreditNote({ status: 'fully_applied' });
     const inv = makeInvoice();
     const db = makeDb(cn, inv);
-    const svc = new CreditNoteService(repos as any, db);
+    const svc = new CreditNoteService(repos as any, db as any);
 
     await expect(
       svc.applyCreditNote('cn-1', { targetInvoiceId: 'inv-1', amount: 100 }, 'user-1')
