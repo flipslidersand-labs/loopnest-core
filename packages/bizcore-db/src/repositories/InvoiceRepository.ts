@@ -237,6 +237,8 @@ export class InvoiceRepository {
       paidAt: r.paid_at ?? null,
       createdBy: r.created_by,
       createdAt: r.created_at,
+      currency: r.currency ?? 'JPY',
+      exchangeRate: r.exchange_rate ? parseFloat(r.exchange_rate.toString()) : 1.0,
     };
   }
 }
