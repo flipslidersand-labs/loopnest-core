@@ -2,7 +2,7 @@ import { logger } from "../lib/logger.js";
 import { RepositoryContainer } from "@loopnest/bizcore-db";
 import type { OutboxEvent } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
-import pg from "pg";
+import { Client as PgClient } from "pg";
 import { WebhookService } from "./WebhookService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
 
@@ -33,7 +33,7 @@ export class EventWorker {
   private expiryTimer: NodeJS.Timeout | null = null;
   private recurringTimer: NodeJS.Timeout | null = null;
   private dunningTimer: NodeJS.Timeout | null = null;
-  private listenClient: pg.Client | null = null;
+  private listenClient: PgClient | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
   private isScanningExpiry = false;
@@ -117,7 +117,7 @@ export class EventWorker {
   }
 
   private async startListening(): Promise<void> {
-    const client = new pg.Client({
+    const client = new PgClient({
       host: process.env.POSTGRES_HOST || 'localhost',
       port: parseInt(process.env.POSTGRES_PORT || '5432'),
       user: process.env.POSTGRES_USER || 'loopnest',
@@ -134,7 +134,7 @@ export class EventWorker {
         void this.processBatch();
       });
 
-      client.on('error', (err) => {
+      client.on('error', (err: Error) => {
         logger.error({ err }, `[EventWorker] LISTEN client error, reconnecting in 5s`);
         void this.stopListening();
         setTimeout(() => void this.startListening(), 5_000);
