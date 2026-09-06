@@ -79,11 +79,10 @@ model Quote {
   exchangeRate    Decimal     @default(1.000000) @map("exchange_rate") @db.Decimal(19, 6)
   createdBy       String      @map("created_by") @db.VarChar(255)
   createdAt       DateTime    @default(now()) @map("created_at")
+  currency        String      @default("JPY") @db.VarChar(3)
+  exchangeRate    Decimal     @default(1.0) @map("exchange_rate") @db.Decimal(19, 6)
   updatedAt       DateTime    @updatedAt @map("updated_at")
   quoteItems      QuoteItem[] @relation("quoteToItems")
-
-  currency      String   @default("JPY") @db.Char(3)
-  exchangeRate  Decimal  @default(1.0) @map("exchange_rate") @db.Decimal(19, 6)
 
   @@map("quotes")
   @@schema("core")
