@@ -192,7 +192,51 @@ sleep 1
 RECV2=$(curl -s "$MOCK_URL/received")
 check "no delivery after deactivation" "0" "$(echo "$RECV2" | jq '.count')"
 
-# ── 9. DELETE ─────────────────────────────────────────────────────────────────
+# ── 9. Delivery log (M18) ─────────────────────────────────────────────────────
+echo ""
+echo "Delivery log"
+
+# Deliveries from the fire-and-forget in section 6 should be persisted
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  "$BASE_URL/webhooks/deliveries")
+check "GET /webhooks/deliveries → 200" "200" "$(http_code "$R")"
+check "delivery list has items" "true" \
+  "$(http_body "$R" | jq '.data | length > 0')"
+
+DELIVERY_ID=$(http_body "$R" | jq -r '.data[0].id')
+check "delivery id returned" "true" \
+  "$([ -n "$DELIVERY_ID" ] && [ "$DELIVERY_ID" != "null" ] && echo true || echo false)"
+
+# Filter by webhookId
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  "$BASE_URL/webhooks/deliveries?webhookId=$WH_ID")
+check "filter by webhookId → 200" "200" "$(http_code "$R")"
+
+# Filter by status=success
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  "$BASE_URL/webhooks/deliveries?status=success")
+check "filter by status=success → 200" "200" "$(http_code "$R")"
+
+# Retry a delivery
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -X POST "$BASE_URL/webhooks/deliveries/$DELIVERY_ID/retry" \
+  -H "Content-Type: application/json")
+check "POST /deliveries/:id/retry → 201" "201" "$(http_code "$R")"
+check "retry returns delivery record" "true" \
+  "$(http_body "$R" | jq '.data.id != null')"
+
+# Not-found delivery → 404
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -X POST "$BASE_URL/webhooks/deliveries/00000000-0000-0000-0000-000000000000/retry" \
+  -H "Content-Type: application/json")
+check "retry unknown delivery → 404" "404" "$(http_code "$R")"
+
+# ── 10. DELETE ────────────────────────────────────────────────────────────────
 echo ""
 echo "DELETE"
 R=$(command curl -s -w "\n%{http_code}" \
@@ -220,6 +264,12 @@ R=$(command curl -s -w "\n%{http_code}" \
   -H "Content-Type: application/json" \
   -d "{\"url\":\"$MOCK_URL\",\"events\":[\"*\"]}")
 check "viewer POST /webhooks → 403" "403" "$(http_code "$R")"
+
+# Viewer cannot access delivery log (token defined in RBAC section above)
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $VIEWER_TOKEN" \
+  "$BASE_URL/webhooks/deliveries")
+check "viewer GET /deliveries → 403" "403" "$(http_code "$R")"
 
 stop_mock
 summary
