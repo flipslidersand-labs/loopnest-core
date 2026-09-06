@@ -21,35 +21,10 @@ concurrency:
 jobs:
   integration:
     if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    # Pinned to GitHub-hosted: this job needs Docker service containers
-    # (postgres/valkey), and the ARC `linux-general` runners have no Docker
-    # socket ("failed to connect to the docker API at unix:///var/run/docker.sock").
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: loopnest
-          POSTGRES_PASSWORD: loopnest_dev_password
-          POSTGRES_DB: omni_local
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U loopnest"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-      redis:
-        image: valkey/valkey:8-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    # Runs on ARC self-hosted runners (GATE_RUNNER org variable) with fallback
+    # to GitHub-hosted ubuntu-latest. PostgreSQL and Redis are started via apt
+    # rather than Docker services: so the job works without a Docker socket.
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
 
     env:
       DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local
@@ -71,10 +46,35 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install psql + jq
+      - name: Install PostgreSQL 17, Redis, psql + jq
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-client jq
+          # Add official PostgreSQL apt repo to get v17 (matches the postgres:17-alpine
+          # Docker image used in local dev, avoiding behaviour differences with older apt versions).
+          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            postgresql-17 postgresql-client-17 redis-server jq uuid-runtime
+
+      - name: Configure and start PostgreSQL 17
+        run: |
+          sudo service postgresql start
+          sudo -u postgres psql -c \
+            "CREATE USER loopnest WITH PASSWORD 'loopnest_dev_password';" \
+            2>/dev/null || true
+          sudo -u postgres psql -c \
+            "CREATE DATABASE omni_local OWNER loopnest;" \
+            2>/dev/null || true
+          until pg_isready -h localhost -p 5432 -U loopnest 2>/dev/null; do sleep 1; done
+
+      - name: Start Redis
+        run: |
+          sudo service redis-server start
+          until redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done
 
       - name: Build bizcore-db (install, prisma generate, tsc)
         working-directory: packages/bizcore-db
@@ -96,6 +96,13 @@ jobs:
       - name: Apply migrations
         run: bash infra/migrations/run.sh
 
+      - name: Free port 3000
+        run: |
+          # Self-hosted ARC runners may have other services (e.g. Grafana) bound to
+          # port 3000. Kill them so run-all.sh doesn't mistake the existing process
+          # for a running API server and skip startup.
+          sudo fuser -k 3000/tcp 2>/dev/null || true
+
       - name: Run integration suite
         run: SKIP_BUILD=1 bash tests/integration/run-all.sh
 
@@ -103,7 +110,7 @@ jobs:
         run: |
           node apps/api/dist/src/server.js > /tmp/load-server.log 2>&1 &
           SERVER_PID=$!
-          until curl -s -m 2 -o /dev/null http://localhost:3000/health; do
+          until curl -s -m 2 http://localhost:3000/health | grep -q '"status":"ok"'; do
             kill -0 $SERVER_PID 2>/dev/null || { echo "server died"; cat /tmp/load-server.log; exit 1; }
             sleep 1
           done
@@ -136,23 +143,19 @@ jobs:
         continue-on-error: true
 
   # ---------------------------------------------------------------------------
-  # AI Review — two backends, select via repo variables / secrets:
-  #   Local LLM : set OLLAMA_URL repo variable  (e.g. http://host:11434)
-  #   Cloud API : set ANTHROPIC_API_KEY repo secret
-  # OLLAMA_URL takes priority. If neither is configured the job is skipped.
+  # AI Review — local LLM only:
+  #   set OLLAMA_URL repo variable  (e.g. http://host:11434)
+  # If not configured the job is skipped.
   # ---------------------------------------------------------------------------
   ai-review:
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&
       github.actor != 'github-actions[bot]' &&
-      (vars.OLLAMA_URL != '' || vars.AI_REVIEW_CLOUD == 'true')
+      vars.OLLAMA_URL != ''
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     permissions:
       pull-requests: write
-
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -169,7 +172,6 @@ jobs:
 
       - name: AI review — local Ollama
         id: review_local
-        if: vars.OLLAMA_URL != ''
         run: |
           DIFF=$(cat /tmp/pr_truncated.diff)
           PROMPT="You are a code reviewer. Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points. If no issues found, say 'No significant issues found.'\n\n\`\`\`diff\n${DIFF}\n\`\`\`"
@@ -191,52 +193,12 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: AI review — cloud API (Anthropic)
-        id: review_cloud
-        if: vars.OLLAMA_URL == '' && vars.AI_REVIEW_CLOUD == 'true'
-        run: |
-          DIFF=$(cat /tmp/pr_truncated.diff)
-          PAYLOAD=$(jq -n \
-            --arg diff "$DIFF" \
-            --arg model "${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}" \
-            '{
-              model: $model,
-              max_tokens: 1024,
-              messages: [{
-                role: "user",
-                content: ("Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points.\n\n```diff\n" + $diff + "\n```")
-              }]
-            }')
-
-          RESPONSE=$(curl -sf --max-time 60 https://api.anthropic.com/v1/messages \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
-            -H "anthropic-version: 2023-06-01" \
-            -H "content-type: application/json" \
-            -d "$PAYLOAD" \
-            | jq -r '.content[0].text' 2>/dev/null) || RESPONSE=""
-
-          if [ -z "$RESPONSE" ]; then
-            BODY="⚠️ AI review skipped (cloud API unavailable)"
-          else
-            MODEL="${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}"
-            BODY="🤖 **AI Review (${MODEL})**"
-            BODY="${BODY}"$'\n\n'"${RESPONSE}"
-          fi
-          {
-            echo "body<<EOF"
-            echo "$BODY"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        env:
-          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL || 'claude-haiku-4-5-20251001' }}
-
       - name: Post review comment
         env:
           GH_TOKEN: ${{ github.token }}
           BODY_LOCAL: ${{ steps.review_local.outputs.body }}
-          BODY_CLOUD: ${{ steps.review_cloud.outputs.body }}
         run: |
-          BODY="${BODY_LOCAL:-${BODY_CLOUD}}"
+          BODY="${BODY_LOCAL}"
           [ -z "$BODY" ] && exit 0
           gh pr comment ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
