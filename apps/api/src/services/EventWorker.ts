@@ -38,7 +38,8 @@ export class EventWorker {
   private dunningTimer: NodeJS.Timeout | null = null;
   private listenClient: ListenClient | null = null;
   private isProcessing = false;
-  private pendingWake = false; // NOTIFY arrived while isProcessing — retry after batch
+  private pendingRetry: NodeJS.Timeout | null = null; // delayed retry timer
+  private readonly retryDelayMs: number;
   private isScanningOverdue = false;
   private isScanningExpiry = false;
   private isScanningRecurring = false;
@@ -58,6 +59,10 @@ export class EventWorker {
     this.accountingApiUrl =
       process.env.MOCK_ACCOUNTING_API_URL || "http://localhost:3991";
     this.maxRetries = Number(process.env.OUTBOX_MAX_RETRIES || 5);
+    // Delay between retry attempts when dispatching fails. Short enough that
+    // a recovered API is detected well within the integration test window (15s),
+    // long enough to avoid exhausting maxRetries before the API can recover.
+    this.retryDelayMs = Number(process.env.OUTBOX_RETRY_DELAY_MS) || 2_000;
   }
 
   start(
@@ -130,10 +135,22 @@ export class EventWorker {
       clearInterval(this.dunningTimer);
       this.dunningTimer = null;
     }
+    if (this.pendingRetry) {
+      clearTimeout(this.pendingRetry);
+      this.pendingRetry = null;
+    }
     if (this.listenClient) {
       this.listenClient.release();
       this.listenClient = null;
     }
+  }
+
+  private scheduleRetry(): void {
+    if (this.pendingRetry || this.stopped) return;
+    this.pendingRetry = setTimeout(() => {
+      this.pendingRetry = null;
+      void this.processBatch();
+    }, this.retryDelayMs);
   }
 
   private async startListenNotify(retryDelayMs = 5000): Promise<void> {
@@ -143,10 +160,11 @@ export class EventWorker {
       await client.query('LISTEN outbox_event');
       this.listenClient = client;
       client.on('notification', () => {
-        if (this.isProcessing) {
-          this.pendingWake = true; // batch in flight — drain again after it finishes
-        } else {
+        if (!this.isProcessing) {
           void this.processBatch();
+        } else {
+          // Batch in flight — schedule a retry so the NOTIFY is not lost.
+          this.scheduleRetry();
         }
       });
       client.on('error', (err: unknown) => {
@@ -187,18 +205,16 @@ export class EventWorker {
           logger.error({ eventId: event.id, err: error }, 'failed to dispatch event');
           // Re-queues for retry, or dead-letters after maxRetries.
           await this.repos.outbox.markFailed(event.id, this.maxRetries);
+          // The UPDATE trigger fires pg_notify, but it may arrive while we're
+          // still in this batch (isProcessing=true). Schedule a delayed retry so
+          // re-queued events are not stranded until the 60s fallback poll.
+          this.scheduleRetry();
         }
       }
     } catch (error) {
       logger.error({ err: error }, 'EventWorker batch processing error');
     } finally {
       this.isProcessing = false;
-      // If a NOTIFY arrived while we were busy, drain now rather than waiting
-      // for the 60-second fallback poll (covers the re-queued retry case).
-      if (this.pendingWake) {
-        this.pendingWake = false;
-        void this.processBatch();
-      }
     }
   }
 
