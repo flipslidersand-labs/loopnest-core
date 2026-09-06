@@ -57,11 +57,10 @@ export class EventWorker {
   start(
     intervalMs: number = Number(process.env.EVENT_WORKER_INTERVAL_MS) || 5000,
   ): void {
-    // LISTEN/NOTIFY drives real-time dispatch; keep a 60s fallback poll for
-    // events that arrive while the listen connection is reconnecting.
-    const fallbackMs = Math.max(intervalMs, 60_000);
-    logger.info(`🔄 EventWorker started (LISTEN/NOTIFY + ${fallbackMs}ms fallback poll)`);
-    this.timer = setInterval(() => this.processBatch(), fallbackMs);
+    // Keep original poll interval unchanged — it drives retries for failed events.
+    // LISTEN/NOTIFY supplements it: new inserts wake processBatch() immediately.
+    logger.info(`🔄 EventWorker started (LISTEN/NOTIFY + ${intervalMs}ms poll)`);
+    this.timer = setInterval(() => this.processBatch(), intervalMs);
     // Drain any events accumulated while the worker was offline.
     void this.processBatch();
     void this.startListening();
