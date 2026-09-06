@@ -17,6 +17,7 @@ import { InstallmentRepository } from './InstallmentRepository.js';
 import { RecurringContractRepository } from './RecurringContractRepository.js';
 import { DunningRepository } from './DunningRepository.js';
 import { ExchangeRateRepository } from './ExchangeRateRepository.js';
+import { WebhookDeliveryRepository } from './WebhookDeliveryRepository.js';
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -36,6 +37,7 @@ export class RepositoryContainer {
   private readonly recurringContractRepo: RecurringContractRepository;
   private readonly dunningRepo: DunningRepository;
   private readonly exchangeRateRepo: ExchangeRateRepository;
+  private readonly webhookDeliveryRepo: WebhookDeliveryRepository;
 
   constructor(private readonly db: Kysely<KyselyDatabase>) {
     this.organizationRepo = new OrganizationRepository(db);
@@ -55,6 +57,7 @@ export class RepositoryContainer {
     this.recurringContractRepo = new RecurringContractRepository(db);
     this.dunningRepo = new DunningRepository(db);
     this.exchangeRateRepo = new ExchangeRateRepository(db);
+    this.webhookDeliveryRepo = new WebhookDeliveryRepository(db);
   }
 
   get organizations(): OrganizationRepository { return this.organizationRepo; }
@@ -74,6 +77,7 @@ export class RepositoryContainer {
   get recurringContracts(): RecurringContractRepository { return this.recurringContractRepo; }
   get dunning(): DunningRepository { return this.dunningRepo; }
   get exchangeRates(): ExchangeRateRepository { return this.exchangeRateRepo; }
+  get webhookDeliveries(): WebhookDeliveryRepository { return this.webhookDeliveryRepo; }
 
   async beginTransaction<T>(
     callback: (container: RepositoryContainer) => Promise<T>
