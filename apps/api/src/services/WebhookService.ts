@@ -1,6 +1,7 @@
 import { createHmac } from 'crypto';
 import { logger } from '../lib/logger.js';
 import { webhookDeliveryFailureTotal } from '../observability/metrics.js';
+import { ApiErrorResponse } from '../middleware/errorHandler.js';
 import {
   WebhookRepository,
   WebhookDeliveryRepository,
@@ -61,9 +62,9 @@ export class WebhookService {
 
   async retryDelivery(deliveryId: string): Promise<WebhookDelivery> {
     const delivery = await this.deliveryRepo.findById(deliveryId);
-    if (!delivery) throw new Error('Delivery not found');
+    if (!delivery) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Delivery not found');
     const hook = await this.repo.findById(delivery.webhookId);
-    if (!hook) throw new Error('Webhook not found or deleted');
+    if (!hook) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found or deleted');
     return this.dispatch(hook, delivery.eventType, delivery.payload);
   }
 
