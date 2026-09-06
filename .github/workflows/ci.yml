@@ -96,6 +96,13 @@ jobs:
       - name: Apply migrations
         run: bash infra/migrations/run.sh
 
+      - name: Free port 3000
+        run: |
+          # Self-hosted ARC runners may have other services (e.g. Grafana) bound to
+          # port 3000. Kill them so run-all.sh doesn't mistake the existing process
+          # for a running API server and skip startup.
+          sudo fuser -k 3000/tcp 2>/dev/null || true
+
       - name: Run integration suite
         run: SKIP_BUILD=1 bash tests/integration/run-all.sh
 
@@ -103,7 +110,7 @@ jobs:
         run: |
           node apps/api/dist/src/server.js > /tmp/load-server.log 2>&1 &
           SERVER_PID=$!
-          until curl -s -m 2 -o /dev/null http://localhost:3000/health; do
+          until curl -s -m 2 http://localhost:3000/health | grep -q '"status":"ok"'; do
             kill -0 $SERVER_PID 2>/dev/null || { echo "server died"; cat /tmp/load-server.log; exit 1; }
             sleep 1
           done
