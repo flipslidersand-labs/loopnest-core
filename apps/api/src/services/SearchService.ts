@@ -105,10 +105,10 @@ export class SearchService {
 
     return {
       results: dataResult.rows.map((r) => ({
-        type:      r.type as SearchResult['type'],
+        type:      r.type as 'customer' | 'product' | 'quote',
         id:        r.id as string,
         title:     r.title as string,
-        excerpt:   (r.excerpt as string | null | undefined) || null,
+        excerpt:   (r.excerpt as string | null) || null,
         createdAt: r.created_at as Date,
       })),
       total: Number.parseInt(countResult.rows[0].count as string, 10),
