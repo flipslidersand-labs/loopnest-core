@@ -8,10 +8,19 @@ export interface SearchResult {
 
 const ALLOWED_TYPES = new Set(['customer', 'product', 'quote']);
 
-import type { PgPool } from '../lib/pg-pool-types.js';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
+import type { KyselyDatabase } from '@loopnest/bizcore-db';
+
+interface SearchRow {
+  type: string;
+  id: string;
+  title: string;
+  excerpt: string | null;
+  created_at: Date;
+}
 
 export class SearchService {
-  constructor(private readonly pgPool: PgPool) {}
+  constructor(private readonly kyselyDb: Kysely<KyselyDatabase>) {}
 
   async search(
     query: string,
@@ -24,7 +33,6 @@ export class SearchService {
       return { results: [], total: 0 };
     }
 
-    // Validate and default types
     const requestedTypes = types.length > 0
       ? types.filter(t => ALLOWED_TYPES.has(t))
       : ['customer', 'product', 'quote'];
@@ -34,84 +42,75 @@ export class SearchService {
     }
 
     const pattern = `%${query.trim()}%`;
+    const orgFilter: RawBuilder<unknown> = orgId
+      ? sql`AND organization_id = ${orgId}`
+      : sql``;
 
-    // Build UNION from requested types only
-    const unions: string[] = [];
-    const params: unknown[] = [pattern];
-
-    const orgCondition = orgId
-      ? (() => { params.push(orgId); return `AND organization_id = $${params.length}`; })()
-      : '';
+    const parts: RawBuilder<unknown>[] = [];
 
     if (requestedTypes.includes('customer')) {
-      unions.push(`
+      parts.push(sql`
         SELECT 'customer'::text AS type,
                id::text,
                name AS title,
                COALESCE(address, '') AS excerpt,
                created_at
         FROM core.customers
-        WHERE (name ILIKE $1 OR COALESCE(address, '') ILIKE $1)
-          ${orgCondition}
+        WHERE (name ILIKE ${pattern} OR COALESCE(address, '') ILIKE ${pattern})
+          ${orgFilter}
       `);
     }
 
     if (requestedTypes.includes('product')) {
-      unions.push(`
+      parts.push(sql`
         SELECT 'product'::text AS type,
                id::text,
                name AS title,
                (sku || ' · ' || category) AS excerpt,
                created_at
         FROM core.products
-        WHERE (name ILIKE $1 OR sku ILIKE $1 OR category ILIKE $1)
-          ${orgCondition}
+        WHERE (name ILIKE ${pattern} OR sku ILIKE ${pattern} OR category ILIKE ${pattern})
+          ${orgFilter}
       `);
     }
 
     if (requestedTypes.includes('quote')) {
-      unions.push(`
+      parts.push(sql`
         SELECT 'quote'::text AS type,
                id::text,
                quote_number AS title,
                COALESCE(notes, '') AS excerpt,
                created_at
         FROM core.quotes
-        WHERE (quote_number ILIKE $1 OR created_by ILIKE $1 OR COALESCE(notes, '') ILIKE $1)
-          ${orgCondition}
+        WHERE (quote_number ILIKE ${pattern} OR created_by ILIKE ${pattern} OR COALESCE(notes, '') ILIKE ${pattern})
+          ${orgFilter}
       `);
     }
 
-    const cte = unions.join('\n      UNION ALL\n      ');
-
-    params.push(take, skip);
-    const limitParam  = params.length - 1;
-    const offsetParam = params.length;
+    const cte = sql.join(parts, sql` UNION ALL `);
 
     const [dataResult, countResult] = await Promise.all([
-      this.pgPool.query(
-        `WITH results AS (${cte})
-         SELECT type, id, title, excerpt, created_at
-         FROM results
-         ORDER BY created_at DESC
-         LIMIT $${limitParam} OFFSET $${offsetParam}`,
-        params
-      ),
-      this.pgPool.query(
-        `WITH results AS (${cte}) SELECT COUNT(*) FROM results`,
-        params.slice(0, params.length - 2) // exclude limit/offset
-      ),
+      sql<SearchRow>`
+        WITH results AS (${cte})
+        SELECT type, id, title, excerpt, created_at
+        FROM results
+        ORDER BY created_at DESC
+        LIMIT ${take} OFFSET ${skip}
+      `.execute(this.kyselyDb),
+      sql<{ count: string }>`
+        WITH results AS (${cte}) SELECT COUNT(*) FROM results
+      `.execute(this.kyselyDb),
     ]);
 
     return {
       results: dataResult.rows.map((r) => ({
-        type:      r.type as 'customer' | 'product' | 'quote',
-        id:        r.id as string,
-        title:     r.title as string,
-        excerpt:   (r.excerpt as string | null) || null,
-        createdAt: r.created_at as Date,
+        type:      r.type as SearchResult['type'],
+        id:        r.id,
+        title:     r.title,
+        excerpt:   r.excerpt || null,
+        createdAt: r.created_at,
       })),
-      total: Number.parseInt(countResult.rows[0].count as string, 10),
+      total: Number.parseInt(countResult.rows[0].count, 10),
     };
   }
 }
