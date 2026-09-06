@@ -256,6 +256,23 @@ export type NewOutboxEvent = Insertable<OutboxEventTable>;
 export type OutboxEventUpdate = Updateable<OutboxEventTable>;
 
 // ============================================
+// events.webhook_deliveries
+// ============================================
+export interface WebhookDeliveryTable {
+  id: Generated<string>;
+  webhook_id: string;
+  event_type: string;
+  payload: JsonValue; // JSONB
+  status: string;     // 'success' | 'failed'
+  http_status: number | null;
+  error_message: string | null;
+  delivered_at: Generated<Date>;
+}
+
+export type WebhookDeliveryRow = Selectable<WebhookDeliveryTable>;
+export type NewWebhookDelivery = Insertable<WebhookDeliveryTable>;
+
+// ============================================
 // events.webhooks
 // ============================================
 export interface WebhookTable {
@@ -366,6 +383,7 @@ export interface KyselyDatabase {
   'finance.credit_notes': CreditNoteTable;
   'finance.credit_note_applications': CreditNoteApplicationTable;
   'events.outbox_events': OutboxEventTable;
+  'events.webhook_deliveries': WebhookDeliveryTable;
   'events.webhooks': WebhookTable;
   'workflow.approval_requests': ApprovalRequestTable;
   'workflow.approval_steps': ApprovalStepTable;

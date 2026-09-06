@@ -76,5 +76,34 @@ export function webhookRoutes(webhookService: WebhookService) {
     })
   );
 
+  // GET /api/webhooks/deliveries — delivery history (admin)
+  router.get(
+    '/deliveries',
+    requireRole('admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const skip = Math.max(0, Number.parseInt((req.query.skip as string) || '0', 10));
+      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.take as string) || '20', 10)));
+      const filter = {
+        webhookId: req.query.webhookId as string | undefined,
+        status:    req.query.status as 'success' | 'failed' | undefined,
+        eventType: req.query.eventType as string | undefined,
+        skip,
+        take,
+      };
+      const { data, total } = await webhookService.listDeliveries(filter);
+      res.json({ data, pagination: { skip, take, total } });
+    })
+  );
+
+  // POST /api/webhooks/deliveries/:id/retry — re-fire a stored payload (admin)
+  router.post(
+    '/deliveries/:id/retry',
+    requireRole('admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const delivery = await webhookService.retryDelivery(req.params.id);
+      res.status(201).json({ data: delivery });
+    })
+  );
+
   return router;
 }
