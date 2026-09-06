@@ -3,13 +3,19 @@ import { logger } from '../lib/logger.js';
 import { webhookDeliveryFailureTotal } from '../observability/metrics.js';
 import {
   WebhookRepository,
+  WebhookDeliveryRepository,
+  WebhookDelivery,
+  WebhookDeliveryFilter,
   WebhookRecord,
   CreateWebhookInput,
   UpdateWebhookInput,
 } from '@loopnest/bizcore-db';
 
 export class WebhookService {
-  constructor(private readonly repo: WebhookRepository) {}
+  constructor(
+    private readonly repo: WebhookRepository,
+    private readonly deliveryRepo: WebhookDeliveryRepository,
+  ) {}
 
   async register(input: CreateWebhookInput): Promise<WebhookRecord> {
     return this.repo.create(input);
@@ -33,10 +39,10 @@ export class WebhookService {
 
   /**
    * Deliver an event to all matching webhooks for the org (fire-and-forget).
-   * Errors are logged but never propagate to the caller.
+   * Each attempt is persisted to webhook_deliveries regardless of outcome.
    */
   async deliver(orgId: string | undefined, eventType: string, payload: object): Promise<void> {
-    if (!orgId) return; // unscoped tokens have no org to route to
+    if (!orgId) return;
     const hooks = await this.repo.findActiveForEvent(eventType, orgId);
     for (const hook of hooks) {
       this.dispatch(hook, eventType, payload).catch(err => {
@@ -45,7 +51,23 @@ export class WebhookService {
     }
   }
 
-  private async dispatch(hook: WebhookRecord, eventType: string, payload: object): Promise<void> {
+  async listDeliveries(filter: WebhookDeliveryFilter): Promise<{ data: WebhookDelivery[]; total: number }> {
+    const [data, total] = await Promise.all([
+      this.deliveryRepo.findAll(filter),
+      this.deliveryRepo.count(filter),
+    ]);
+    return { data, total };
+  }
+
+  async retryDelivery(deliveryId: string): Promise<WebhookDelivery> {
+    const delivery = await this.deliveryRepo.findById(deliveryId);
+    if (!delivery) throw new Error('Delivery not found');
+    const hook = await this.repo.findById(delivery.webhookId);
+    if (!hook) throw new Error('Webhook not found or deleted');
+    return this.dispatch(hook, delivery.eventType, delivery.payload);
+  }
+
+  private async dispatch(hook: WebhookRecord, eventType: string, payload: object): Promise<WebhookDelivery> {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const body = JSON.stringify({
       event:     eventType,
@@ -62,16 +84,35 @@ export class WebhookService {
       headers['X-LoopNest-Signature'] = `sha256=${sig}`;
     }
 
-    const res = await fetch(hook.url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: AbortSignal.timeout(5000),
-    });
+    let httpStatus: number | null = null;
+    let errorMessage: string | null = null;
+    let status: 'success' | 'failed' = 'success';
 
-    if (!res.ok) {
-      webhookDeliveryFailureTotal.inc({ event_type: eventType, status: String(res.status) });
-      throw new Error(`HTTP ${res.status} from ${hook.url}`);
+    try {
+      const res = await fetch(hook.url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(5000),
+      });
+      httpStatus = res.status;
+      if (!res.ok) {
+        webhookDeliveryFailureTotal.inc({ event_type: eventType, status: String(res.status) });
+        status = 'failed';
+        errorMessage = `HTTP ${res.status}`;
+      }
+    } catch (err) {
+      status = 'failed';
+      errorMessage = err instanceof Error ? err.message : String(err);
     }
+
+    return this.deliveryRepo.create({
+      webhookId: hook.id,
+      eventType,
+      payload,
+      status,
+      httpStatus,
+      errorMessage,
+    });
   }
 }

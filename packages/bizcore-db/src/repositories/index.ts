@@ -18,6 +18,8 @@ export { OutboxRepository } from './OutboxRepository.js';
 export type { OutboxEvent } from './OutboxRepository.js';
 export { WebhookRepository } from './WebhookRepository.js';
 export type { WebhookRecord, CreateWebhookInput, UpdateWebhookInput } from './WebhookRepository.js';
+export { WebhookDeliveryRepository } from './WebhookDeliveryRepository.js';
+export type { WebhookDelivery, WebhookDeliveryFilter, WebhookDeliveryStatus } from './WebhookDeliveryRepository.js';
 export { PaymentRepository } from './PaymentRepository.js';
 export type { PaymentRecord, PaymentInput, PaymentFilter, PaymentMethod, PaymentStatus } from './PaymentRepository.js';
 export { CreditNoteRepository } from './CreditNoteRepository.js';

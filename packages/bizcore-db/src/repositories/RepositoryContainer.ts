@@ -9,6 +9,7 @@ import { UserRepository } from './UserRepository.js';
 import { InvoiceRepository } from './InvoiceRepository.js';
 import { OutboxRepository } from './OutboxRepository.js';
 import { WebhookRepository } from './WebhookRepository.js';
+import { WebhookDeliveryRepository } from './WebhookDeliveryRepository.js';
 import { PaymentRepository } from './PaymentRepository.js';
 import { CreditNoteRepository } from './CreditNoteRepository.js';
 import { TaxRateRepository } from './TaxRateRepository.js';
@@ -28,6 +29,7 @@ export class RepositoryContainer {
   private readonly invoiceRepo: InvoiceRepository;
   private readonly outboxRepo: OutboxRepository;
   private readonly webhookRepo: WebhookRepository;
+  private readonly webhookDeliveryRepo: WebhookDeliveryRepository;
   private readonly paymentRepo: PaymentRepository;
   private readonly creditNoteRepo: CreditNoteRepository;
   private readonly taxRateRepo: TaxRateRepository;
@@ -47,6 +49,7 @@ export class RepositoryContainer {
     this.invoiceRepo = new InvoiceRepository(db);
     this.outboxRepo = new OutboxRepository(db);
     this.webhookRepo = new WebhookRepository(db);
+    this.webhookDeliveryRepo = new WebhookDeliveryRepository(db);
     this.paymentRepo = new PaymentRepository(db);
     this.creditNoteRepo = new CreditNoteRepository(db);
     this.taxRateRepo = new TaxRateRepository(db);
@@ -66,6 +69,7 @@ export class RepositoryContainer {
   get invoices(): InvoiceRepository { return this.invoiceRepo; }
   get outbox(): OutboxRepository { return this.outboxRepo; }
   get webhooks(): WebhookRepository { return this.webhookRepo; }
+  get webhookDeliveries(): WebhookDeliveryRepository { return this.webhookDeliveryRepo; }
   get payments(): PaymentRepository { return this.paymentRepo; }
   get creditNotes(): CreditNoteRepository { return this.creditNoteRepo; }
   get taxRates(): TaxRateRepository { return this.taxRateRepo; }
