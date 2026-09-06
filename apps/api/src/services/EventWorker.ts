@@ -38,6 +38,7 @@ export class EventWorker {
   private dunningTimer: NodeJS.Timeout | null = null;
   private listenClient: ListenClient | null = null;
   private isProcessing = false;
+  private pendingWake = false; // NOTIFY arrived while isProcessing — retry after batch
   private isScanningOverdue = false;
   private isScanningExpiry = false;
   private isScanningRecurring = false;
@@ -142,7 +143,11 @@ export class EventWorker {
       await client.query('LISTEN outbox_event');
       this.listenClient = client;
       client.on('notification', () => {
-        void this.processBatch();
+        if (this.isProcessing) {
+          this.pendingWake = true; // batch in flight — drain again after it finishes
+        } else {
+          void this.processBatch();
+        }
       });
       client.on('error', (err: unknown) => {
         logger.error({ err }, 'LISTEN client error — reconnecting');
@@ -188,6 +193,12 @@ export class EventWorker {
       logger.error({ err: error }, 'EventWorker batch processing error');
     } finally {
       this.isProcessing = false;
+      // If a NOTIFY arrived while we were busy, drain now rather than waiting
+      // for the 60-second fallback poll (covers the re-queued retry case).
+      if (this.pendingWake) {
+        this.pendingWake = false;
+        void this.processBatch();
+      }
     }
   }
 
