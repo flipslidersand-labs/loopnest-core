@@ -2,8 +2,11 @@ import { logger } from "../lib/logger.js";
 import { RepositoryContainer } from "@loopnest/bizcore-db";
 import type { OutboxEvent } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
+import pg from "pg";
 import { WebhookService } from "./WebhookService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
+
+const NOTIFY_CHANNEL = 'loopnest_outbox';
 
 function advanceDate(from: string, unit: string, value: number): string {
   const d = new Date(from + 'T00:00:00Z');
@@ -30,6 +33,7 @@ export class EventWorker {
   private expiryTimer: NodeJS.Timeout | null = null;
   private recurringTimer: NodeJS.Timeout | null = null;
   private dunningTimer: NodeJS.Timeout | null = null;
+  private listenClient: pg.Client | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
   private isScanningExpiry = false;
@@ -53,8 +57,14 @@ export class EventWorker {
   start(
     intervalMs: number = Number(process.env.EVENT_WORKER_INTERVAL_MS) || 5000,
   ): void {
-    logger.info(`🔄 EventWorker started (interval: ${intervalMs}ms)`);
-    this.timer = setInterval(() => this.processBatch(), intervalMs);
+    // LISTEN/NOTIFY drives real-time dispatch; keep a 60s fallback poll for
+    // events that arrive while the listen connection is reconnecting.
+    const fallbackMs = Math.max(intervalMs, 60_000);
+    logger.info(`🔄 EventWorker started (LISTEN/NOTIFY + ${fallbackMs}ms fallback poll)`);
+    this.timer = setInterval(() => this.processBatch(), fallbackMs);
+    // Drain any events accumulated while the worker was offline.
+    void this.processBatch();
+    void this.startListening();
 
     // Overdue detection runs on a slower cadence (default hourly) — a payment
     // becoming overdue is a once-a-day transition, not something to poll at 5s.
@@ -86,7 +96,6 @@ export class EventWorker {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      logger.info('EventWorker stopped');
     }
     if (this.overdueTimer) {
       clearInterval(this.overdueTimer);
@@ -103,6 +112,48 @@ export class EventWorker {
     if (this.dunningTimer) {
       clearInterval(this.dunningTimer);
       this.dunningTimer = null;
+    }
+    void this.stopListening();
+    logger.info('EventWorker stopped');
+  }
+
+  private async startListening(): Promise<void> {
+    const client = new pg.Client({
+      host: process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
+      user: process.env.POSTGRES_USER || 'loopnest',
+      password: process.env.POSTGRES_PASSWORD || 'loopnest_dev_password',
+      database: process.env.POSTGRES_DB || 'omni_local',
+    });
+
+    try {
+      await client.connect();
+      await client.query(`LISTEN ${NOTIFY_CHANNEL}`);
+      this.listenClient = client;
+
+      client.on('notification', () => {
+        void this.processBatch();
+      });
+
+      client.on('error', (err) => {
+        logger.error({ err }, `[EventWorker] LISTEN client error, reconnecting in 5s`);
+        void this.stopListening();
+        setTimeout(() => void this.startListening(), 5_000);
+      });
+
+      logger.info(`👂 EventWorker LISTEN on channel '${NOTIFY_CHANNEL}'`);
+    } catch (err) {
+      logger.error({ err }, '[EventWorker] Failed to connect LISTEN client, retrying in 5s');
+      await client.end().catch(() => undefined);
+      setTimeout(() => void this.startListening(), 5_000);
+    }
+  }
+
+  private async stopListening(): Promise<void> {
+    if (this.listenClient) {
+      const c = this.listenClient;
+      this.listenClient = null;
+      await c.end().catch(() => undefined);
     }
   }
 
