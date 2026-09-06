@@ -25,6 +25,9 @@ jobs:
     # to GitHub-hosted ubuntu-latest. PostgreSQL and Redis are started via apt
     # rather than Docker services: so the job works without a Docker socket.
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
 
     env:
       DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local
@@ -92,6 +95,33 @@ jobs:
       - name: Unit tests
         working-directory: apps/api
         run: npm run test:unit
+
+      - name: PR coverage comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- coverage-comment-api -->';
+            let body;
+            try {
+              const summary = JSON.parse(fs.readFileSync('apps/api/coverage/coverage-summary.json', 'utf8'));
+              const pct = summary.total.lines.pct;
+              const threshold = 35;
+              const status = pct >= threshold ? '✅' : '❌';
+              body = MARKER + '\n### 📊 apps/api coverage: **' + pct + '%** ' + status + '\n\n閾値: ' + threshold + '%';
+            } catch (e) {
+              body = MARKER + '\n### 📊 apps/api coverage\ncoverage-summary.json の読み込みに失敗しました: ' + e.message;
+            }
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }
 
       - name: Apply migrations
         run: bash infra/migrations/run.sh
