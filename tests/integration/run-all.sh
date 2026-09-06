@@ -68,6 +68,7 @@ start_server() {
   # Fast outbox polling + point exports at the mock accounting API the
   # outbox_dispatch suite manages on :3001.
   EVENT_WORKER_INTERVAL_MS="${EVENT_WORKER_INTERVAL_MS:-1000}" \
+  LISTEN_NOTIFY_FALLBACK_MS="${LISTEN_NOTIFY_FALLBACK_MS:-1000}" \
   MOCK_ACCOUNTING_API_URL="${MOCK_ACCOUNTING_API_URL:-http://localhost:3991}" \
   OUTBOX_MAX_RETRIES="${OUTBOX_MAX_RETRIES:-50}" \
   RATE_LIMIT_GLOBAL_MAX="${RATE_LIMIT_GLOBAL_MAX:-100000}" \
