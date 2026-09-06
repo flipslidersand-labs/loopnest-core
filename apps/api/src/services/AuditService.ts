@@ -184,6 +184,30 @@ export class AuditService {
     await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_DELETED`, resourceType, resourceId });
   }
 
+  async logInvoiceMarkedPaid(invoiceId: string, userId: string, paidAt: Date): Promise<void> {
+    await this.log({ actorId: userId, action: 'INVOICE_MARKED_PAID', resourceType: 'invoice', resourceId: invoiceId, metadata: { paidAt: paidAt.toISOString() } });
+  }
+
+  async logInvoiceCancelled(invoiceId: string, userId: string): Promise<void> {
+    await this.log({ actorId: userId, action: 'INVOICE_CANCELLED', resourceType: 'invoice', resourceId: invoiceId });
+  }
+
+  async logPaymentRecorded(paymentId: string, invoiceId: string, amount: number, userId: string): Promise<void> {
+    await this.log({ actorId: userId, action: 'PAYMENT_RECORDED', resourceType: 'payment', resourceId: paymentId, metadata: { invoiceId, amount } });
+  }
+
+  async logPaymentReversed(paymentId: string, invoiceId: string, reason: string, userId: string): Promise<void> {
+    await this.log({ actorId: userId, action: 'PAYMENT_REVERSED', resourceType: 'payment', resourceId: paymentId, metadata: { invoiceId, reason } });
+  }
+
+  async logCreditNoteIssued(creditNoteId: string, invoiceId: string | null, amount: number, userId: string): Promise<void> {
+    await this.log({ actorId: userId, action: 'CREDIT_NOTE_ISSUED', resourceType: 'credit_note', resourceId: creditNoteId, metadata: { invoiceId, amount } });
+  }
+
+  async logCreditNoteApplied(creditNoteId: string, targetInvoiceId: string, amount: number, userId: string): Promise<void> {
+    await this.log({ actorId: userId, action: 'CREDIT_NOTE_APPLIED', resourceType: 'credit_note', resourceId: creditNoteId, metadata: { targetInvoiceId, amount } });
+  }
+
   // ── Private helpers ─────────────────────────────────────────────────────────
 
   private buildLogConditions(f: AuditLogFilter): { conditions: string[]; params: unknown[] } {

@@ -233,6 +233,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!invoice) {
         throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice must be issued or sent to mark as paid');
       }
+      await services.audit.logInvoiceMarkedPaid(req.params.id, req.user?.sub ?? 'system', paidAt);
       res.json({ data: invoice, message: 'Invoice marked as paid' });
     })
   );
@@ -322,6 +323,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!invoice) {
         throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Only issued or sent invoices can be cancelled');
       }
+      await services.audit.logInvoiceCancelled(req.params.id, req.user?.sub ?? 'system');
       res.json({ data: invoice, message: 'Invoice cancelled' });
     })
   );

@@ -8,6 +8,7 @@ import { asyncHandler, ApiErrorResponse } from "../middleware/errorHandler.js";
 import { requireRole } from "../middleware/auth.js";
 import { CreditNoteService } from "../services/CreditNoteService.js";
 import { WebhookService } from "../services/WebhookService.js";
+import { AuditService } from "../services/AuditService.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,6 +45,7 @@ export function invoiceCreditNoteRoutes(
   creditNotes: CreditNoteService,
   repos: RepositoryContainer,
   webhooks: WebhookService,
+  audit: AuditService,
 ) {
   const router = Router({ mergeParams: true });
 
@@ -86,6 +88,7 @@ export function invoiceCreditNoteRoutes(
         req.user!.sub,
       );
 
+      await audit.logCreditNoteIssued(result.creditNote.id, invoiceId, amount, req.user!.sub);
       webhooks.deliver(req.user?.orgId, "credit_note.issued", {
         creditNoteId: result.creditNote.id,
         creditNumber: result.creditNote.creditNumber,
@@ -105,6 +108,7 @@ export function creditNoteRoutes(
   creditNotes: CreditNoteService,
   repos: RepositoryContainer,
   webhooks: WebhookService,
+  audit: AuditService,
 ) {
   const router = Router();
 
@@ -192,6 +196,7 @@ export function creditNoteRoutes(
         req.user!.sub,
       );
 
+      await audit.logCreditNoteApplied(id, targetInvoiceId, amount, req.user!.sub);
       webhooks.deliver(req.user?.orgId, "credit_note.applied", {
         creditNoteId: id,
         targetInvoiceId,

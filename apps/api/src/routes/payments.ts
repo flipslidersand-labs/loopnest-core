@@ -4,6 +4,7 @@ import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { PaymentService } from '../services/PaymentService.js';
 import { WebhookService } from '../services/WebhookService.js';
+import { AuditService } from '../services/AuditService.js';
 
 /**
  * Block a tenant-scoped caller from touching another org's invoice. A token
@@ -34,7 +35,8 @@ async function loadInvoiceOrg(
 export function invoicePaymentRoutes(
   payments: PaymentService,
   repos: RepositoryContainer,
-  webhooks: WebhookService
+  webhooks: WebhookService,
+  audit: AuditService
 ) {
   const router = Router({ mergeParams: true });
 
@@ -74,6 +76,7 @@ export function invoicePaymentRoutes(
         req.user!.sub
       );
 
+      await audit.logPaymentRecorded(result.payment.id, invoiceId, result.payment.amount, req.user?.sub ?? 'system');
       // Fire-and-forget webhook fan-out, mirroring the workflow routes.
       webhooks.deliver(req.user?.orgId, 'payment.recorded', {
         invoiceId,
@@ -83,6 +86,7 @@ export function invoicePaymentRoutes(
         status: result.balance.status,
       });
       if (result.balance.status === 'paid') {
+        await audit.logInvoiceMarkedPaid(invoiceId, req.user?.sub ?? 'system', new Date());
         webhooks.deliver(req.user?.orgId, 'invoice.paid', {
           invoiceId,
           paidTotal: result.balance.paidTotal,
@@ -100,7 +104,8 @@ export function invoicePaymentRoutes(
 export function paymentRoutes(
   payments: PaymentService,
   repos: RepositoryContainer,
-  webhooks: WebhookService
+  webhooks: WebhookService,
+  audit: AuditService
 ) {
   const router = Router();
 
@@ -140,6 +145,7 @@ export function paymentRoutes(
       const { reason } = req.body as { reason?: string };
       const result = await payments.reversePayment(id, reason ?? '', req.user!.sub);
 
+      await audit.logPaymentReversed(id, result.balance.invoiceId, reason ?? '', req.user?.sub ?? 'system');
       webhooks.deliver(req.user?.orgId, 'payment.reversed', {
         invoiceId: result.balance.invoiceId,
         paymentId: id,
