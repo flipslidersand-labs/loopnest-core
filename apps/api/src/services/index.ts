@@ -48,9 +48,9 @@ export class ServiceContainer {
     this.approvals = new ApprovalService(repos, kyselyDb);
     this.invoices = new InvoiceService(repos);
     this.audit = new AuditService(pgPool);
-    this.reporting = new ReportingService(pgPool);
+    this.reporting = new ReportingService(kyselyDb);
     this.webhooks = new WebhookService(repos.webhooks);
-    this.search = new SearchService(pgPool);
+    this.search = new SearchService(kyselyDb);
     this.payments = new PaymentService(repos, kyselyDb);
     this.creditNotes = new CreditNoteService(repos, kyselyDb);
     this.eventWorker = new EventWorker(repos, pgPool, this.webhooks);
