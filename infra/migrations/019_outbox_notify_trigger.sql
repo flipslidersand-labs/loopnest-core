@@ -15,15 +15,10 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_outbox_notify ON events.outbox_events;
 DROP TRIGGER IF EXISTS trg_outbox_notify_retry ON events.outbox_events;
 
--- Fire on INSERT (new events) and on UPDATE when status returns to 'pending'
--- (retry re-queue by markFailed). Without the UPDATE trigger, LISTEN/NOTIFY
--- would miss retried events and they would wait for the 60 s fallback poll.
+-- INSERT-only trigger: fires pg_notify for new outbox events.
+-- Retried events (markFailed → status='pending') do NOT fire a NOTIFY;
+-- EventWorker.scheduleRetry() handles the delay-before-retry in-process,
+-- avoiding a notification storm that would bypass retry backoff.
 CREATE TRIGGER trg_outbox_notify
   AFTER INSERT ON events.outbox_events
   FOR EACH ROW EXECUTE FUNCTION events.notify_outbox_insert();
-
-CREATE TRIGGER trg_outbox_notify_retry
-  AFTER UPDATE OF status ON events.outbox_events
-  FOR EACH ROW
-  WHEN (NEW.status = 'pending')
-  EXECUTE FUNCTION events.notify_outbox_insert();
