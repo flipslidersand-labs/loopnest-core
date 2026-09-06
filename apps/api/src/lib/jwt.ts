@@ -2,8 +2,9 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 export interface JwtPayload {
   sub: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: 'admin' | 'editor' | 'viewer' | 'customer';
   orgId?: string;
+  customerId?: string;
   email?: string;
   iat?: number;
   exp?: number;

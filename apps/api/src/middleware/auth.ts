@@ -2,11 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken, type JwtPayload } from '../lib/jwt.js';
 import { ApiErrorResponse } from './errorHandler.js';
 
-// Augment Express Request so req.user is typed across the app.
+// Augment Express Request so req.user / req.customerId are typed across the app.
 declare global {
   namespace Express {
     interface Request {
       user?: JwtPayload;
+      customerId?: string;
     }
   }
 }
@@ -39,3 +40,14 @@ export const requireRole = (...roles: string[]) =>
     }
     next();
   };
+
+export const requireCustomer = (req: Request, _res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    return next(new ApiErrorResponse(401, 'UNAUTHORIZED', 'Authentication required'));
+  }
+  if (req.user.role !== 'customer' || !req.user.customerId) {
+    return next(new ApiErrorResponse(403, 'FORBIDDEN', 'Customer token required'));
+  }
+  req.customerId = req.user.customerId;
+  next();
+};
