@@ -49,7 +49,7 @@ export class ServiceContainer {
     this.invoices = new InvoiceService(repos);
     this.audit = new AuditService(pgPool);
     this.reporting = new ReportingService(kyselyDb);
-    this.webhooks = new WebhookService(repos.webhooks);
+    this.webhooks = new WebhookService(repos.webhooks, repos.webhookDeliveries);
     this.search = new SearchService(kyselyDb);
     this.payments = new PaymentService(repos, kyselyDb);
     this.creditNotes = new CreditNoteService(repos, kyselyDb);
