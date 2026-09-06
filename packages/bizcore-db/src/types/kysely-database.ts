@@ -37,17 +37,91 @@ export type NewExchangeRate = Insertable<ExchangeRateTable>;
 export type ExchangeRateUpdate = Updateable<ExchangeRateTable>;
 
 // ============================================
+// core.organizations
+// ============================================
+export interface OrganizationTable {
+  id: Generated<string>;
+  name: string;
+  type: string; // 'company' | 'department' | 'division'
+  parent_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type OrganizationRow = Selectable<OrganizationTable>;
+export type NewOrganization = Insertable<OrganizationTable>;
+export type OrganizationUpdate = Updateable<OrganizationTable>;
+
+// ============================================
+// core.customers
+// ============================================
+export interface CustomerTable {
+  id: Generated<string>;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  organization_id: string | null;
+  credit_limit: number | null;
+  credit_used: Generated<number>;
+  created_at: Generated<Date>;
+}
+
+export type CustomerRow = Selectable<CustomerTable>;
+export type NewCustomer = Insertable<CustomerTable>;
+export type CustomerUpdate = Updateable<CustomerTable>;
+
+// ============================================
+// core.products
+// ============================================
+export interface ProductTable {
+  id: Generated<string>;
+  sku: string;
+  name: string;
+  category: string;
+  unit_price: number;
+  stock_quantity: Generated<number>;
+  organization_id: string | null;
+  created_at: Generated<Date>;
+}
+
+export type ProductRow = Selectable<ProductTable>;
+export type NewProduct = Insertable<ProductTable>;
+export type ProductUpdate = Updateable<ProductTable>;
+
+// ============================================
+// core.users
+// ============================================
+export interface UserTable {
+  id: Generated<string>;
+  email: string;
+  name: string;
+  name_en: string | null;
+  organization_id: string;
+  role: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date | null>;
+}
+
+export type UserRow = Selectable<UserTable>;
+export type NewUser = Insertable<UserTable>;
+export type UserUpdate = Updateable<UserTable>;
+
+// ============================================
 // core.quotes
 // ============================================
 export interface QuoteTable {
   id: Generated<string>;
   quote_number: string;
-  quote_request_id: string;
+  quote_request_id: string | null;
   customer_id: string;
-  organization_id: string | null; // added by migration 006_add_org_scoping
+  organization_id: string | null;
   subtotal_amount: number;
   tax_amount: number;
   total_amount: number;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_amount: number | null;
+  expires_at: Date | null;
   status: string;
   notes: string | null;
   created_by: string;
@@ -72,6 +146,7 @@ export interface QuoteItemTable {
   unit_price: number;
   line_total: number;
   notes: string | null;
+  created_at: Generated<Date>;
 }
 
 export type QuoteItem = Selectable<QuoteItemTable>;
@@ -278,6 +353,10 @@ export type ApprovalStepUpdate = Updateable<ApprovalStepTable>;
 export interface KyselyDatabase {
   'core.exchange_rates': ExchangeRateTable;
   'core.quote_requests': QuoteRequestTable;
+  'core.organizations': OrganizationTable;
+  'core.customers': CustomerTable;
+  'core.products': ProductTable;
+  'core.users': UserTable;
   'core.quotes': QuoteTable;
   'core.quote_items': QuoteItemTable;
   'finance.invoices': InvoiceTable;
