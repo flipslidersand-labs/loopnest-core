@@ -75,7 +75,7 @@ export function portalRoutes(repos: RepositoryContainer) {
       const limit  = Math.min(50, Math.max(1, parseInt(req.query.limit as string || '20', 10)));
       const offset = (page - 1) * limit;
 
-      const all = await repos.quotes.findAll({ customerId: req.customerId });
+      const all = await repos.quotes.findByCustomer(req.customerId!);
       const data = all.slice(offset, offset + limit);
       res.json({ data, total: all.length, page, limit });
     })
