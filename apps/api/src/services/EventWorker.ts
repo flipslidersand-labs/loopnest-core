@@ -160,10 +160,12 @@ export class EventWorker {
       await client.query('LISTEN outbox_event');
       this.listenClient = client;
       client.on('notification', () => {
-        if (!this.isProcessing) {
+        if (!this.isProcessing && !this.pendingRetry) {
           void this.processBatch();
         } else {
-          // Batch in flight — schedule a retry so the NOTIFY is not lost.
+          // Batch in flight or a retry already scheduled — don't start another
+          // immediate batch. The pending timer (or the in-flight batch's own
+          // scheduleRetry) will drain the queue with the required delay.
           this.scheduleRetry();
         }
       });
