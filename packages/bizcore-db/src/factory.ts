@@ -1,6 +1,5 @@
 import prismaCoreDb from './clients/prisma-client.js';
 import { kyselyDb, closeKysely } from './clients/kysely-client.js';
-import { drizzleDb, closeDrizzle } from './clients/drizzle-client.js';
 import { pgPool, closePgPool } from './clients/pg-client.js';
 import { redis, closeRedis } from './clients/redis-client.js';
 import { RepositoryContainer } from './repositories/RepositoryContainer.js';
@@ -12,7 +11,6 @@ import type { KyselyDatabase } from './types/kysely-database.js';
 export interface DatabaseServices {
   repos: RepositoryContainer;
   pgPool: Pool;
-  drizzleDb: unknown;
   kyselyDb: Kysely<KyselyDatabase>;
   close: () => Promise<void>;
 }
@@ -30,13 +28,11 @@ export async function initializeDatabaseServices(): Promise<DatabaseServices> {
   return {
     repos,
     pgPool,
-    drizzleDb,
     kyselyDb: db,
     async close() {
       await Promise.all([
         prisma.$disconnect(),
         closeKysely(),
-        closeDrizzle(),
         closePgPool(),
         closeRedis(),
       ]);
