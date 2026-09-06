@@ -24,6 +24,7 @@ import { exchangeRateRoutes } from './routes/exchangeRates.js';
 import { quoteTemplateRoutes } from './routes/quoteTemplates.js';
 import { recurringContractRoutes } from './routes/recurringContracts.js';
 import { dunningRuleRoutes, invoiceDunningRoutes } from './routes/dunning.js';
+import { portalRoutes } from './routes/portal.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
@@ -111,6 +112,9 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(swaggerHtml);
   });
+
+  // Portal login is public — mount before the global authenticate middleware.
+  app.use('/api/portal', portalRoutes(dbServices.repos));
 
   // Authentication: all /api/* routes require a valid JWT.
   app.use('/api', authenticate);
