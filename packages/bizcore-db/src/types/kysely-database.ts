@@ -44,7 +44,7 @@ export interface QuoteTable {
   quote_number: string;
   quote_request_id: string;
   customer_id: string;
-  organization_id: string | null;
+  organization_id: string | null; // added by migration 006_add_org_scoping
   subtotal_amount: number;
   tax_amount: number;
   total_amount: number;
