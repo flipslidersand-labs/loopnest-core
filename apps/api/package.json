@@ -10,7 +10,7 @@
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "lint": "eslint src",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run --coverage"
   },
   "dependencies": {
     "@loopnest/bizcore-db": "file:../../packages/bizcore-db",
