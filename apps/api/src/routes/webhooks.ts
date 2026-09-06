@@ -15,6 +15,44 @@ export function webhookRoutes(webhookService: WebhookService) {
     })
   );
 
+  // List delivery logs — viewer+, with optional filters
+  // Must be before /:id to avoid Express matching "deliveries" as a webhook id
+  router.get(
+    '/deliveries',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { webhookId, status, eventType, limit, offset } = req.query;
+      if (status !== undefined && status !== 'success' && status !== 'failed') {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'status must be "success" or "failed"');
+      }
+      const result = await webhookService.listDeliveries({
+        webhookId: webhookId as string | undefined,
+        status:    status as 'success' | 'failed' | undefined,
+        eventType: eventType as string | undefined,
+        limit:     limit  ? parseInt(limit as string, 10)  : 20,
+        offset:    offset ? parseInt(offset as string, 10) : 0,
+      });
+      res.json({ data: result.data, total: result.total });
+    })
+  );
+
+  // Retry a delivery — editor+
+  // Must be before /:id for same reason
+  router.post(
+    '/deliveries/:id/retry',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      try {
+        const record = await webhookService.retry(req.params.id, req.user?.orgId);
+        res.json({ data: record });
+      } catch (err: any) {
+        if (err?.code === 'NOT_FOUND') {
+          throw new ApiErrorResponse(404, 'NOT_FOUND', err.message);
+        }
+        throw err;
+      }
+    })
+  );
+
   // Get one — viewer+
   router.get(
     '/:id',

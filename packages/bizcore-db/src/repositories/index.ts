@@ -47,4 +47,6 @@ export { DunningRepository } from './DunningRepository.js';
 export type { DunningRule, DunningLog, DunningAction, CreateDunningRuleInput } from './DunningRepository.js';
 export { ExchangeRateRepository } from './ExchangeRateRepository.js';
 export type { ExchangeRate, ExchangeRateInput } from './ExchangeRateRepository.js';
+export { WebhookDeliveryRepository } from './WebhookDeliveryRepository.js';
+export type { WebhookDeliveryRecord, CreateWebhookDeliveryInput, WebhookDeliveryFilter, DeliveryStatus } from './WebhookDeliveryRepository.js';
 export { RepositoryContainer } from './RepositoryContainer.js';
