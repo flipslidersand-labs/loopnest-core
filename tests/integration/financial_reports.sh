@@ -101,7 +101,7 @@ check "data ≥ 1 customer"             "true" "$(http_body "$R" | jq '.data | l
 check "has customerId/Name/Revenue"   "true" \
   "$(http_body "$R" | jq '.data[0] | has("customerId") and has("customerName") and has("totalRevenue")')"
 check "sorted descending by revenue"  "true" \
-  "$(http_body "$R" | jq '[.data[].totalRevenue] | . == sort | reverse')"
+  "$(http_body "$R" | jq '([.data[].totalRevenue] as $r | $r == ($r | sort | reverse))')"
 
 # Invalid month → 400
 R=$(curl -s -w "\n%{http_code}" "$BASE_URL/reports/revenue-by-customer?month=bad")
