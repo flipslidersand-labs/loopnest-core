@@ -35,6 +35,30 @@ export interface AccountsReceivableReport {
   byCustomer: Array<{ customerId: string; outstanding: number }>;
 }
 
+export interface MonthlySummary {
+  month: string; // YYYY-MM
+  grossRevenue: number;     // subtotal (excl. tax) from invoices issued this month
+  taxAmount: number;        // tax from invoices issued this month
+  totalBilled: number;      // grossRevenue + taxAmount
+  paymentsReceived: number; // confirmed payments with paid_on in this month
+  outstandingBalance: number; // open invoices as of month-end
+  invoiceCount: number;
+  paidCount: number;
+}
+
+export interface CashFlowPeriod {
+  date: string;         // ISO date YYYY-MM-DD
+  paymentsReceived: number;
+  paymentCount: number;
+}
+
+export interface RevenueByCustomer {
+  customerId: string;
+  customerName: string;
+  invoiceCount: number;
+  totalRevenue: number; // sum of total_amount on paid invoices
+}
+
 import { sql, type Kysely } from 'kysely';
 import type { KyselyDatabase } from '@loopnest/bizcore-db';
 
@@ -186,6 +210,132 @@ export class ReportingService {
       overdueCount:  Number.parseInt(overdueR.rows[0].count, 10),
       overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount),
     };
+  }
+
+  async getMonthlySummary(month: string, orgId?: string): Promise<MonthlySummary> {
+    const monthStart = `${month}-01`;
+    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+
+    interface InvoiceMonthRow {
+      gross_revenue: string;
+      tax_amount: string;
+      invoice_count: string;
+      paid_count: string;
+    }
+
+    const [invoiceR, paymentR, outstandingR] = await Promise.all([
+      sql<InvoiceMonthRow>`
+        SELECT
+          COALESCE(SUM(i.subtotal_amount), 0) AS gross_revenue,
+          COALESCE(SUM(i.tax_amount), 0)      AS tax_amount,
+          COUNT(*)                             AS invoice_count,
+          COUNT(*) FILTER (WHERE i.status = 'paid') AS paid_count
+        FROM finance.invoices i
+        ${joinClause}
+        WHERE date_trunc('month', i.created_at) = ${monthStart}::date
+          ${orgFilter}
+      `.execute(this.kyselyDb),
+
+      sql<{ total: string }>`
+        SELECT COALESCE(SUM(p.amount), 0) AS total
+        FROM finance.payments p
+        WHERE p.status = 'confirmed'
+          AND date_trunc('month', p.paid_on) = ${monthStart}::date
+          ${orgId ? sql`AND EXISTS (
+            SELECT 1 FROM finance.invoices i
+            JOIN core.quotes q ON q.id = i.quote_id
+            WHERE i.id = p.invoice_id AND q.organization_id = ${orgId}
+          )` : sql``}
+      `.execute(this.kyselyDb),
+
+      sql<{ total: string }>`
+        SELECT COALESCE(SUM(i.total_amount), 0) AS total
+        FROM finance.invoices i
+        ${joinClause}
+        WHERE i.status IN ('issued', 'sent', 'partially_paid')
+          AND i.created_at <= (${monthStart}::date + INTERVAL '1 month - 1 day')
+          ${orgFilter}
+      `.execute(this.kyselyDb),
+    ]);
+
+    const round = (n: number): number => Math.round(n * 100) / 100;
+    const r = invoiceR.rows[0];
+    const grossRevenue = round(Number.parseFloat(r.gross_revenue));
+    const taxAmount    = round(Number.parseFloat(r.tax_amount));
+    return {
+      month,
+      grossRevenue,
+      taxAmount,
+      totalBilled:        round(grossRevenue + taxAmount),
+      paymentsReceived:   round(Number.parseFloat(paymentR.rows[0].total)),
+      outstandingBalance: round(Number.parseFloat(outstandingR.rows[0].total)),
+      invoiceCount: Number.parseInt(r.invoice_count, 10),
+      paidCount:    Number.parseInt(r.paid_count, 10),
+    };
+  }
+
+  async getCashFlow(from: string, to: string, orgId?: string): Promise<CashFlowPeriod[]> {
+    interface CashFlowRow { date: Date | string; total: string; count: string; }
+    const result = await sql<CashFlowRow>`
+      SELECT
+        p.paid_on::date AS date,
+        COALESCE(SUM(p.amount), 0) AS total,
+        COUNT(*) AS count
+      FROM finance.payments p
+      WHERE p.status = 'confirmed'
+        AND p.paid_on >= ${from}::date
+        AND p.paid_on <= ${to}::date
+        ${orgId ? sql`AND EXISTS (
+          SELECT 1 FROM finance.invoices i
+          JOIN core.quotes q ON q.id = i.quote_id
+          WHERE i.id = p.invoice_id AND q.organization_id = ${orgId}
+        )` : sql``}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `.execute(this.kyselyDb);
+
+    return result.rows.map((r) => ({
+      date:             r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date),
+      paymentsReceived: Math.round(Number.parseFloat(r.total) * 100) / 100,
+      paymentCount:     Number.parseInt(r.count, 10),
+    }));
+  }
+
+  async getRevenueByCustomer(month: string, orgId?: string): Promise<RevenueByCustomer[]> {
+    const monthStart = `${month}-01`;
+    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+
+    interface RevByCustomerRow {
+      customer_id: string;
+      customer_name: string;
+      invoice_count: string;
+      total_revenue: string;
+    }
+    const result = await sql<RevByCustomerRow>`
+      SELECT
+        i.customer_id,
+        c.name AS customer_name,
+        COUNT(*) AS invoice_count,
+        COALESCE(SUM(i.total_amount), 0) AS total_revenue
+      FROM finance.invoices i
+      ${joinClause}
+      JOIN core.customers c ON c.id = i.customer_id
+      WHERE i.status = 'paid'
+        AND date_trunc('month', i.paid_at) = ${monthStart}::date
+        ${orgFilter}
+      GROUP BY i.customer_id, c.name
+      ORDER BY total_revenue DESC
+      LIMIT 50
+    `.execute(this.kyselyDb);
+
+    return result.rows.map((r) => ({
+      customerId:   r.customer_id,
+      customerName: r.customer_name,
+      invoiceCount: Number.parseInt(r.invoice_count, 10),
+      totalRevenue: Math.round(Number.parseFloat(r.total_revenue) * 100) / 100,
+    }));
   }
 
   async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {

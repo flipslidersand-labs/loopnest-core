@@ -51,6 +51,51 @@ export function reportRoutes(reportingService: ReportingService) {
     })
   );
 
+  // Monthly P&L summary (M17) — viewer and above
+  router.get(
+    '/monthly-summary',
+    asyncHandler(async (req: Request, res: Response) => {
+      const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'month must be in YYYY-MM format');
+      }
+      const summary = await reportingService.getMonthlySummary(month, req.user?.orgId);
+      res.json({ data: summary });
+    })
+  );
+
+  // Cash flow time series (M17) — viewer and above
+  router.get(
+    '/cash-flow',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { from, to } = req.query as { from?: string; to?: string };
+      if (!from || !to) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from and to query params are required (YYYY-MM-DD)');
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from and to must be ISO dates (YYYY-MM-DD)');
+      }
+      if (from > to) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from must be before or equal to to');
+      }
+      const cashFlow = await reportingService.getCashFlow(from, to, req.user?.orgId);
+      res.json({ data: cashFlow, from, to });
+    })
+  );
+
+  // Revenue by customer (M17) — viewer and above
+  router.get(
+    '/revenue-by-customer',
+    asyncHandler(async (req: Request, res: Response) => {
+      const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'month must be in YYYY-MM format');
+      }
+      const revenue = await reportingService.getRevenueByCustomer(month, req.user?.orgId);
+      res.json({ data: revenue, month });
+    })
+  );
+
   // Accounts-receivable aging (M13) — viewer and above
   router.get(
     '/accounts-receivable',
