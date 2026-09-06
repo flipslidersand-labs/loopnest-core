@@ -123,7 +123,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
 
   // Data Access Routes (CRUD operations)
   app.use('/api/organizations', organizationRoutes(dbServices.repos));
-  app.use('/api/customers', customerRoutes(dbServices.repos));
+  app.use('/api/customers', customerRoutes(dbServices.repos, serviceContainer.audit));
   app.use('/api/products', productRoutes(dbServices.repos));
   app.use('/api/quotes', quoteRoutes(dbServices.repos));
   app.use('/api/users', userRoutes(dbServices.repos));
@@ -141,13 +141,13 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     '/api/invoices/:invoiceId/payments',
     rateLimit({ bucket: 'payments', windowSeconds: RATE_WINDOW_SECONDS, max: WORKFLOW_RATE_MAX }),
     idempotencyMiddleware,
-    invoicePaymentRoutes(serviceContainer.payments, dbServices.repos, serviceContainer.webhooks)
+    invoicePaymentRoutes(serviceContainer.payments, dbServices.repos, serviceContainer.webhooks, serviceContainer.audit)
   );
   app.use(
     '/api/payments',
     rateLimit({ bucket: 'payments', windowSeconds: RATE_WINDOW_SECONDS, max: WORKFLOW_RATE_MAX }),
     idempotencyMiddleware,
-    paymentRoutes(serviceContainer.payments, dbServices.repos, serviceContainer.webhooks)
+    paymentRoutes(serviceContainer.payments, dbServices.repos, serviceContainer.webhooks, serviceContainer.audit)
   );
 
   // Credit Notes & Refunds (M14)
@@ -155,13 +155,13 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     '/api/invoices/:invoiceId/credit-notes',
     rateLimit({ bucket: 'credit-notes', windowSeconds: RATE_WINDOW_SECONDS, max: WORKFLOW_RATE_MAX }),
     idempotencyMiddleware,
-    invoiceCreditNoteRoutes(serviceContainer.creditNotes, dbServices.repos, serviceContainer.webhooks)
+    invoiceCreditNoteRoutes(serviceContainer.creditNotes, dbServices.repos, serviceContainer.webhooks, serviceContainer.audit)
   );
   app.use(
     '/api/credit-notes',
     rateLimit({ bucket: 'credit-notes', windowSeconds: RATE_WINDOW_SECONDS, max: WORKFLOW_RATE_MAX }),
     idempotencyMiddleware,
-    creditNoteRoutes(serviceContainer.creditNotes, dbServices.repos, serviceContainer.webhooks)
+    creditNoteRoutes(serviceContainer.creditNotes, dbServices.repos, serviceContainer.webhooks, serviceContainer.audit)
   );
 
   app.use('/api/recurring-contracts', recurringContractRoutes(dbServices.repos));

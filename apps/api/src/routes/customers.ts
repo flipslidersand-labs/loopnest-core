@@ -2,8 +2,9 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { AuditService } from '../services/AuditService.js';
 
-export function customerRoutes(repos: RepositoryContainer) {
+export function customerRoutes(repos: RepositoryContainer, audit: AuditService) {
   const router = Router();
 
   router.get(
@@ -53,6 +54,7 @@ export function customerRoutes(repos: RepositoryContainer) {
         organizationId: req.user?.orgId,
       });
 
+      await audit.logResourceCreated('customer', customer.id, req.user?.sub ?? 'system', { name });
       res.status(201).json({ data: customer });
     })
   );
@@ -69,6 +71,7 @@ export function customerRoutes(repos: RepositoryContainer) {
         phone,
       });
 
+      await audit.logResourceUpdated('customer', req.params.id, req.user?.sub ?? 'system', { name, address, phone });
       res.json({ data: customer });
     })
   );
@@ -83,6 +86,7 @@ export function customerRoutes(repos: RepositoryContainer) {
         throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
       }
 
+      await audit.logResourceDeleted('customer', req.params.id, req.user?.sub ?? 'system');
       res.json({ data: { success: true } });
     })
   );
