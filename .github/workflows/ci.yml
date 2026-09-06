@@ -46,13 +46,21 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install PostgreSQL, Redis, psql + jq
+      - name: Install PostgreSQL 17, Redis, psql + jq
         run: |
+          # Add official PostgreSQL apt repo to get v17 (matches the postgres:17-alpine
+          # Docker image used in local dev, avoiding behaviour differences with older apt versions).
+          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            postgresql postgresql-client redis-server jq
+            postgresql-17 postgresql-client-17 redis-server jq
 
-      - name: Configure and start PostgreSQL
+      - name: Configure and start PostgreSQL 17
         run: |
           sudo service postgresql start
           sudo -u postgres psql -c \
@@ -128,23 +136,19 @@ jobs:
         continue-on-error: true
 
   # ---------------------------------------------------------------------------
-  # AI Review — two backends, select via repo variables / secrets:
-  #   Local LLM : set OLLAMA_URL repo variable  (e.g. http://host:11434)
-  #   Cloud API : set ANTHROPIC_API_KEY repo secret
-  # OLLAMA_URL takes priority. If neither is configured the job is skipped.
+  # AI Review — local LLM only:
+  #   set OLLAMA_URL repo variable  (e.g. http://host:11434)
+  # If not configured the job is skipped.
   # ---------------------------------------------------------------------------
   ai-review:
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&
       github.actor != 'github-actions[bot]' &&
-      (vars.OLLAMA_URL != '' || vars.AI_REVIEW_CLOUD == 'true')
+      vars.OLLAMA_URL != ''
     runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
     permissions:
       pull-requests: write
-
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -161,7 +165,6 @@ jobs:
 
       - name: AI review — local Ollama
         id: review_local
-        if: vars.OLLAMA_URL != ''
         run: |
           DIFF=$(cat /tmp/pr_truncated.diff)
           PROMPT="You are a code reviewer. Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points. If no issues found, say 'No significant issues found.'\n\n\`\`\`diff\n${DIFF}\n\`\`\`"
@@ -183,52 +186,12 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: AI review — cloud API (Anthropic)
-        id: review_cloud
-        if: vars.OLLAMA_URL == '' && vars.AI_REVIEW_CLOUD == 'true'
-        run: |
-          DIFF=$(cat /tmp/pr_truncated.diff)
-          PAYLOAD=$(jq -n \
-            --arg diff "$DIFF" \
-            --arg model "${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}" \
-            '{
-              model: $model,
-              max_tokens: 1024,
-              messages: [{
-                role: "user",
-                content: ("Review the following git diff for bugs, security issues, and style problems. Be concise. Format as markdown bullet points.\n\n```diff\n" + $diff + "\n```")
-              }]
-            }')
-
-          RESPONSE=$(curl -sf --max-time 60 https://api.anthropic.com/v1/messages \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
-            -H "anthropic-version: 2023-06-01" \
-            -H "content-type: application/json" \
-            -d "$PAYLOAD" \
-            | jq -r '.content[0].text' 2>/dev/null) || RESPONSE=""
-
-          if [ -z "$RESPONSE" ]; then
-            BODY="⚠️ AI review skipped (cloud API unavailable)"
-          else
-            MODEL="${AI_REVIEW_MODEL:-claude-haiku-4-5-20251001}"
-            BODY="🤖 **AI Review (${MODEL})**"
-            BODY="${BODY}"$'\n\n'"${RESPONSE}"
-          fi
-          {
-            echo "body<<EOF"
-            echo "$BODY"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        env:
-          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL || 'claude-haiku-4-5-20251001' }}
-
       - name: Post review comment
         env:
           GH_TOKEN: ${{ github.token }}
           BODY_LOCAL: ${{ steps.review_local.outputs.body }}
-          BODY_CLOUD: ${{ steps.review_cloud.outputs.body }}
         run: |
-          BODY="${BODY_LOCAL:-${BODY_CLOUD}}"
+          BODY="${BODY_LOCAL}"
           [ -z "$BODY" ] && exit 0
           gh pr comment ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
