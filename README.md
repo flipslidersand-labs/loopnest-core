@@ -3,6 +3,7 @@
 ![Language](https://img.shields.io/badge/language-TypeScript-3178c6)
 ![Runtime](https://img.shields.io/badge/runtime-Node.js%2024-339933)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![coverage floor (apps/api)](https://img.shields.io/badge/coverage%20floor-35%25-blue)
 
 ---
 
