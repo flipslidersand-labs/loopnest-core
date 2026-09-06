@@ -82,9 +82,6 @@ model Quote {
   updatedAt       DateTime    @updatedAt @map("updated_at")
   quoteItems      QuoteItem[] @relation("quoteToItems")
 
-  currency      String   @default("JPY") @db.Char(3)
-  exchangeRate  Decimal  @default(1.0) @map("exchange_rate") @db.Decimal(19, 6)
-
   @@map("quotes")
   @@schema("core")
   @@index([customerId])
