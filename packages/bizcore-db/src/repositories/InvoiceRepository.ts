@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { sql } from 'kysely';
 
 export type InvoiceStatus = 'issued' | 'sent' | 'paid' | 'cancelled';
 
@@ -222,6 +223,108 @@ export class InvoiceRepository {
   // Legacy helper kept for compatibility.
   async updateStatus(id: string, status: string): Promise<void> {
     await this.db.updateTable('finance.invoices').set({ status }).where('id', '=', id).execute();
+  }
+
+  /**
+   * M13: Return all open invoices that are past their payment_due_date and
+   * have not yet had a `payment_overdue` outbox event emitted today (UTC).
+   * Used by EventWorker.scanOverdue() via Kysely instead of raw pgPool.
+   */
+  async findOverdue(): Promise<Array<{
+    id: string;
+    organization_id: string | null;
+    customer_id: string;
+    total_amount: string;
+    days_overdue: string;
+    paid_total: string;
+    credit_applied: string;
+  }>> {
+    const result = await sql<{
+      id: string;
+      organization_id: string | null;
+      customer_id: string;
+      total_amount: string;
+      days_overdue: string;
+      paid_total: string;
+      credit_applied: string;
+    }>`
+      SELECT i.id, q.organization_id, i.customer_id, i.total_amount,
+             (CURRENT_DATE - i.payment_due_date) AS days_overdue,
+             COALESCE(p.paid, 0) AS paid_total,
+             COALESCE(cn.applied, 0) AS credit_applied
+        FROM finance.invoices i
+        LEFT JOIN core.quotes q ON q.id = i.quote_id
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS paid
+            FROM finance.payments
+           WHERE status = 'confirmed'
+           GROUP BY invoice_id
+        ) p ON p.invoice_id = i.id
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS applied
+            FROM finance.credit_note_applications
+           GROUP BY invoice_id
+        ) cn ON cn.invoice_id = i.id
+       WHERE i.status IN ('issued', 'sent', 'partially_paid')
+         AND i.payment_due_date IS NOT NULL
+         AND i.payment_due_date < CURRENT_DATE
+         AND NOT EXISTS (
+           SELECT 1 FROM events.outbox_events e
+            WHERE e.event_type = 'payment_overdue'
+              AND e.aggregate_id = i.id::text
+              AND e.created_at AT TIME ZONE 'UTC' >= CURRENT_DATE
+         )
+    `.execute(this.db);
+    return result.rows;
+  }
+
+  /**
+   * M15: Return all open invoices past their payment_due_date for dunning
+   * rule evaluation. Includes invoice_number for message template substitution.
+   * Used by EventWorker.scanDunning() via Kysely instead of raw pgPool.
+   */
+  async findOverdueForDunning(): Promise<Array<{
+    id: string;
+    invoice_number: string;
+    customer_id: string;
+    total_amount: string;
+    organization_id: string | null;
+    days_overdue: number;
+    paid_total: string;
+    credit_applied: string;
+  }>> {
+    const result = await sql<{
+      id: string;
+      invoice_number: string;
+      customer_id: string;
+      total_amount: string;
+      organization_id: string | null;
+      days_overdue: number;
+      paid_total: string;
+      credit_applied: string;
+    }>`
+      SELECT i.id, i.invoice_number, i.customer_id, i.total_amount,
+             q.organization_id,
+             (CURRENT_DATE - i.payment_due_date)::int AS days_overdue,
+             COALESCE(p.paid, 0) AS paid_total,
+             COALESCE(cn.applied, 0) AS credit_applied
+        FROM finance.invoices i
+        LEFT JOIN core.quotes q ON q.id = i.quote_id
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS paid
+            FROM finance.payments WHERE status = 'confirmed'
+           GROUP BY invoice_id
+        ) p ON p.invoice_id = i.id
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS applied
+            FROM finance.credit_note_applications
+           GROUP BY invoice_id
+        ) cn ON cn.invoice_id = i.id
+       WHERE i.status IN ('issued', 'sent')
+         AND i.payment_due_date IS NOT NULL
+         AND i.payment_due_date < CURRENT_DATE
+    `.execute(this.db);
+    return result.rows;
   }
 
   private map(r: any): InvoiceRecord {

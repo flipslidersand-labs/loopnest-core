@@ -8,10 +8,11 @@ export interface SearchResult {
 
 const ALLOWED_TYPES = new Set(['customer', 'product', 'quote']);
 
-import type { PgPool } from '../lib/pg-pool-types.js';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
+import type { KyselyDatabase } from '@loopnest/bizcore-db';
 
 export class SearchService {
-  constructor(private readonly pgPool: PgPool) {}
+  constructor(private readonly db: Kysely<KyselyDatabase>) {}
 
   async search(
     query: string,
@@ -35,72 +36,48 @@ export class SearchService {
 
     const pattern = `%${query.trim()}%`;
 
-    // Build UNION from requested types only
-    const unions: string[] = [];
-    const params: unknown[] = [pattern];
-
-    const orgCondition = orgId
-      ? (() => { params.push(orgId); return `AND organization_id = $${params.length}`; })()
-      : '';
+    // Build UNION parts from requested types using Kysely sql tagged templates.
+    // Each interpolated value becomes a proper bound parameter — no manual $N tracking.
+    const parts: RawBuilder<unknown>[] = [];
 
     if (requestedTypes.includes('customer')) {
-      unions.push(`
-        SELECT 'customer'::text AS type,
-               id::text,
-               name AS title,
-               COALESCE(address, '') AS excerpt,
-               created_at
-        FROM core.customers
-        WHERE (name ILIKE $1 OR COALESCE(address, '') ILIKE $1)
-          ${orgCondition}
-      `);
+      parts.push(
+        orgId
+          ? sql`SELECT 'customer'::text AS type, id::text, name AS title, COALESCE(address, '') AS excerpt, created_at FROM core.customers WHERE (name ILIKE ${pattern} OR COALESCE(address, '') ILIKE ${pattern}) AND organization_id = ${orgId}`
+          : sql`SELECT 'customer'::text AS type, id::text, name AS title, COALESCE(address, '') AS excerpt, created_at FROM core.customers WHERE (name ILIKE ${pattern} OR COALESCE(address, '') ILIKE ${pattern})`,
+      );
     }
 
     if (requestedTypes.includes('product')) {
-      unions.push(`
-        SELECT 'product'::text AS type,
-               id::text,
-               name AS title,
-               (sku || ' · ' || category) AS excerpt,
-               created_at
-        FROM core.products
-        WHERE (name ILIKE $1 OR sku ILIKE $1 OR category ILIKE $1)
-          ${orgCondition}
-      `);
+      parts.push(
+        orgId
+          ? sql`SELECT 'product'::text AS type, id::text, name AS title, (sku || ' · ' || category) AS excerpt, created_at FROM core.products WHERE (name ILIKE ${pattern} OR sku ILIKE ${pattern} OR category ILIKE ${pattern}) AND organization_id = ${orgId}`
+          : sql`SELECT 'product'::text AS type, id::text, name AS title, (sku || ' · ' || category) AS excerpt, created_at FROM core.products WHERE (name ILIKE ${pattern} OR sku ILIKE ${pattern} OR category ILIKE ${pattern})`,
+      );
     }
 
     if (requestedTypes.includes('quote')) {
-      unions.push(`
-        SELECT 'quote'::text AS type,
-               id::text,
-               quote_number AS title,
-               COALESCE(notes, '') AS excerpt,
-               created_at
-        FROM core.quotes
-        WHERE (quote_number ILIKE $1 OR created_by ILIKE $1 OR COALESCE(notes, '') ILIKE $1)
-          ${orgCondition}
-      `);
+      parts.push(
+        orgId
+          ? sql`SELECT 'quote'::text AS type, id::text, quote_number AS title, COALESCE(notes, '') AS excerpt, created_at FROM core.quotes WHERE (quote_number ILIKE ${pattern} OR created_by ILIKE ${pattern} OR COALESCE(notes, '') ILIKE ${pattern}) AND organization_id = ${orgId}`
+          : sql`SELECT 'quote'::text AS type, id::text, quote_number AS title, COALESCE(notes, '') AS excerpt, created_at FROM core.quotes WHERE (quote_number ILIKE ${pattern} OR created_by ILIKE ${pattern} OR COALESCE(notes, '') ILIKE ${pattern})`,
+      );
     }
 
-    const cte = unions.join('\n      UNION ALL\n      ');
-
-    params.push(take, skip);
-    const limitParam  = params.length - 1;
-    const offsetParam = params.length;
+    const cte = sql.join(parts, sql` UNION ALL `);
 
     const [dataResult, countResult] = await Promise.all([
-      this.pgPool.query(
-        `WITH results AS (${cte})
-         SELECT type, id, title, excerpt, created_at
-         FROM results
-         ORDER BY created_at DESC
-         LIMIT $${limitParam} OFFSET $${offsetParam}`,
-        params
-      ),
-      this.pgPool.query(
-        `WITH results AS (${cte}) SELECT COUNT(*) FROM results`,
-        params.slice(0, params.length - 2) // exclude limit/offset
-      ),
+      sql<{ type: string; id: string; title: string; excerpt: string | null; created_at: Date }>`
+        WITH results AS (${cte})
+        SELECT type, id, title, excerpt, created_at
+        FROM results
+        ORDER BY created_at DESC
+        LIMIT ${take} OFFSET ${skip}
+      `.execute(this.db),
+      sql<{ count: string }>`
+        WITH results AS (${cte})
+        SELECT COUNT(*) AS count FROM results
+      `.execute(this.db),
     ]);
 
     return {

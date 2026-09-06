@@ -35,47 +35,27 @@ export interface AccountsReceivableReport {
   byCustomer: Array<{ customerId: string; outstanding: number }>;
 }
 
-import type { PgPool } from '../lib/pg-pool-types.js';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
+import type { KyselyDatabase } from '@loopnest/bizcore-db';
 
 export class ReportingService {
-  constructor(private readonly pgPool: PgPool) {}
+  constructor(private readonly db: Kysely<KyselyDatabase>) {}
 
   async getSummary(orgId?: string): Promise<DashboardSummary> {
-    const orgQuoteFilter = orgId ? `AND organization_id = $1` : '';
-    const orgQuoteParams = orgId ? [orgId] : [];
+    const orgCustCond: RawBuilder<unknown> = orgId ? sql`WHERE organization_id = ${orgId}` : sql``;
+    const orgQuoteCond: RawBuilder<unknown> = orgId ? sql`AND organization_id = ${orgId}` : sql``;
+    const orgJoin: RawBuilder<unknown> = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const orgInvCond: RawBuilder<unknown> = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
     const [custR, activeR, outstandingR, paidR] = await Promise.all([
       // customer count
-      this.pgPool.query(
-        `SELECT COUNT(*) FROM core.customers${orgId ? ' WHERE organization_id = $1' : ''}`,
-        orgId ? [orgId] : []
-      ),
+      sql<{ count: string }>`SELECT COUNT(*) AS count FROM core.customers ${orgCustCond}`.execute(this.db),
       // active quote count (draft + pending_approval)
-      this.pgPool.query(
-        `SELECT COUNT(*) FROM core.quotes
-         WHERE status IN ('draft', 'pending_approval')
-         ${orgQuoteFilter}`,
-        orgQuoteParams
-      ),
+      sql<{ count: string }>`SELECT COUNT(*) AS count FROM core.quotes WHERE status IN ('draft', 'pending_approval') ${orgQuoteCond}`.execute(this.db),
       // outstanding invoice amount (issued + sent)
-      this.pgPool.query(
-        `SELECT COALESCE(SUM(i.total_amount), 0) AS total
-         FROM finance.invoices i
-         ${orgId ? 'JOIN core.quotes q ON q.id = i.quote_id' : ''}
-         WHERE i.status IN ('issued', 'sent')
-         ${orgId ? 'AND q.organization_id = $1' : ''}`,
-        orgId ? [orgId] : []
-      ),
+      sql<{ total: string }>`SELECT COALESCE(SUM(i.total_amount), 0) AS total FROM finance.invoices i ${orgJoin} WHERE i.status IN ('issued', 'sent') ${orgInvCond}`.execute(this.db),
       // paid this calendar month
-      this.pgPool.query(
-        `SELECT COALESCE(SUM(i.total_amount), 0) AS total
-         FROM finance.invoices i
-         ${orgId ? 'JOIN core.quotes q ON q.id = i.quote_id' : ''}
-         WHERE i.status = 'paid'
-           AND i.paid_at >= date_trunc('month', NOW())
-           ${orgId ? 'AND q.organization_id = $1' : ''}`,
-        orgId ? [orgId] : []
-      ),
+      sql<{ total: string }>`SELECT COALESCE(SUM(i.total_amount), 0) AS total FROM finance.invoices i ${orgJoin} WHERE i.status = 'paid' AND i.paid_at >= date_trunc('month', NOW()) ${orgInvCond}`.execute(this.db),
     ]);
 
     return {
@@ -95,28 +75,26 @@ export class ReportingService {
     const VALID_PERIODS = new Set(['day', 'week', 'month', 'quarter', 'year']);
     const safePeriod = VALID_PERIODS.has(period) ? period : 'month';
 
-    const params: unknown[] = [];
-    const conditions: string[] = ["i.status = 'paid'"];
+    const conditions: RawBuilder<unknown>[] = [sql`i.status = 'paid'`];
+    if (dateFrom) conditions.push(sql`i.paid_at >= ${dateFrom}`);
+    if (dateTo)   conditions.push(sql`i.paid_at <= ${dateTo}`);
+    if (orgId)    conditions.push(sql`q.organization_id = ${orgId}`);
 
-    if (dateFrom) { params.push(dateFrom); conditions.push(`i.paid_at >= $${params.length}`); }
-    if (dateTo)   { params.push(dateTo);   conditions.push(`i.paid_at <= $${params.length}`); }
-    if (orgId)    { params.push(orgId);    conditions.push(`q.organization_id = $${params.length}`); }
+    const joinClause: RawBuilder<unknown> = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
-    const joinClause = orgId ? 'JOIN core.quotes q ON q.id = i.quote_id' : '';
-    const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-
-    const result = await this.pgPool.query(
-      `SELECT
-         date_trunc('${safePeriod}', i.paid_at) AS period,
-         COUNT(*)                                AS invoice_count,
-         COALESCE(SUM(i.total_amount), 0)       AS revenue
-       FROM finance.invoices i
-       ${joinClause}
-       ${whereClause}
-       GROUP BY 1
-       ORDER BY 1 ASC`,
-      params
-    );
+    // safePeriod is validated against VALID_PERIODS so sql.raw is safe here.
+    const result = await sql<{ period: Date; invoice_count: string; revenue: string }>`
+      SELECT
+        date_trunc(${sql.raw(`'${safePeriod}'`)}, i.paid_at) AS period,
+        COUNT(*)                                AS invoice_count,
+        COALESCE(SUM(i.total_amount), 0)       AS revenue
+      FROM finance.invoices i
+      ${joinClause}
+      ${whereClause}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `.execute(this.db);
 
     return result.rows.map((r) => ({
       period:       r.period instanceof Date ? r.period.toISOString() : String(r.period),
@@ -126,16 +104,14 @@ export class ReportingService {
   }
 
   async getQuotePipeline(orgId?: string): Promise<QuotePipelineStats> {
-    const params = orgId ? [orgId] : [];
-    const orgFilter = orgId ? 'WHERE organization_id = $1' : '';
+    const orgFilter: RawBuilder<unknown> = orgId ? sql`WHERE organization_id = ${orgId}` : sql``;
 
-    const result = await this.pgPool.query(
-      `SELECT status, COUNT(*) AS count
-       FROM core.quotes
-       ${orgFilter}
-       GROUP BY status`,
-      params
-    );
+    const result = await sql<{ status: string; count: string }>`
+      SELECT status, COUNT(*) AS count
+      FROM core.quotes
+      ${orgFilter}
+      GROUP BY status
+    `.execute(this.db);
 
     const byStatus: Record<string, number> = {};
     let total = 0;
@@ -154,28 +130,25 @@ export class ReportingService {
   }
 
   async getInvoiceAging(orgId?: string): Promise<InvoiceAgingStats> {
-    const joinClause = orgId ? 'JOIN core.quotes q ON q.id = i.quote_id' : '';
-    const orgFilter  = orgId ? 'AND q.organization_id = $1' : '';
-    const params = orgId ? [orgId] : [];
+    const joinClause: RawBuilder<unknown> = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const orgFilter: RawBuilder<unknown> = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
     const [statusR, overdueR] = await Promise.all([
-      this.pgPool.query(
-        `SELECT i.status, COUNT(*) AS count, COALESCE(SUM(i.total_amount), 0) AS total_amount
-         FROM finance.invoices i
-         ${joinClause}
-         WHERE 1=1 ${orgFilter}
-         GROUP BY i.status`,
-        params
-      ),
-      this.pgPool.query(
-        `SELECT COUNT(*) AS count, COALESCE(SUM(i.total_amount), 0) AS total_amount
-         FROM finance.invoices i
-         ${joinClause}
-         WHERE i.status IN ('issued', 'sent')
-           AND i.created_at < NOW() - INTERVAL '30 days'
-           ${orgFilter}`,
-        params
-      ),
+      sql<{ status: string; count: string; total_amount: string }>`
+        SELECT i.status, COUNT(*) AS count, COALESCE(SUM(i.total_amount), 0) AS total_amount
+        FROM finance.invoices i
+        ${joinClause}
+        WHERE 1=1 ${orgFilter}
+        GROUP BY i.status
+      `.execute(this.db),
+      sql<{ count: string; total_amount: string }>`
+        SELECT COUNT(*) AS count, COALESCE(SUM(i.total_amount), 0) AS total_amount
+        FROM finance.invoices i
+        ${joinClause}
+        WHERE i.status IN ('issued', 'sent')
+          AND i.created_at < NOW() - INTERVAL '30 days'
+          ${orgFilter}
+      `.execute(this.db),
     ]);
 
     const byStatus: Record<string, { count: number; totalAmount: number }> = {};
@@ -200,45 +173,34 @@ export class ReportingService {
    * both the aging buckets and per-customer outstanding totals.
    */
   async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {
-    const params: unknown[] = [];
+    const asOfExpr: RawBuilder<unknown> = asOf ? sql`${asOf}::date` : sql`CURRENT_DATE`;
 
-    let asOfExpr = 'CURRENT_DATE';
-    if (asOf) {
-      params.push(asOf);
-      asOfExpr = `$${params.length}::date`;
-    }
+    const joinClause: RawBuilder<unknown> = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const orgFilter: RawBuilder<unknown> = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
-    const joinClause = orgId ? 'JOIN core.quotes q ON q.id = i.quote_id' : '';
-    let orgFilter = '';
-    if (orgId) {
-      params.push(orgId);
-      orgFilter = `AND q.organization_id = $${params.length}`;
-    }
-
-    const result = await this.pgPool.query(
-      `SELECT i.customer_id,
-              (i.total_amount - COALESCE(p.paid, 0) - COALESCE(cn.applied, 0)) AS outstanding,
-              GREATEST(
-                ${asOfExpr} - COALESCE(i.payment_due_date, i.issue_date, i.created_at::date),
-                0
-              ) AS days_overdue
-         FROM finance.invoices i
-         ${joinClause}
-         LEFT JOIN (
-           SELECT invoice_id, SUM(amount) AS paid
-             FROM finance.payments
-            WHERE status = 'confirmed'
-            GROUP BY invoice_id
-         ) p ON p.invoice_id = i.id
-         LEFT JOIN (
-           SELECT invoice_id, SUM(amount) AS applied
-             FROM finance.credit_note_applications
-            GROUP BY invoice_id
-         ) cn ON cn.invoice_id = i.id
-        WHERE i.status IN ('issued', 'sent', 'partially_paid')
-          ${orgFilter}`,
-      params
-    );
+    const result = await sql<{ customer_id: string; outstanding: string; days_overdue: string }>`
+      SELECT i.customer_id,
+             (i.total_amount - COALESCE(p.paid, 0) - COALESCE(cn.applied, 0)) AS outstanding,
+             GREATEST(
+               ${asOfExpr} - COALESCE(i.payment_due_date, i.issue_date, i.created_at::date),
+               0
+             ) AS days_overdue
+        FROM finance.invoices i
+        ${joinClause}
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS paid
+            FROM finance.payments
+           WHERE status = 'confirmed'
+           GROUP BY invoice_id
+        ) p ON p.invoice_id = i.id
+        LEFT JOIN (
+          SELECT invoice_id, SUM(amount) AS applied
+            FROM finance.credit_note_applications
+           GROUP BY invoice_id
+        ) cn ON cn.invoice_id = i.id
+       WHERE i.status IN ('issued', 'sent', 'partially_paid')
+         ${orgFilter}
+    `.execute(this.db);
 
     const round = (n: number): number => Math.round(n * 100) / 100;
     const buckets = { current: 0, c31: 0, c61: 0, c90: 0 };

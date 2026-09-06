@@ -319,34 +319,7 @@ export class EventWorker {
     if (this.isScanningOverdue) return;
     this.isScanningOverdue = true;
     try {
-      const { rows } = await this.pgPool.query(
-        `SELECT i.id, q.organization_id, i.customer_id, i.total_amount,
-                (CURRENT_DATE - i.payment_due_date) AS days_overdue,
-                COALESCE(p.paid, 0) AS paid_total,
-                COALESCE(cn.applied, 0) AS credit_applied
-           FROM finance.invoices i
-           LEFT JOIN core.quotes q ON q.id = i.quote_id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS paid
-               FROM finance.payments
-              WHERE status = 'confirmed'
-              GROUP BY invoice_id
-           ) p ON p.invoice_id = i.id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS applied
-               FROM finance.credit_note_applications
-              GROUP BY invoice_id
-           ) cn ON cn.invoice_id = i.id
-          WHERE i.status IN ('issued', 'sent', 'partially_paid')
-            AND i.payment_due_date IS NOT NULL
-            AND i.payment_due_date < CURRENT_DATE
-            AND NOT EXISTS (
-              SELECT 1 FROM events.outbox_events e
-               WHERE e.event_type = 'payment_overdue'
-                 AND e.aggregate_id = i.id::text
-                 AND e.created_at AT TIME ZONE 'UTC' >= CURRENT_DATE
-            )`,
-      );
+      const rows = await this.repos.invoices.findOverdue();
 
       for (const row of rows) {
         const outstanding =
@@ -522,28 +495,7 @@ export class EventWorker {
     if (this.isScanningDunning) return;
     this.isScanningDunning = true;
     try {
-      const { rows } = await this.pgPool.query(
-        `SELECT i.id, i.invoice_number, i.customer_id, i.total_amount,
-                q.organization_id,
-                (CURRENT_DATE - i.payment_due_date)::int AS days_overdue,
-                COALESCE(p.paid, 0) AS paid_total,
-                COALESCE(cn.applied, 0) AS credit_applied
-           FROM finance.invoices i
-           LEFT JOIN core.quotes q ON q.id = i.quote_id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS paid
-               FROM finance.payments WHERE status = 'confirmed'
-              GROUP BY invoice_id
-           ) p ON p.invoice_id = i.id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS applied
-               FROM finance.credit_note_applications
-              GROUP BY invoice_id
-           ) cn ON cn.invoice_id = i.id
-          WHERE i.status IN ('issued', 'sent')
-            AND i.payment_due_date IS NOT NULL
-            AND i.payment_due_date < CURRENT_DATE`,
-      );
+      const rows = await this.repos.invoices.findOverdueForDunning();
 
       let fired = 0;
       for (const row of rows) {
