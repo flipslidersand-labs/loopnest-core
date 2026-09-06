@@ -1,8 +1,9 @@
 import { logger } from "../lib/logger.js";
 import { RepositoryContainer } from "@loopnest/bizcore-db";
-import type { OutboxEvent } from "@loopnest/bizcore-db";
+import type { OutboxEvent, KyselyDatabase } from "@loopnest/bizcore-db";
 import { randomUUID } from "node:crypto";
 import { Client as PgClient } from "pg";
+import { sql, type Kysely } from "kysely";
 import { WebhookService } from "./WebhookService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
 
@@ -44,9 +45,7 @@ export class EventWorker {
 
   constructor(
     private repos: RepositoryContainer,
-    private pgPool: {
-      query: (text: string, params?: unknown[]) => Promise<any>;
-    },
+    private kyselyDb: Kysely<KyselyDatabase>,
     private webhooks?: WebhookService,
   ) {
     this.accountingApiUrl =
@@ -319,34 +318,42 @@ export class EventWorker {
     if (this.isScanningOverdue) return;
     this.isScanningOverdue = true;
     try {
-      const { rows } = await this.pgPool.query(
-        `SELECT i.id, q.organization_id, i.customer_id, i.total_amount,
-                (CURRENT_DATE - i.payment_due_date) AS days_overdue,
-                COALESCE(p.paid, 0) AS paid_total,
-                COALESCE(cn.applied, 0) AS credit_applied
-           FROM finance.invoices i
-           LEFT JOIN core.quotes q ON q.id = i.quote_id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS paid
-               FROM finance.payments
-              WHERE status = 'confirmed'
-              GROUP BY invoice_id
-           ) p ON p.invoice_id = i.id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS applied
-               FROM finance.credit_note_applications
-              GROUP BY invoice_id
-           ) cn ON cn.invoice_id = i.id
-          WHERE i.status IN ('issued', 'sent', 'partially_paid')
-            AND i.payment_due_date IS NOT NULL
-            AND i.payment_due_date < CURRENT_DATE
-            AND NOT EXISTS (
-              SELECT 1 FROM events.outbox_events e
-               WHERE e.event_type = 'payment_overdue'
-                 AND e.aggregate_id = i.id::text
-                 AND e.created_at AT TIME ZONE 'UTC' >= CURRENT_DATE
-            )`,
-      );
+      const { rows } = await sql<{
+        id: string;
+        organization_id: string | null;
+        customer_id: string;
+        total_amount: string;
+        days_overdue: string;
+        paid_total: string;
+        credit_applied: string;
+      }>`
+        SELECT i.id, q.organization_id, i.customer_id, i.total_amount,
+               (CURRENT_DATE - i.payment_due_date) AS days_overdue,
+               COALESCE(p.paid, 0) AS paid_total,
+               COALESCE(cn.applied, 0) AS credit_applied
+          FROM finance.invoices i
+          LEFT JOIN core.quotes q ON q.id = i.quote_id
+          LEFT JOIN (
+            SELECT invoice_id, SUM(amount) AS paid
+              FROM finance.payments
+             WHERE status = 'confirmed'
+             GROUP BY invoice_id
+          ) p ON p.invoice_id = i.id
+          LEFT JOIN (
+            SELECT invoice_id, SUM(amount) AS applied
+              FROM finance.credit_note_applications
+             GROUP BY invoice_id
+          ) cn ON cn.invoice_id = i.id
+         WHERE i.status IN ('issued', 'sent', 'partially_paid')
+           AND i.payment_due_date IS NOT NULL
+           AND i.payment_due_date < CURRENT_DATE
+           AND NOT EXISTS (
+             SELECT 1 FROM events.outbox_events e
+              WHERE e.event_type = 'payment_overdue'
+                AND e.aggregate_id = i.id::text
+                AND e.created_at AT TIME ZONE 'UTC' >= CURRENT_DATE
+           )
+      `.execute(this.kyselyDb);
 
       for (const row of rows) {
         const outstanding =
@@ -454,19 +461,20 @@ export class EventWorker {
     errorMessage: string | null,
   ): Promise<void> {
     try {
-      await this.pgPool.query(
-        `INSERT INTO finance.accounting_exports
-           (id, invoice_id, exported_at, status, request_payload, response_payload, error_message)
-         VALUES ($1, $2, NOW(), $3, $4, $5, $6)`,
-        [
-          randomUUID(),
-          invoiceId,
+      await this.kyselyDb
+        .insertInto('finance.accounting_exports')
+        .values({
+          id: randomUUID(),
+          invoice_id: invoiceId,
+          exported_at: new Date(),
           status,
-          JSON.stringify(requestPayload),
-          responsePayload ? JSON.stringify(responsePayload) : null,
-          errorMessage,
-        ],
-      );
+          request_payload: JSON.stringify(requestPayload) as unknown as Record<string, unknown>,
+          response_payload: responsePayload
+            ? JSON.stringify(responsePayload) as unknown as Record<string, unknown>
+            : null,
+          error_message: errorMessage,
+        })
+        .execute();
     } catch (err) {
       // Recording the export must not mask the dispatch result; just log.
       logger.error({ err }, 'failed to record accounting_export');
@@ -522,28 +530,37 @@ export class EventWorker {
     if (this.isScanningDunning) return;
     this.isScanningDunning = true;
     try {
-      const { rows } = await this.pgPool.query(
-        `SELECT i.id, i.invoice_number, i.customer_id, i.total_amount,
-                q.organization_id,
-                (CURRENT_DATE - i.payment_due_date)::int AS days_overdue,
-                COALESCE(p.paid, 0) AS paid_total,
-                COALESCE(cn.applied, 0) AS credit_applied
-           FROM finance.invoices i
-           LEFT JOIN core.quotes q ON q.id = i.quote_id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS paid
-               FROM finance.payments WHERE status = 'confirmed'
-              GROUP BY invoice_id
-           ) p ON p.invoice_id = i.id
-           LEFT JOIN (
-             SELECT invoice_id, SUM(amount) AS applied
-               FROM finance.credit_note_applications
-              GROUP BY invoice_id
-           ) cn ON cn.invoice_id = i.id
-          WHERE i.status IN ('issued', 'sent')
-            AND i.payment_due_date IS NOT NULL
-            AND i.payment_due_date < CURRENT_DATE`,
-      );
+      const { rows } = await sql<{
+        id: string;
+        invoice_number: string;
+        customer_id: string;
+        total_amount: string;
+        organization_id: string | null;
+        days_overdue: string;
+        paid_total: string;
+        credit_applied: string;
+      }>`
+        SELECT i.id, i.invoice_number, i.customer_id, i.total_amount,
+               q.organization_id,
+               (CURRENT_DATE - i.payment_due_date)::int AS days_overdue,
+               COALESCE(p.paid, 0) AS paid_total,
+               COALESCE(cn.applied, 0) AS credit_applied
+          FROM finance.invoices i
+          LEFT JOIN core.quotes q ON q.id = i.quote_id
+          LEFT JOIN (
+            SELECT invoice_id, SUM(amount) AS paid
+              FROM finance.payments WHERE status = 'confirmed'
+             GROUP BY invoice_id
+          ) p ON p.invoice_id = i.id
+          LEFT JOIN (
+            SELECT invoice_id, SUM(amount) AS applied
+              FROM finance.credit_note_applications
+             GROUP BY invoice_id
+          ) cn ON cn.invoice_id = i.id
+         WHERE i.status IN ('issued', 'sent')
+           AND i.payment_due_date IS NOT NULL
+           AND i.payment_due_date < CURRENT_DATE
+      `.execute(this.kyselyDb);
 
       let fired = 0;
       for (const row of rows) {
