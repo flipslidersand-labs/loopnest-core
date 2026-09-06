@@ -43,7 +43,20 @@ export const errorHandler = (
     });
   }
 
-  // Prisma known request errors
+  // PostgreSQL errors from Kysely (pg driver sets err.code to the 5-char SQLSTATE)
+  const pgCode = (err as any)?.code as string | undefined;
+  if (pgCode?.length === 5) {
+    switch (pgCode) {
+      case '23503': // foreign_key_violation
+        return res.status(400).json({ error: { code: 'INVALID_REFERENCE', message: 'Referenced resource does not exist' } });
+      case '23505': // unique_violation
+        return res.status(409).json({ error: { code: 'DUPLICATE_ENTRY', message: 'A record with this value already exists' } });
+      case '22P02': // invalid_text_representation (e.g. invalid UUID format)
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } });
+    }
+  }
+
+  // Prisma known request errors (kept for any remaining Prisma usage paths)
   if (err?.name === 'PrismaClientKnownRequestError') {
     switch (err.code) {
       case 'P2025':
