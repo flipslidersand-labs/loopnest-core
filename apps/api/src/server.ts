@@ -15,6 +15,7 @@ import { invoiceRoutes } from './routes/invoices.js';
 import { auditRoutes } from './routes/audit.js';
 import { reportRoutes } from './routes/reports.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { portalRoutes } from './routes/portal.js';
 import { searchRoutes } from './routes/search.js';
 import { memberRoutes } from './routes/members.js';
 import { paymentRoutes, invoicePaymentRoutes } from './routes/payments.js';
@@ -111,6 +112,10 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(swaggerHtml);
   });
+
+  // Portal routes use their own auth (login is unauthenticated, protected routes
+  // use router-level authenticate + requireCustomer), so mount before global auth.
+  app.use('/api/portal', portalRoutes(dbServices.repos));
 
   // Authentication: all /api/* routes require a valid JWT.
   app.use('/api', authenticate);
