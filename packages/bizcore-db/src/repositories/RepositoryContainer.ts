@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import type { Kysely } from 'kysely';
+import type { KyselyDatabase } from '../types/kysely-database.js';
 import { OrganizationRepository } from './OrganizationRepository.js';
 import { CustomerRepository } from './CustomerRepository.js';
 import { ProductRepository } from './ProductRepository.js';
@@ -36,16 +37,13 @@ export class RepositoryContainer {
   private readonly dunningRepo: DunningRepository;
   private readonly exchangeRateRepo: ExchangeRateRepository;
 
-  constructor(
-    private readonly prisma: PrismaClient,
-    private readonly db: any
-  ) {
-    this.organizationRepo = new OrganizationRepository(prisma);
-    this.customerRepo = new CustomerRepository(prisma);
-    this.productRepo = new ProductRepository(prisma);
-    this.quoteRepo = new QuoteRepository(db, prisma);
-    this.quoteItemRepo = new QuoteItemRepository(prisma);
-    this.userRepo = new UserRepository(prisma);
+  constructor(private readonly db: Kysely<KyselyDatabase>) {
+    this.organizationRepo = new OrganizationRepository(db);
+    this.customerRepo = new CustomerRepository(db);
+    this.productRepo = new ProductRepository(db);
+    this.quoteRepo = new QuoteRepository(db);
+    this.quoteItemRepo = new QuoteItemRepository(db);
+    this.userRepo = new UserRepository(db);
     this.invoiceRepo = new InvoiceRepository(db);
     this.outboxRepo = new OutboxRepository(db);
     this.webhookRepo = new WebhookRepository(db);
@@ -80,8 +78,8 @@ export class RepositoryContainer {
   async beginTransaction<T>(
     callback: (container: RepositoryContainer) => Promise<T>
   ): Promise<T> {
-    return this.prisma.$transaction(async (tx: any) => {
-      const transactionContainer = new RepositoryContainer(tx as PrismaClient, this.db);
+    return this.db.transaction().execute(async (trx) => {
+      const transactionContainer = new RepositoryContainer(trx as Kysely<KyselyDatabase>);
       return callback(transactionContainer);
     });
   }

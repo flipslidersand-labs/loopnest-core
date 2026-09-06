@@ -1,5 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
+import type { KyselyDatabase } from '../types/kysely-database.js';
 import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { randomUUID } from 'node:crypto';
 
 export interface Customer {
   id: string;
@@ -26,106 +29,124 @@ export interface CustomerFilter extends FindOptions {
 }
 
 export class CustomerRepository extends BaseRepository<Customer> {
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(private db: Kysely<KyselyDatabase>) {
     super();
   }
 
   async findById(id: string, organizationId?: string): Promise<Customer | null> {
-    const customer = organizationId
-      ? await this.prisma.customer.findFirst({ where: { id, organizationId } })
-      : await this.prisma.customer.findUnique({ where: { id } });
-    return customer ? this.mapToCustomer(customer) : null;
+    let q = this.db
+      .selectFrom('core.customers')
+      .selectAll()
+      .where('id', '=', id);
+    if (organizationId) q = q.where('organization_id', '=', organizationId);
+    const row = await q.executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async findAll(options?: CustomerFilter): Promise<Customer[]> {
-    const customers = await this.prisma.customer.findMany({
-      skip: options?.skip,
-      take: options?.take,
-      orderBy: options?.orderBy || { name: 'asc' },
-      where: options?.organizationId ? { organizationId: options.organizationId } : undefined,
-    });
-    return customers.map((c: any) => this.mapToCustomer(c));
+    let q = this.db.selectFrom('core.customers').selectAll().orderBy('name', 'asc');
+    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    if (options?.skip) q = q.offset(options.skip);
+    if (options?.take) q = q.limit(options.take);
+    const rows = await q.execute();
+    return rows.map(r => this.map(r));
   }
 
   async findOne(where: Partial<Customer>, options?: FindOptions): Promise<Customer | null> {
-    const customer = await this.prisma.customer.findFirst({
-      where: where.name ? { name: where.name } : {},
-    });
-    return customer ? this.mapToCustomer(customer) : null;
+    let q = this.db.selectFrom('core.customers').selectAll();
+    if (where.name) q = q.where('name', '=', where.name);
+    const row = await q.executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async create(data: CreateInput<Customer>): Promise<Customer> {
-    const customer = await this.prisma.customer.create({
-      data: {
+    const row = await this.db
+      .insertInto('core.customers')
+      .values({
+        id: randomUUID(),
         name: data.name,
-        address: data.address,
-        phone: data.phone,
-        organizationId: data.organizationId,
-      },
-    });
-    return this.mapToCustomer(customer);
+        address: data.address ?? null,
+        phone: data.phone ?? null,
+        organization_id: data.organizationId ?? null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return this.map(row);
   }
 
   async update(id: string, data: UpdateInput<Customer>): Promise<Customer> {
-    const customer = await this.prisma.customer.update({
-      where: { id },
-      data: {
-        name: data.name,
-        address: data.address,
-        phone: data.phone,
-      },
-    });
-    return this.mapToCustomer(customer);
+    const row = await this.db
+      .updateTable('core.customers')
+      .set({
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.address !== undefined && { address: data.address }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return this.map(row);
   }
 
   async delete(id: string): Promise<boolean> {
-    await this.prisma.customer.delete({ where: { id } });
+    await this.db
+      .deleteFrom('core.customers')
+      .where('id', '=', id)
+      .execute();
     return true;
   }
 
   async count(where?: { organizationId?: string }): Promise<number> {
-    return this.prisma.customer.count({
-      where: where?.organizationId ? { organizationId: where.organizationId } : undefined,
-    });
+    let q = this.db
+      .selectFrom('core.customers')
+      .select(({ fn }) => fn.countAll<string>().as('count'));
+    if (where?.organizationId) q = q.where('organization_id', '=', where.organizationId);
+    const result = await q.executeTakeFirst();
+    return Number(result?.count ?? 0);
   }
 
-  /** Set or clear a customer's credit limit. Pass null to make unlimited. */
   async setCreditLimit(id: string, creditLimit: number | null): Promise<Customer | null> {
-    const customer = await this.prisma.customer.update({
-      where: { id },
-      data: { creditLimit },
-    }).catch(() => null);
-    return customer ? this.mapToCustomer(customer) : null;
+    const row = await this.db
+      .updateTable('core.customers')
+      .set({ credit_limit: creditLimit })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst()
+      .catch(() => undefined);
+    return row ? this.map(row) : null;
   }
 
-  /** Atomically increment credit_used. Returns updated customer. */
   async incrementCreditUsed(id: string, amount: number): Promise<Customer | null> {
-    const customer = await this.prisma.customer.update({
-      where: { id },
-      data: { creditUsed: { increment: amount } },
-    }).catch(() => null);
-    return customer ? this.mapToCustomer(customer) : null;
+    const row = await this.db
+      .updateTable('core.customers')
+      .set({ credit_used: sql`credit_used + ${amount}` })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst()
+      .catch(() => undefined);
+    return row ? this.map(row) : null;
   }
 
-  /** Atomically decrement credit_used (on payment). Floor at 0. */
   async decrementCreditUsed(id: string, amount: number): Promise<Customer | null> {
-    const raw = await this.prisma.customer.findUnique({ where: { id } });
-    if (!raw) return null;
-    const current = raw.creditUsed ? Number(raw.creditUsed.toString()) : 0;
-    const next = Math.max(0, current - amount);
-    const customer = await this.prisma.customer.update({
-      where: { id },
-      data: { creditUsed: next },
-    });
-    return this.mapToCustomer(customer);
+    const row = await this.db
+      .updateTable('core.customers')
+      .set({ credit_used: sql`GREATEST(0, credit_used - ${amount})` })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst()
+      .catch(() => undefined);
+    return row ? this.map(row) : null;
   }
 
-  /** Compute credit status snapshot for a customer. */
   async getCreditStatus(id: string): Promise<CreditStatus | null> {
-    const customer = await this.prisma.customer.findUnique({ where: { id } });
-    if (!customer) return null;
-    const limit = customer.creditLimit ? Number(customer.creditLimit.toString()) : null;
-    const used = customer.creditUsed ? Number(customer.creditUsed.toString()) : 0;
+    const row = await this.db
+      .selectFrom('core.customers')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (!row) return null;
+    const limit = row.credit_limit !== null ? Number(row.credit_limit) : null;
+    const used = Number(row.credit_used);
     return {
       customerId: id,
       creditLimit: limit,
@@ -136,16 +157,16 @@ export class CustomerRepository extends BaseRepository<Customer> {
     };
   }
 
-  private mapToCustomer(customer: any): Customer {
+  private map(row: any): Customer {
     return {
-      id: customer.id,
-      name: customer.name,
-      address: customer.address,
-      phone: customer.phone,
-      organizationId: customer.organizationId ?? undefined,
-      creditLimit: customer.creditLimit ? Number(customer.creditLimit.toString()) : null,
-      creditUsed: customer.creditUsed ? Number(customer.creditUsed.toString()) : 0,
-      createdAt: customer.createdAt,
+      id: row.id,
+      name: row.name,
+      address: row.address ?? undefined,
+      phone: row.phone ?? undefined,
+      organizationId: row.organization_id ?? undefined,
+      creditLimit: row.credit_limit !== null ? Number(row.credit_limit) : null,
+      creditUsed: Number(row.credit_used ?? 0),
+      createdAt: row.created_at,
     };
   }
 }

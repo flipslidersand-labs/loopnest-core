@@ -1,5 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import type { Kysely } from 'kysely';
+import type { KyselyDatabase } from '../types/kysely-database.js';
 import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { randomUUID } from 'node:crypto';
 
 export interface Organization {
   id: string;
@@ -10,85 +12,97 @@ export interface Organization {
 }
 
 export class OrganizationRepository extends BaseRepository<Organization> {
-  constructor(private prisma: PrismaClient) {
+  constructor(private db: Kysely<KyselyDatabase>) {
     super();
   }
 
   async findById(id: string): Promise<Organization | null> {
-    const org = await this.prisma.organization.findUnique({
-      where: { id },
-    });
-    return org ? this.mapToOrganization(org) : null;
+    const row = await this.db
+      .selectFrom('core.organizations')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async findAll(options?: FindOptions): Promise<Organization[]> {
-    const orgs = await this.prisma.organization.findMany({
-      skip: options?.skip,
-      take: options?.take,
-      orderBy: options?.orderBy || { name: 'asc' },
-    });
-    return orgs.map((org: any) => this.mapToOrganization(org));
+    let q = this.db.selectFrom('core.organizations').selectAll().orderBy('name', 'asc');
+    if (options?.skip) q = q.offset(options.skip);
+    if (options?.take) q = q.limit(options.take);
+    const rows = await q.execute();
+    return rows.map(r => this.map(r));
   }
 
   async findOne(where: Partial<Organization>, options?: FindOptions): Promise<Organization | null> {
-    const org = await this.prisma.organization.findFirst({
-      where: {
-        ...(where.name && { name: where.name }),
-        ...(where.type && { type: where.type }),
-      },
-    });
-    return org ? this.mapToOrganization(org) : null;
+    let q = this.db.selectFrom('core.organizations').selectAll();
+    if (where.name) q = q.where('name', '=', where.name);
+    if (where.type) q = q.where('type', '=', where.type);
+    const row = await q.executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async findChildren(parentId: string): Promise<Organization[]> {
-    const orgs = await this.prisma.organization.findMany({
-      where: { parentId },
-      orderBy: { name: 'asc' },
-    });
-    return orgs.map((org: any) => this.mapToOrganization(org));
+    const rows = await this.db
+      .selectFrom('core.organizations')
+      .selectAll()
+      .where('parent_id', '=', parentId)
+      .orderBy('name', 'asc')
+      .execute();
+    return rows.map(r => this.map(r));
   }
 
   async create(data: CreateInput<Organization>): Promise<Organization> {
-    const org = await this.prisma.organization.create({
-      data: {
+    const row = await this.db
+      .insertInto('core.organizations')
+      .values({
+        id: randomUUID(),
         name: data.name,
         type: data.type,
-        parentId: data.parentId,
-      },
-    });
-    return this.mapToOrganization(org);
+        parent_id: data.parentId ?? null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return this.map(row);
   }
 
   async update(id: string, data: UpdateInput<Organization>): Promise<Organization> {
-    const org = await this.prisma.organization.update({
-      where: { id },
-      data: {
-        name: data.name,
-        type: data.type,
-        parentId: data.parentId,
-      },
-    });
-    return this.mapToOrganization(org);
+    const row = await this.db
+      .updateTable('core.organizations')
+      .set({
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.type !== undefined && { type: data.type }),
+        ...(data.parentId !== undefined && { parent_id: data.parentId }),
+        updated_at: new Date(),
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return this.map(row);
   }
 
   async delete(id: string): Promise<boolean> {
-    await this.prisma.organization.delete({
-      where: { id },
-    });
+    await this.db
+      .deleteFrom('core.organizations')
+      .where('id', '=', id)
+      .execute();
     return true;
   }
 
   async count(where?: Partial<Organization>): Promise<number> {
-    return this.prisma.organization.count();
+    const result = await this.db
+      .selectFrom('core.organizations')
+      .select(({ fn }) => fn.countAll<string>().as('count'))
+      .executeTakeFirst();
+    return Number(result?.count ?? 0);
   }
 
-  private mapToOrganization(org: any): Organization {
+  private map(row: any): Organization {
     return {
-      id: org.id,
-      name: org.name,
-      type: org.type,
-      parentId: org.parentId,
-      createdAt: org.createdAt,
+      id: row.id,
+      name: row.name,
+      type: row.type as Organization['type'],
+      parentId: row.parent_id ?? null,
+      createdAt: row.created_at,
     };
   }
 }

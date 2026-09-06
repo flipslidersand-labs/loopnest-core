@@ -1,5 +1,7 @@
+import type { Kysely } from 'kysely';
+import type { KyselyDatabase } from '../types/kysely-database.js';
 import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
-import { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 
 export type DiscountType = 'percentage' | 'fixed';
 
@@ -42,186 +44,180 @@ export interface QuoteFilter extends FindOptions {
 }
 
 export class QuoteRepository extends BaseRepository<QuoteEntity> {
-  constructor(
-    private readonly db: any,
-    private readonly prisma: PrismaClient
-  ) {
+  constructor(private db: Kysely<KyselyDatabase>) {
     super();
   }
 
   async findById(id: string, organizationId?: string): Promise<QuoteEntity | null> {
-    const quote = organizationId
-      ? await this.prisma.quote.findFirst({ where: { id, organizationId } })
-      : await this.prisma.quote.findUnique({ where: { id } });
-    return quote ? this.mapToQuote(quote) : null;
+    let q = this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('id', '=', id);
+    if (organizationId) q = q.where('organization_id', '=', organizationId);
+    const row = await q.executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async findByNumber(quoteNumber: string): Promise<QuoteEntity | null> {
-    const quote = await this.prisma.quote.findUnique({ where: { quoteNumber } });
-    return quote ? this.mapToQuote(quote) : null;
+    const row = await this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('quote_number', '=', quoteNumber)
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async findAll(options?: QuoteFilter): Promise<QuoteEntity[]> {
-    const where: any = {};
-    if (options?.organizationId) where.organizationId = options.organizationId;
-    const quotes = await this.prisma.quote.findMany({
-      skip: options?.skip,
-      take: options?.take,
-      orderBy: options?.orderBy || { createdAt: 'desc' },
-      where: Object.keys(where).length ? where : undefined,
-    });
-    return quotes.map((q: any) => this.mapToQuote(q));
+    let q = this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .orderBy('created_at', 'desc');
+    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    if (options?.skip) q = q.offset(options.skip);
+    if (options?.take) q = q.limit(options.take);
+    const rows = await q.execute();
+    return rows.map(r => this.map(r));
   }
 
   async findOne(where: Partial<QuoteEntity>, options?: FindOptions): Promise<QuoteEntity | null> {
-    const quote = await this.prisma.quote.findFirst({
-      where: {
-        ...(where.status && { status: where.status }),
-        ...(where.customerId && { customerId: where.customerId }),
-      },
-    });
-    return quote ? this.mapToQuote(quote) : null;
+    let q = this.db.selectFrom('core.quotes').selectAll();
+    if (where.status) q = q.where('status', '=', where.status);
+    if (where.customerId) q = q.where('customer_id', '=', where.customerId);
+    const row = await q.executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async findByCustomer(customerId: string, options?: QuoteFilter): Promise<QuoteEntity[]> {
-    const quotes = await this.prisma.quote.findMany({
-      where: {
-        customerId,
-        ...(options?.organizationId && { organizationId: options.organizationId }),
-      },
-      skip: options?.skip,
-      take: options?.take,
-      orderBy: { createdAt: 'desc' },
-    });
-    return quotes.map((q: any) => this.mapToQuote(q));
+    let q = this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('customer_id', '=', customerId)
+      .orderBy('created_at', 'desc');
+    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    if (options?.skip) q = q.offset(options.skip);
+    if (options?.take) q = q.limit(options.take);
+    const rows = await q.execute();
+    return rows.map(r => this.map(r));
   }
 
   async findByStatus(status: QuoteEntity['status'], options?: QuoteFilter): Promise<QuoteEntity[]> {
-    const quotes = await this.prisma.quote.findMany({
-      where: {
-        status,
-        ...(options?.organizationId && { organizationId: options.organizationId }),
-      },
-      skip: options?.skip,
-      take: options?.take,
-      orderBy: { createdAt: 'desc' },
-    });
-    return quotes.map((q: any) => this.mapToQuote(q));
+    let q = this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('status', '=', status)
+      .orderBy('created_at', 'desc');
+    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    if (options?.skip) q = q.offset(options.skip);
+    if (options?.take) q = q.limit(options.take);
+    const rows = await q.execute();
+    return rows.map(r => this.map(r));
   }
 
   async findWithItems(id: string, organizationId?: string): Promise<QuoteWithItems | null> {
-    const where = organizationId ? { id, organizationId } : { id };
-    const quote = await this.prisma.quote.findFirst({
-      where,
-      include: {
-        quoteItems: {
-          select: {
-            id: true,
-            productId: true,
-            quantity: true,
-            unitPrice: true,
-            lineTotal: true,
-          },
-        },
-      },
-    });
-
+    let q = this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('id', '=', id);
+    if (organizationId) q = q.where('organization_id', '=', organizationId);
+    const quote = await q.executeTakeFirst();
     if (!quote) return null;
 
+    const items = await this.db
+      .selectFrom('core.quote_items')
+      .select(['id', 'product_id', 'quantity', 'unit_price', 'line_total'])
+      .where('quote_id', '=', id)
+      .execute();
+
     return {
-      ...this.mapToQuote(quote),
-      items: quote.quoteItems.map((item: any) => ({
+      ...this.map(quote),
+      items: items.map(item => ({
         id: item.id,
-        productId: item.productId,
+        productId: item.product_id,
         quantity: item.quantity,
-        unitPrice: Number.parseFloat(item.unitPrice.toString()),
-        lineTotal: Number.parseFloat(item.lineTotal.toString()),
+        unitPrice: Number(item.unit_price),
+        lineTotal: Number(item.line_total),
       })),
     };
   }
 
   async create(data: CreateInput<QuoteEntity>): Promise<QuoteEntity> {
-    const quote = await this.prisma.quote.create({
-      data: {
-        quoteNumber: data.quoteNumber,
-        quoteRequestId: data.quoteRequestId,
-        customerId: data.customerId,
-        subtotalAmount: data.subtotalAmount,
-        taxAmount: data.taxAmount,
-        totalAmount: data.totalAmount,
-        status: data.status || 'draft',
-        notes: data.notes,
-        expiresAt: data.expiresAt ?? null,
-        organizationId: data.organizationId,
-        currency: (data as any).currency ?? 'JPY',
-        exchangeRate: (data as any).exchangeRate ?? 1.0,
-        createdBy: data.createdBy,
-      },
-    });
-    return this.mapToQuote(quote);
+    const row = await this.db
+      .insertInto('core.quotes')
+      .values({
+        id: randomUUID(),
+        quote_number: data.quoteNumber,
+        quote_request_id: data.quoteRequestId ?? null,
+        customer_id: data.customerId,
+        subtotal_amount: data.subtotalAmount ?? 0,
+        tax_amount: data.taxAmount ?? 0,
+        total_amount: data.totalAmount ?? 0,
+        status: data.status ?? 'draft',
+        notes: data.notes ?? null,
+        expires_at: data.expiresAt ?? null,
+        organization_id: data.organizationId ?? null,
+        currency: data.currency ?? 'JPY',
+        exchange_rate: data.exchangeRate ?? 1.0,
+        created_by: data.createdBy,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return this.map(row);
   }
 
   async update(id: string, data: UpdateInput<QuoteEntity>): Promise<QuoteEntity> {
-    const quote = await this.prisma.quote.update({
-      where: { id },
-      data: {
-        status: data.status,
-        subtotalAmount: data.subtotalAmount,
-        taxAmount: data.taxAmount,
-        totalAmount: data.totalAmount,
-        notes: data.notes,
-      },
-    });
-    return this.mapToQuote(quote);
+    const row = await this.db
+      .updateTable('core.quotes')
+      .set({
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.subtotalAmount !== undefined && { subtotal_amount: data.subtotalAmount }),
+        ...(data.taxAmount !== undefined && { tax_amount: data.taxAmount }),
+        ...(data.totalAmount !== undefined && { total_amount: data.totalAmount }),
+        ...(data.notes !== undefined && { notes: data.notes }),
+        updated_at: new Date(),
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return this.map(row);
   }
 
-  /** Set or clear the expiry date. Pass null to remove the deadline. */
   async setExpiry(id: string, expiresAt: Date | null): Promise<QuoteEntity | null> {
-    const quote = await this.prisma.quote.update({
-      where: { id },
-      data: { expiresAt },
-    }).catch(() => null);
-    return quote ? this.mapToQuote(quote) : null;
+    const row = await this.db
+      .updateTable('core.quotes')
+      .set({ expires_at: expiresAt, updated_at: new Date() })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst()
+      .catch(() => undefined);
+    return row ? this.map(row) : null;
   }
 
-  /**
-   * Quotes that have passed their expiry and are still in an actionable status.
-   * Used by the EventWorker expiry scanner.
-   */
   async findExpired(): Promise<QuoteEntity[]> {
-    const quotes = await this.prisma.quote.findMany({
-      where: {
-        expiresAt: { lt: new Date() },
-        status: { in: ['draft', 'pending_approval'] },
-      },
-      orderBy: { expiresAt: 'asc' },
-    });
-    return quotes.map((q: any) => this.mapToQuote(q));
+    const rows = await this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('expires_at', '<', new Date())
+      .where('status', 'in', ['draft', 'pending_approval'])
+      .orderBy('expires_at', 'asc')
+      .execute();
+    return rows.map(r => this.map(r));
   }
 
-  /**
-   * Quotes expiring within the next `days` days (default 7), still actionable.
-   * Used to surface early warnings before auto-rejection.
-   */
   async findExpiringSoon(days = 7, organizationId?: string): Promise<QuoteEntity[]> {
     const horizon = new Date();
     horizon.setDate(horizon.getDate() + days);
-    const quotes = await this.prisma.quote.findMany({
-      where: {
-        expiresAt: { gt: new Date(), lte: horizon },
-        status: { in: ['draft', 'pending_approval'] },
-        ...(organizationId && { organizationId }),
-      },
-      orderBy: { expiresAt: 'asc' },
-    });
-    return quotes.map((q: any) => this.mapToQuote(q));
+    let q = this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('expires_at', '>', new Date())
+      .where('expires_at', '<=', horizon)
+      .where('status', 'in', ['draft', 'pending_approval'])
+      .orderBy('expires_at', 'asc');
+    if (organizationId) q = q.where('organization_id', '=', organizationId);
+    const rows = await q.execute();
+    return rows.map(r => this.map(r));
   }
 
-  /**
-   * Atomic conditional status transition.
-   * Updates only if current status matches expectedStatus (and organizationId when scoped).
-   * Returns null if the precondition failed (wrong state or wrong owner).
-   */
   async transitionStatus(
     id: string,
     expectedStatus: QuoteEntity['status'],
@@ -229,97 +225,107 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     extraData?: { notes?: string },
     organizationId?: string
   ): Promise<QuoteEntity | null> {
-    const result = await this.prisma.quote.updateMany({
-      where: {
-        id,
-        status: expectedStatus,
-        ...(organizationId && { organizationId }),
-      },
-      data: {
+    let q = this.db
+      .updateTable('core.quotes')
+      .set({
         status: newStatus,
+        updated_at: new Date(),
         ...(extraData?.notes !== undefined && { notes: extraData.notes }),
-      },
-    });
+      })
+      .where('id', '=', id)
+      .where('status', '=', expectedStatus);
+    if (organizationId) q = q.where('organization_id', '=', organizationId);
+    const [result] = await q.execute();
 
-    if (result.count === 0) {
-      return null;
-    }
+    if (!result || result.numUpdatedRows === 0n) return null;
 
-    const updated = await this.prisma.quote.findUnique({ where: { id } });
-    return updated ? this.mapToQuote(updated) : null;
+    const updated = await this.db
+      .selectFrom('core.quotes')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return updated ? this.map(updated) : null;
   }
 
   async delete(id: string): Promise<boolean> {
-    await this.prisma.quote.delete({ where: { id } });
+    await this.db
+      .deleteFrom('core.quotes')
+      .where('id', '=', id)
+      .execute();
     return true;
   }
 
   async count(where?: { organizationId?: string; status?: string; customerId?: string }): Promise<number> {
-    const filter: any = {};
-    if (where?.status) filter.status = where.status;
-    if (where?.customerId) filter.customerId = where.customerId;
-    if (where?.organizationId) filter.organizationId = where.organizationId;
-    return this.prisma.quote.count({
-      where: Object.keys(filter).length ? filter : undefined,
-    });
+    let q = this.db
+      .selectFrom('core.quotes')
+      .select(({ fn }) => fn.countAll<string>().as('count'));
+    if (where?.status) q = q.where('status', '=', where.status);
+    if (where?.customerId) q = q.where('customer_id', '=', where.customerId);
+    if (where?.organizationId) q = q.where('organization_id', '=', where.organizationId);
+    const result = await q.executeTakeFirst();
+    return Number(result?.count ?? 0);
   }
 
-  /** Apply or update a discount on a quote (draft/pending_approval only). */
   async applyDiscount(
     id: string,
     discountType: DiscountType,
     discountValue: number
   ): Promise<QuoteEntity | null> {
-    const quote = await this.prisma.quote.findUnique({ where: { id } });
+    const quote = await this.findById(id);
     if (!quote) return null;
 
-    const subtotal = quote.subtotalAmount ? Number.parseFloat(quote.subtotalAmount.toString()) : 0;
+    const subtotal = quote.subtotalAmount;
     const discountAmount =
       discountType === 'fixed'
         ? Math.min(discountValue, subtotal)
         : Math.round((subtotal * discountValue) / 100 * 100) / 100;
 
-    const updated = await this.prisma.quote.update({
-      where: { id },
-      data: {
-        discountType,
-        discountValue,
-        discountAmount,
-      },
-    });
-    return this.mapToQuote(updated);
+    const row = await this.db
+      .updateTable('core.quotes')
+      .set({
+        discount_type: discountType,
+        discount_value: discountValue,
+        discount_amount: discountAmount,
+        updated_at: new Date(),
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
-  /** Remove discount from a quote. */
   async clearDiscount(id: string): Promise<QuoteEntity | null> {
-    const updated = await this.prisma.quote.update({
-      where: { id },
-      data: { discountType: null, discountValue: null, discountAmount: null },
-    }).catch(() => null);
-    return updated ? this.mapToQuote(updated) : null;
+    const row = await this.db
+      .updateTable('core.quotes')
+      .set({ discount_type: null, discount_value: null, discount_amount: null, updated_at: new Date() })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst()
+      .catch(() => undefined);
+    return row ? this.map(row) : null;
   }
 
-  private mapToQuote(quote: any): QuoteEntity {
+  private map(row: any): QuoteEntity {
     return {
-      id: quote.id,
-      quoteNumber: quote.quoteNumber,
-      quoteRequestId: quote.quoteRequestId,
-      customerId: quote.customerId,
-      subtotalAmount: quote.subtotalAmount ? Number.parseFloat(quote.subtotalAmount.toString()) : 0,
-      taxAmount: quote.taxAmount ? Number.parseFloat(quote.taxAmount.toString()) : 0,
-      totalAmount: quote.totalAmount ? Number.parseFloat(quote.totalAmount.toString()) : 0,
-      discountType: (quote.discountType as DiscountType | null) ?? null,
-      discountValue: quote.discountValue ? Number.parseFloat(quote.discountValue.toString()) : null,
-      discountAmount: quote.discountAmount ? Number.parseFloat(quote.discountAmount.toString()) : null,
-      expiresAt: quote.expiresAt ?? null,
-      status: quote.status,
-      notes: quote.notes,
-      organizationId: quote.organizationId ?? undefined,
-      currency: quote.currency ?? 'JPY',
-      exchangeRate: quote.exchangeRate ? Number.parseFloat(quote.exchangeRate.toString()) : 1.0,
-      createdBy: quote.createdBy,
-      createdAt: quote.createdAt,
-      updatedAt: quote.updatedAt,
+      id: row.id,
+      quoteNumber: row.quote_number,
+      quoteRequestId: row.quote_request_id ?? null,
+      customerId: row.customer_id,
+      subtotalAmount: row.subtotal_amount ? Number(row.subtotal_amount) : 0,
+      taxAmount: row.tax_amount ? Number(row.tax_amount) : 0,
+      totalAmount: row.total_amount ? Number(row.total_amount) : 0,
+      discountType: (row.discount_type as DiscountType | null) ?? null,
+      discountValue: row.discount_value ? Number(row.discount_value) : null,
+      discountAmount: row.discount_amount ? Number(row.discount_amount) : null,
+      expiresAt: row.expires_at ?? null,
+      status: row.status,
+      notes: row.notes ?? undefined,
+      organizationId: row.organization_id ?? undefined,
+      currency: row.currency ?? 'JPY',
+      exchangeRate: row.exchange_rate ? Number(row.exchange_rate) : 1.0,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   }
 }
