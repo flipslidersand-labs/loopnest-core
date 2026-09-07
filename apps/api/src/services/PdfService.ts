@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { RepositoryContainer, type Product } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
+import type { CustomerStatement } from './StatementService.js';
 
 const TAX_RATE = 0.10;
 
@@ -133,6 +134,60 @@ export class PdfService {
     };
 
     return this.renderPdf(quote.quoteNumber, data);
+  }
+
+  generateStatementPdf(statement: CustomerStatement): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 50, info: { Title: 'Statement of Account' } });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      this.renderStatement(doc, statement);
+      doc.end();
+    });
+  }
+
+  private renderStatement(doc: InstanceType<typeof PDFDocument>, s: CustomerStatement): void {
+    const W = doc.page.width - 100;
+    const fmt = (n: number) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
+
+    doc.fontSize(20).font('Helvetica-Bold').text('Statement of Account', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica')
+      .text(`Customer: ${s.customer.name}`, { align: 'left' })
+      .text(`Period: ${s.period.from} — ${s.period.to}`)
+      .text(`Generated: ${new Date().toISOString().slice(0, 10)}`);
+    doc.moveDown(1);
+
+    const colX = [50, 120, 230, 340, 400, 470];
+    const headers = ['Date', 'Type', 'Ref', 'Debit', 'Credit', 'Balance'];
+    doc.fontSize(9).font('Helvetica-Bold');
+    headers.forEach((h, i) => doc.text(h, colX[i], doc.y, { width: colX[i + 1] ? colX[i + 1] - colX[i] - 5 : 80, continued: i < headers.length - 1 }));
+    doc.moveDown(0.3);
+    doc.moveTo(50, doc.y).lineTo(50 + W, doc.y).stroke();
+    doc.moveDown(0.3);
+
+    doc.font('Helvetica').fontSize(8);
+    for (const t of s.transactions) {
+      const y = doc.y;
+      const row = [
+        t.date.toISOString().slice(0, 10),
+        t.type,
+        t.ref.slice(0, 16),
+        t.debit ? fmt(t.debit) : '',
+        t.credit ? fmt(t.credit) : '',
+        fmt(t.balance),
+      ];
+      row.forEach((v, i) => doc.text(v, colX[i], y, { width: colX[i + 1] ? colX[i + 1] - colX[i] - 5 : 80, continued: i < row.length - 1 }));
+      doc.moveDown(0.4);
+    }
+
+    doc.moveDown(0.5);
+    doc.moveTo(50, doc.y).lineTo(50 + W, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica-Bold')
+      .text(`Closing Balance: ${fmt(s.closingBalance)}`, { align: 'right' });
   }
 
   // ── Shared renderer ───────────────────────────────────────────────────────
