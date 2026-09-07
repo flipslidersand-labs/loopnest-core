@@ -25,6 +25,7 @@ import { PaymentService } from './PaymentService.js';
 import { CreditNoteService } from './CreditNoteService.js';
 import { EventWorker } from './EventWorker.js';
 import { PdfService } from './PdfService.js';
+import { EmailNotificationService } from './EmailNotificationService.js';
 
 export class ServiceContainer {
   readonly quotes: QuoteService;
@@ -38,6 +39,7 @@ export class ServiceContainer {
   readonly creditNotes: CreditNoteService;
   readonly eventWorker: EventWorker;
   readonly pdf: PdfService;
+  readonly emailNotifications: EmailNotificationService;
 
   constructor(
     repos: RepositoryContainer,
@@ -46,14 +48,15 @@ export class ServiceContainer {
   ) {
     this.quotes = new QuoteService(repos);
     this.approvals = new ApprovalService(repos, kyselyDb);
-    this.invoices = new InvoiceService(repos);
+    this.emailNotifications = new EmailNotificationService(repos);
+    this.invoices = new InvoiceService(repos, this.emailNotifications);
     this.audit = new AuditService(pgPool);
     this.reporting = new ReportingService(kyselyDb);
     this.webhooks = new WebhookService(repos.webhooks, repos.webhookDeliveries);
     this.search = new SearchService(kyselyDb);
     this.payments = new PaymentService(repos, kyselyDb);
     this.creditNotes = new CreditNoteService(repos, kyselyDb);
-    this.eventWorker = new EventWorker(repos, kyselyDb, this.webhooks);
+    this.eventWorker = new EventWorker(repos, kyselyDb, this.webhooks, this.emailNotifications);
     this.pdf = new PdfService(repos);
   }
 
