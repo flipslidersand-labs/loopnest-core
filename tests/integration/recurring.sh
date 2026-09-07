@@ -82,16 +82,30 @@ else
   fail "POST invalid intervalUnit → expected 400, got $HTTP"
 fi
 
-# ── Test 6: pause active contract ────────────────────────────────────────────
+# ── Test 6: pause active contract with reason + pauseUntil ───────────────────
+FUTURE=$(date -d "+30 days" +%Y-%m-%d 2>/dev/null || date -v+30d +%Y-%m-%d 2>/dev/null || echo "2099-12-31")
 PAUSED=$(curl -sf -X PATCH \
   "${BASE_URL}/api/recurring-contracts/${CONTRACT_ID}/pause" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" -d '{}')
+  -H "Content-Type: application/json" \
+  -d "{\"reason\":\"Payment dispute\",\"pauseUntil\":\"$FUTURE\"}")
 P_STATUS=$(echo "$PAUSED" | jq -r '.data.status')
 if [ "$P_STATUS" = "paused" ]; then
   pass "PATCH /pause → status=paused"
 else
   fail "PATCH /pause → expected paused, got $P_STATUS"
+fi
+P_REASON=$(echo "$PAUSED" | jq -r '.data.pauseReason')
+if [ "$P_REASON" = "Payment dispute" ]; then
+  pass "PATCH /pause → pauseReason stored"
+else
+  fail "PATCH /pause → pauseReason expected 'Payment dispute', got $P_REASON"
+fi
+P_UNTIL=$(echo "$PAUSED" | jq -r '.data.pauseUntil')
+if [ "$P_UNTIL" = "$FUTURE" ]; then
+  pass "PATCH /pause → pauseUntil stored"
+else
+  fail "PATCH /pause → pauseUntil expected $FUTURE, got $P_UNTIL"
 fi
 
 # ── Test 7: pause already paused → 409 ───────────────────────────────────────

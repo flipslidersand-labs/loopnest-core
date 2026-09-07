@@ -85,9 +85,13 @@ export function recurringContractRoutes(repos: RepositoryContainer) {
       const contract = await repos.recurringContracts.findById(req.params.id);
       if (!contract) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Recurring contract not found');
       if (contract.status !== 'active') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', `Contract is ${contract.status}, cannot pause`);
+        throw new ApiErrorResponse(409, 'CONFLICT', `Contract is ${contract.status}, cannot pause`);
       }
-      const updated = await repos.recurringContracts.updateStatus(req.params.id, 'paused');
+      const { reason, pauseUntil } = req.body ?? {};
+      if (pauseUntil && isNaN(Date.parse(pauseUntil))) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'pauseUntil must be a valid ISO date');
+      }
+      const updated = await repos.recurringContracts.pause(req.params.id, reason, pauseUntil ?? null);
       res.json({ data: updated });
     })
   );
@@ -99,9 +103,9 @@ export function recurringContractRoutes(repos: RepositoryContainer) {
       const contract = await repos.recurringContracts.findById(req.params.id);
       if (!contract) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Recurring contract not found');
       if (contract.status !== 'paused') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', `Contract is ${contract.status}, cannot resume`);
+        throw new ApiErrorResponse(409, 'CONFLICT', `Contract is ${contract.status}, cannot resume`);
       }
-      const updated = await repos.recurringContracts.updateStatus(req.params.id, 'active');
+      const updated = await repos.recurringContracts.resume(req.params.id);
       res.json({ data: updated });
     })
   );
