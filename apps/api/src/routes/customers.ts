@@ -108,6 +108,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
       if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from/to must be valid ISO date strings');
       }
+      toDate.setHours(23, 59, 59, 999);
       const statement = await statementService.generate(req.params.id, fromDate, toDate, req.user?.orgId);
       res.json({ data: statement });
     })
@@ -123,6 +124,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
       if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from/to must be valid ISO date strings');
       }
+      toDate.setHours(23, 59, 59, 999);
       const statement = await statementService.generate(req.params.id, fromDate, toDate, req.user?.orgId);
       const pdf = await pdfService.generateStatementPdf(statement);
       res.setHeader('Content-Type', 'application/pdf');
