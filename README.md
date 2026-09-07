@@ -29,6 +29,13 @@ A personal OS for building business systems. Constructs an integrated business p
 | M12 | Recurring Billing (periodic billing / subscription) | ✅ Done |
 | M13 | Payments & Accounts Receivable (payment matching, AR aging) | ✅ Done |
 | M14 | Credit Notes & Refunds | ✅ Done |
+| M15 | Dunning Management (automated overdue action scheduler + dunning logs) | ✅ Done |
+| M16 | Multi-currency support (exchange_rates table, currency on invoices/quotes) | ✅ Done |
+| M17 | E2E Financial Reporting (monthly P&L, cash flow, AR aging dashboard) | ✅ Done |
+| M18 | Webhook delivery log + manual retry endpoint | ✅ Done |
+| M19 | Customer self-service portal (auth + invoice/quote read API) | ✅ Done |
+| M20 | Observability — DB query histogram, Outbox lag, OTel trace propagation | ✅ Done |
+| M21 | Email notifications (invoice issued + overdue alert, dry-run safe) | ✅ Done |
 
 ### Tech Stack
 
@@ -38,6 +45,9 @@ A personal OS for building business systems. Constructs an integrated business p
 | Framework | Express |
 | Database | PostgreSQL 17 (Kysely + Prisma) |
 | Cache / Queue | Redis / Valkey |
+| Observability | OpenTelemetry + Prometheus metrics |
+| PDF | pdfkit |
+| Email | nodemailer (EMAIL_ENABLED=false dry-run) |
 | Infrastructure | Docker Compose |
 | Monorepo | pnpm workspaces + Turborepo |
 
@@ -46,14 +56,14 @@ A personal OS for building business systems. Constructs an integrated business p
 ```text
 apps/api/               Express API server
   src/middleware/       auth, errorHandler, rateLimit, idempotency
-  src/routes/           REST endpoints
+  src/routes/           REST endpoints (20 route files)
   src/services/         Business logic (PaymentService, CreditNoteService, etc.)
-  src/lib/              JWT, observability
+  src/lib/              JWT, observability, email
 packages/bizcore-db/    DB access layer (Kysely + Prisma)
   src/repositories/     Per-entity repositories
-infra/migrations/       PostgreSQL migration SQL (000–010)
-tests/integration/      bash curl-based integration tests (18 suites)
-docs/                   ADR, backlog, design, roadmap
+infra/migrations/       PostgreSQL migration SQL (000–021)
+tests/integration/      bash curl-based integration tests (30+ suites)
+docs/                   ADR, design docs, error-codes reference
 ```
 
 ### Setup
@@ -140,29 +150,40 @@ For a complete list of API error codes with HTTP status and recommended client a
 | M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
 | M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
 | M15 | Dunning Management（督促管理・自動リマインダー） | ✅ 完了 |
+| M16 | 多通貨対応（exchange_rates テーブル・請求書/見積書への currency フィールド） | ✅ 完了 |
+| M17 | E2E 財務レポート（月次 P&L・キャッシュフロー・AR エイジングダッシュボード） | ✅ 完了 |
+| M18 | Webhook 配信ログ + 手動リトライエンドポイント | ✅ 完了 |
+| M19 | 顧客セルフサービスポータル（認証 + 請求書/見積書閲覧 API） | ✅ 完了 |
+| M20 | オブザーバビリティ（DB クエリヒストグラム・Outbox ラグ・OTel トレース伝播） | ✅ 完了 |
+| M21 | メール通知（請求書発行・支払遅延アラート、ドライラン対応） | ✅ 完了 |
 
 ### 技術スタック
 
-- **Runtime**: Node.js 24 / TypeScript
-- **Framework**: Express
-- **DB**: PostgreSQL 17（Kysely + Prisma 併用）
-- **Cache / Queue**: Redis / Valkey
-- **Infra**: Docker Compose
-- **Monorepo**: pnpm workspaces + Turborepo
+| レイヤー | 技術 |
+| --- | --- |
+| Runtime | Node.js 24 / TypeScript |
+| Framework | Express |
+| DB | PostgreSQL 17（Kysely + Prisma 併用） |
+| Cache / Queue | Redis / Valkey |
+| オブザーバビリティ | OpenTelemetry + Prometheus メトリクス |
+| PDF | pdfkit |
+| メール | nodemailer（EMAIL_ENABLED=false ドライラン） |
+| Infra | Docker Compose |
+| Monorepo | pnpm workspaces + Turborepo |
 
 ### ディレクトリ構成
 
 ```text
 apps/api/               Express API サーバー
   src/middleware/       auth, errorHandler, rateLimit, idempotency
-  src/routes/           REST エンドポイント
+  src/routes/           REST エンドポイント（20 ルートファイル）
   src/services/         ビジネスロジック（PaymentService, CreditNoteService 等）
-  src/lib/              JWT, observability
+  src/lib/              JWT, observability, email
 packages/bizcore-db/    DB アクセス層（Kysely + Prisma）
   src/repositories/     各エンティティ Repository
-infra/migrations/       PostgreSQL マイグレーション SQL（000〜017）
-tests/integration/      bash curl ベース統合テスト（23 スイート）
-docs/                   ADR, backlog, design, roadmap
+infra/migrations/       PostgreSQL マイグレーション SQL（000〜021）
+tests/integration/      bash curl ベース統合テスト（30+ スイート）
+docs/                   ADR・設計ドキュメント・エラーコードリファレンス
 ```
 
 ### セットアップ
