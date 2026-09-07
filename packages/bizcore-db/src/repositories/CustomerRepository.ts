@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 export interface Customer {
   id: string;
   name: string;
+  email?: string;
   address?: string;
   phone?: string;
   organizationId?: string;
@@ -161,6 +162,7 @@ export class CustomerRepository extends BaseRepository<Customer> {
     return {
       id: row.id,
       name: row.name,
+      email: row.contact_email ?? undefined,
       address: row.address ?? undefined,
       phone: row.phone ?? undefined,
       organizationId: row.organization_id ?? undefined,
