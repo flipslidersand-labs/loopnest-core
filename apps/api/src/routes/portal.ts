@@ -5,7 +5,8 @@ import { authenticate, requireCustomer } from '../middleware/auth.js';
 import { signToken } from '../lib/jwt.js';
 
 const PORTAL_TOKEN_TTL = 30 * 24 * 3600; // 30 days
-const JWT_SECRET = process.env.JWT_SECRET || 'loopnest_dev_secret';
+// JWT_SECRET is validated at startup in auth.ts — safe to read here after boot.
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export function portalRoutes(repos: RepositoryContainer) {
   const router = Router();
