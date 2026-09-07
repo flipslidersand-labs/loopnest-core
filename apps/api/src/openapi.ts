@@ -143,7 +143,7 @@ const stageList = (stage: string): Json => ({
 // ---- document ---------------------------------------------------------------
 
 export const openapiDocument: Json = {
-  openapi: '3.0.3',
+  openapi: '3.1.0',
   info: {
     title: 'LoopNest Core API',
     version: '0.1.0',
@@ -160,10 +160,23 @@ export const openapiDocument: Json = {
     { name: 'Customers' },
     { name: 'Products' },
     { name: 'Quotes' },
+    { name: 'Quote Templates' },
     { name: 'Users' },
+    { name: 'Members' },
+    { name: 'Invoices' },
+    { name: 'Payments', description: 'Payments & accounts receivable' },
+    { name: 'Credit Notes' },
+    { name: 'Tax Rates' },
+    { name: 'Exchange Rates' },
+    { name: 'Webhooks' },
+    { name: 'Audit' },
+    { name: 'Search' },
+    { name: 'Recurring Contracts' },
+    { name: 'Dunning' },
+    { name: 'Portal', description: 'Customer self-service portal' },
+    { name: 'Reports' },
     { name: 'Workflow', description: 'Quote state transitions' },
     { name: 'Approvals', description: 'Multi-step approval workflow' },
-    { name: 'Payments', description: 'Payments & accounts receivable (M13)' },
   ],
   paths: {
     // System
@@ -460,7 +473,7 @@ export const openapiDocument: Json = {
     },
     '/api/reports/accounts-receivable': {
       get: {
-        tags: ['Payments'],
+        tags: ['Reports'],
         summary: 'Accounts-receivable aging (buckets + per-customer)',
         parameters: [
           { name: 'asOf', in: 'query', required: false, schema: str({ format: 'date' }), description: 'Aging reference date; defaults to today' },
@@ -470,6 +483,225 @@ export const openapiDocument: Json = {
           '400': errorResp('Invalid asOf date'),
         },
       },
+    },
+
+    // Invoices (M-series)
+    '/api/invoices': {
+      get: {
+        tags: ['Invoices'],
+        summary: 'List invoices (paginated)',
+        parameters: [...pageParams, { name: 'customerId', in: 'query', schema: str({ format: 'uuid' }) }, { name: 'status', in: 'query', schema: str() }],
+        responses: { '200': dataResp('Array of invoices', { type: 'array', items: { type: 'object' } }) },
+      },
+    },
+    '/api/invoices/{id}': {
+      get: {
+        tags: ['Invoices'],
+        summary: 'Get invoice by id',
+        parameters: [idParam()],
+        responses: { '200': dataResp('Invoice', { type: 'object' }), '404': STD_ERRORS['404'] },
+      },
+    },
+
+    // Members
+    '/api/members': {
+      get: {
+        tags: ['Members'],
+        summary: 'List organization members',
+        parameters: pageParams,
+        responses: { '200': dataResp('Array of members', { type: 'array', items: { type: 'object' } }) },
+      },
+      post: {
+        tags: ['Members'],
+        summary: 'Add a member to an organization',
+        requestBody: body(obj({ userId: str({ format: 'uuid' }), organizationId: str({ format: 'uuid' }), role: str() }, ['userId', 'organizationId', 'role'])),
+        responses: { '201': dataResp('Member', { type: 'object' }), ...STD_ERRORS },
+      },
+    },
+    '/api/members/{id}': {
+      delete: {
+        tags: ['Members'],
+        summary: 'Remove a member from an organization',
+        parameters: [idParam()],
+        responses: { '200': { description: 'Removed' }, '404': STD_ERRORS['404'] },
+      },
+    },
+
+    // Credit Notes
+    '/api/credit-notes': {
+      get: {
+        tags: ['Credit Notes'],
+        summary: 'List credit notes (org-scoped)',
+        parameters: pageParams,
+        responses: { '200': dataResp('Array of credit notes', { type: 'array', items: { type: 'object' } }) },
+      },
+    },
+    '/api/credit-notes/{id}': {
+      get: {
+        tags: ['Credit Notes'],
+        summary: 'Get credit note by id',
+        parameters: [idParam()],
+        responses: { '200': dataResp('Credit note', { type: 'object' }), '404': STD_ERRORS['404'] },
+      },
+    },
+    '/api/invoices/{invoiceId}/credit-notes': {
+      get: {
+        tags: ['Credit Notes'],
+        summary: 'Credit notes applied to an invoice',
+        parameters: [idParam('invoiceId', 'Invoice id (UUID)')],
+        responses: { '200': dataResp('Array of credit notes', { type: 'array', items: { type: 'object' } }) },
+      },
+      post: {
+        tags: ['Credit Notes'],
+        summary: 'Issue a credit note against an invoice',
+        parameters: [idParam('invoiceId', 'Invoice id (UUID)'), idempotencyHeader],
+        requestBody: body(obj({ amount: num(), reason: str() }, ['amount', 'reason'])),
+        responses: { '201': dataResp('Credit note', { type: 'object' }), ...STD_ERRORS },
+      },
+    },
+
+    // Tax Rates
+    '/api/tax-rates': {
+      get: {
+        tags: ['Tax Rates'],
+        summary: 'List tax rates',
+        responses: { '200': dataResp('Array of tax rates', { type: 'array', items: { type: 'object' } }) },
+      },
+      post: {
+        tags: ['Tax Rates'],
+        summary: 'Create a tax rate',
+        requestBody: body(obj({ name: str(), rate: num(), isDefault: { type: 'boolean' } }, ['name', 'rate'])),
+        responses: { '201': dataResp('Tax rate', { type: 'object' }), ...STD_ERRORS },
+      },
+    },
+
+    // Exchange Rates
+    '/api/exchange-rates': {
+      get: {
+        tags: ['Exchange Rates'],
+        summary: 'List exchange rates',
+        responses: { '200': dataResp('Array of exchange rates', { type: 'array', items: { type: 'object' } }) },
+      },
+      post: {
+        tags: ['Exchange Rates'],
+        summary: 'Upsert an exchange rate (currency → JPY)',
+        requestBody: body(obj({ currency: str(), rate: num(), effectiveDate: str({ format: 'date' }) }, ['currency', 'rate'])),
+        responses: { '201': dataResp('Exchange rate', { type: 'object' }), ...STD_ERRORS },
+      },
+    },
+
+    // Webhooks
+    '/api/webhooks': {
+      get: {
+        tags: ['Webhooks'],
+        summary: 'List webhooks (org-scoped)',
+        responses: { '200': dataResp('Array of webhooks', { type: 'array', items: { type: 'object' } }) },
+      },
+      post: {
+        tags: ['Webhooks'],
+        summary: 'Register a webhook endpoint',
+        requestBody: body(obj({ url: str({ format: 'uri' }), events: { type: 'array', items: str() }, organizationId: str({ format: 'uuid' }) }, ['url', 'events', 'organizationId'])),
+        responses: { '201': dataResp('Webhook', { type: 'object' }), ...STD_ERRORS },
+      },
+    },
+    '/api/webhooks/{id}': {
+      get: { tags: ['Webhooks'], summary: 'Get webhook by id', parameters: [idParam()], responses: { '200': dataResp('Webhook', { type: 'object' }), '404': STD_ERRORS['404'] } },
+      put: { tags: ['Webhooks'], summary: 'Update webhook', parameters: [idParam()], requestBody: body(obj({ url: str(), events: { type: 'array', items: str() } })), responses: { '200': dataResp('Updated webhook', { type: 'object' }), ...STD_ERRORS } },
+      delete: { tags: ['Webhooks'], summary: 'Delete webhook', parameters: [idParam()], responses: { '200': { description: 'Deleted' }, '404': STD_ERRORS['404'] } },
+    },
+    '/api/webhooks/deliveries': {
+      get: {
+        tags: ['Webhooks'],
+        summary: 'List webhook delivery logs',
+        parameters: [
+          { name: 'webhookId', in: 'query', schema: str({ format: 'uuid' }) },
+          { name: 'status', in: 'query', schema: str({ enum: ['success', 'failed'] }) },
+          ...pageParams,
+        ],
+        responses: { '200': dataResp('Array of deliveries', { type: 'array', items: { type: 'object' } }) },
+      },
+    },
+    '/api/webhooks/deliveries/{id}/retry': {
+      post: {
+        tags: ['Webhooks'],
+        summary: 'Manually retry a failed delivery',
+        parameters: [idParam()],
+        responses: { '200': dataResp('Delivery result', { type: 'object' }), '404': STD_ERRORS['404'] },
+      },
+    },
+
+    // Audit
+    '/api/audit': {
+      get: {
+        tags: ['Audit'],
+        summary: 'Audit log (paginated, filterable)',
+        parameters: [
+          ...pageParams,
+          { name: 'entityType', in: 'query', schema: str() },
+          { name: 'entityId', in: 'query', schema: str({ format: 'uuid' }) },
+          { name: 'action', in: 'query', schema: str() },
+        ],
+        responses: { '200': dataResp('Array of audit log entries', { type: 'array', items: { type: 'object' } }) },
+      },
+    },
+
+    // Search
+    '/api/search': {
+      get: {
+        tags: ['Search'],
+        summary: 'Full-text search across customers, quotes, invoices',
+        parameters: [{ name: 'q', in: 'query', required: true, schema: str(), description: 'Search query' }, ...pageParams],
+        responses: { '200': dataResp('Search results', { type: 'object' }) },
+      },
+    },
+
+    // Recurring Contracts
+    '/api/recurring-contracts': {
+      get: { tags: ['Recurring Contracts'], summary: 'List recurring contracts', parameters: pageParams, responses: { '200': dataResp('Array of contracts', { type: 'array', items: { type: 'object' } }) } },
+      post: { tags: ['Recurring Contracts'], summary: 'Create a recurring contract', requestBody: body(obj({ customerId: str({ format: 'uuid' }), billingCycle: str(), amount: num() }, ['customerId', 'billingCycle', 'amount'])), responses: { '201': dataResp('Contract', { type: 'object' }), ...STD_ERRORS } },
+    },
+    '/api/recurring-contracts/{id}': {
+      get: { tags: ['Recurring Contracts'], summary: 'Get contract by id', parameters: [idParam()], responses: { '200': dataResp('Contract', { type: 'object' }), '404': STD_ERRORS['404'] } },
+      patch: { tags: ['Recurring Contracts'], summary: 'Pause or resume a contract', parameters: [idParam()], requestBody: body(obj({ action: str({ enum: ['pause', 'resume'] }), reason: str({ nullable: true }) }, ['action'])), responses: { '200': dataResp('Contract', { type: 'object' }), ...STD_ERRORS } },
+    },
+
+    // Dunning
+    '/api/dunning-rules': {
+      get: { tags: ['Dunning'], summary: 'List dunning rules (org-scoped)', responses: { '200': dataResp('Array of rules', { type: 'array', items: { type: 'object' } }) } },
+      post: { tags: ['Dunning'], summary: 'Create a dunning rule', requestBody: body(obj({ organizationId: str({ format: 'uuid' }), daysOverdue: { type: 'integer' }, action: str() }, ['organizationId', 'daysOverdue', 'action'])), responses: { '201': dataResp('Rule', { type: 'object' }), ...STD_ERRORS } },
+    },
+    '/api/invoices/{invoiceId}/dunning-logs': {
+      get: { tags: ['Dunning'], summary: 'Dunning log for an invoice', parameters: [idParam('invoiceId', 'Invoice id (UUID)')], responses: { '200': dataResp('Array of dunning log entries', { type: 'array', items: { type: 'object' } }) } },
+    },
+
+    // Quote Templates
+    '/api/quote-templates': {
+      get: { tags: ['Quote Templates'], summary: 'List quote templates', parameters: pageParams, responses: { '200': dataResp('Array of templates', { type: 'array', items: { type: 'object' } }) } },
+      post: { tags: ['Quote Templates'], summary: 'Create a quote template', requestBody: body(obj({ name: str(), items: { type: 'array', items: { type: 'object' } } }, ['name'])), responses: { '201': dataResp('Template', { type: 'object' }), ...STD_ERRORS } },
+    },
+    '/api/quote-templates/{id}': {
+      get: { tags: ['Quote Templates'], summary: 'Get template by id', parameters: [idParam()], responses: { '200': dataResp('Template', { type: 'object' }), '404': STD_ERRORS['404'] } },
+      put: { tags: ['Quote Templates'], summary: 'Update template', parameters: [idParam()], requestBody: body(obj({ name: str(), items: { type: 'array', items: { type: 'object' } } })), responses: { '200': dataResp('Template', { type: 'object' }), ...STD_ERRORS } },
+      delete: { tags: ['Quote Templates'], summary: 'Delete template', parameters: [idParam()], responses: { '200': { description: 'Deleted' }, '404': STD_ERRORS['404'] } },
+    },
+
+    // Portal
+    '/api/portal/login': {
+      post: {
+        tags: ['Portal'],
+        summary: 'Exchange customerId for a portal JWT (demo auth)',
+        requestBody: body(obj({ customerId: str({ format: 'uuid' }) }, ['customerId'])),
+        responses: { '200': dataResp('JWT token', obj({ token: str(), expiresIn: { type: 'integer' } })), '401': errorResp('Invalid customerId') },
+      },
+    },
+    '/api/portal/me': {
+      get: { tags: ['Portal'], summary: 'Get authenticated customer profile', responses: { '200': dataResp('Customer', ref('Customer')), '401': errorResp('Unauthorized') } },
+    },
+    '/api/portal/invoices': {
+      get: { tags: ['Portal'], summary: 'List invoices for the authenticated customer', parameters: pageParams, responses: { '200': dataResp('Array of invoices', { type: 'array', items: { type: 'object' } }) } },
+    },
+    '/api/portal/quotes': {
+      get: { tags: ['Portal'], summary: 'List quotes for the authenticated customer', parameters: pageParams, responses: { '200': dataResp('Array of quotes', { type: 'array', items: ref('Quote') }) } },
     },
   },
 
@@ -558,7 +790,7 @@ export const openapiDocument: Json = {
   },
 };
 
-/** Minimal Swagger UI page that loads the spec from /openapi.json via CDN assets. */
+/** Minimal Swagger UI page that loads the spec from /api/docs/openapi.json via CDN assets. */
 export const swaggerHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -572,7 +804,7 @@ export const swaggerHtml = `<!DOCTYPE html>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
   <script>
     window.onload = () => {
-      window.ui = SwaggerUIBundle({ url: '/openapi.json', dom_id: '#swagger-ui' });
+      window.ui = SwaggerUIBundle({ url: '/api/docs/openapi.json', dom_id: '#swagger-ui' });
     };
   </script>
 </body>
