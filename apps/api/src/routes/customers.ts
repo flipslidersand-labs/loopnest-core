@@ -3,9 +3,13 @@ import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { AuditService } from '../services/AuditService.js';
+import { StatementService } from '../services/StatementService.js';
+import { PdfService } from '../services/PdfService.js';
 
 export function customerRoutes(repos: RepositoryContainer, audit: AuditService) {
   const router = Router();
+  const statementService = new StatementService(repos);
+  const pdfService = new PdfService(repos);
 
   router.get(
     '/',
@@ -88,6 +92,43 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
 
       await audit.logResourceDeleted('customer', req.params.id, req.user?.sub ?? 'system');
       res.json({ data: { success: true } });
+    })
+  );
+
+  // ── Statement of Account ─────────────────────────────────────────────────
+  // Must be before /:id to avoid Express routing /:id matching "statement"
+
+  router.get(
+    '/:id/statement',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { from, to } = req.query as { from?: string; to?: string };
+      const now = new Date();
+      const fromDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), 1);
+      const toDate = to ? new Date(to) : now;
+      if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from/to must be valid ISO date strings');
+      }
+      const statement = await statementService.generate(req.params.id, fromDate, toDate, req.user?.orgId);
+      res.json({ data: statement });
+    })
+  );
+
+  router.get(
+    '/:id/statement/pdf',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { from, to } = req.query as { from?: string; to?: string };
+      const now = new Date();
+      const fromDate = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), 1);
+      const toDate = to ? new Date(to) : now;
+      if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from/to must be valid ISO date strings');
+      }
+      const statement = await statementService.generate(req.params.id, fromDate, toDate, req.user?.orgId);
+      const pdf = await pdfService.generateStatementPdf(statement);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="statement-${req.params.id}.pdf"`);
+      res.setHeader('Content-Length', pdf.length);
+      res.end(pdf);
     })
   );
 
