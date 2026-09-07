@@ -1,5 +1,6 @@
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
+import { EmailNotificationService } from './EmailNotificationService.js';
 
 export interface InvoiceCreationResult {
   invoiceId: string;
@@ -11,7 +12,10 @@ export interface InvoiceCreationResult {
 }
 
 export class InvoiceService {
-  constructor(private repos: RepositoryContainer) {}
+  constructor(
+    private repos: RepositoryContainer,
+    private emailNotifications: EmailNotificationService
+  ) {}
 
   /**
    * Generate invoice number (format: INV-YYYYMM-NNNNNN).
@@ -92,6 +96,9 @@ export class InvoiceService {
       customerId: quote.customerId,
       totalAmount,
     });
+
+    // Fire-and-forget: failure should not block the invoice creation response.
+    this.emailNotifications.sendInvoiceIssued(invoiceId).catch(() => undefined);
 
     return {
       invoiceId,

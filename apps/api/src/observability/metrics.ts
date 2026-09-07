@@ -159,6 +159,11 @@ export const webhookDeliveryFailureTotal = new Counter(
   'Webhook dispatches that received a non-2xx response, by event type'
 );
 
+export const emailNotificationsTotal = new Counter(
+  'email_notifications_total',
+  'Email notifications sent by type (invoice_issued, payment_reminder, overdue_alert)'
+);
+
 const processStart = Date.now();
 
 export const renderMetrics = (): string => {
@@ -177,6 +182,7 @@ export const renderMetrics = (): string => {
       dbQueryDurationMs.render(),
       outboxEventLagMs.render(),
       webhookDeliveryFailureTotal.render(),
+      emailNotificationsTotal.render(),
       uptime,
     ].join('\n\n') + '\n'
   );

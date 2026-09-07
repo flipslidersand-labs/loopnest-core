@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Client as PgClient } from "pg";
 import { sql, type Kysely } from "kysely";
 import { WebhookService } from "./WebhookService.js";
+import { EmailNotificationService } from "./EmailNotificationService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
 
 const NOTIFY_CHANNEL = 'loopnest_outbox';
@@ -47,6 +48,7 @@ export class EventWorker {
     private repos: RepositoryContainer,
     private kyselyDb: Kysely<KyselyDatabase>,
     private webhooks?: WebhookService,
+    private emailNotifications?: EmailNotificationService,
   ) {
     this.accountingApiUrl =
       process.env.MOCK_ACCOUNTING_API_URL || "http://localhost:3991";
@@ -377,6 +379,13 @@ export class EventWorker {
             .deliver(row.organization_id, "payment.overdue", payload)
             .catch((err) =>
               logger.error({ invoiceId: row.id, err }, 'overdue webhook delivery failed'),
+            );
+        }
+        if (this.emailNotifications) {
+          this.emailNotifications
+            .sendOverdueAlert(row.id, Number(row.days_overdue))
+            .catch((err) =>
+              logger.error({ invoiceId: row.id, err }, 'overdue email notification failed'),
             );
         }
       }
