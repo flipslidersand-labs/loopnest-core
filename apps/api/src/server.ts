@@ -52,8 +52,21 @@ const GLOBAL_RATE_MAX = intEnv('RATE_LIMIT_GLOBAL_MAX', 300);
 const WORKFLOW_RATE_MAX = intEnv('RATE_LIMIT_WORKFLOW_MAX', 60);
 const RATE_WINDOW_SECONDS = intEnv('RATE_LIMIT_WINDOW_SECONDS', 60);
 
-// Middleware
-app.use(cors());
+// CORS — restrict to explicitly allowed origins.
+// Set ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com in production.
+// Defaults to localhost only so the dev server works without extra config.
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow server-to-server requests (no Origin header) and listed origins.
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Initialize database services
