@@ -22,6 +22,8 @@ export interface RecurringContract {
   startsAt: string;     // YYYY-MM-DD
   endsAt: string | null;
   nextBillingAt: string; // YYYY-MM-DD
+  pauseReason: string | null;
+  pauseUntil: string | null; // YYYY-MM-DD
   lineItems: LineItem[];
   createdBy: string;
   createdAt: Date;
@@ -123,6 +125,52 @@ export class RecurringContractRepository {
     return row ? this.map(row) : null;
   }
 
+  async pause(id: string, reason?: string | null, pauseUntil?: string | null): Promise<RecurringContract | null> {
+    const row = await this.db
+      .updateTable('core.recurring_contracts')
+      .set({
+        status: 'paused',
+        pause_reason: reason ?? null,
+        pause_until: pauseUntil ?? null,
+        updated_at: new Date(),
+      })
+      .where('id', '=', id)
+      .where('status', '=', 'active')
+      .returningAll()
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
+  }
+
+  async resume(id: string): Promise<RecurringContract | null> {
+    const row = await this.db
+      .updateTable('core.recurring_contracts')
+      .set({
+        status: 'active',
+        pause_reason: null,
+        pause_until: null,
+        updated_at: new Date(),
+      })
+      .where('id', '=', id)
+      .where('status', '=', 'paused')
+      .returningAll()
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
+  }
+
+  /** Auto-resume paused contracts whose pause_until date has passed. */
+  async autoResumePaused(asOf: string): Promise<number> {
+    const result = await this.db
+      .updateTable('core.recurring_contracts')
+      .set({ status: 'active', pause_reason: null, pause_until: null, updated_at: new Date() })
+      .where('status', '=', 'paused')
+      .where((eb: any) => eb.and([
+        eb('pause_until', 'is not', null),
+        eb('pause_until', '<=', asOf),
+      ]))
+      .execute();
+    return Number(result.numUpdatedRows ?? 0);
+  }
+
   /** Advance next_billing_at by one interval after a successful billing run. */
   async advanceNextBilling(id: string, nextBillingAt: string): Promise<void> {
     await this.db
@@ -163,6 +211,8 @@ export class RecurringContractRepository {
       lineItems: typeof r.line_items === 'string'
         ? JSON.parse(r.line_items)
         : r.line_items ?? [],
+      pauseReason: r.pause_reason ?? null,
+      pauseUntil: r.pause_until ? toDateStr(r.pause_until) : null,
       createdBy: r.created_by,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
