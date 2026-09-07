@@ -31,7 +31,11 @@ import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import { requestMetrics } from './middleware/requestMetrics.js';
 import { renderMetrics, dbQueryDurationMs } from './observability/metrics.js';
+import { initTelemetry, shutdownTelemetry } from './lib/telemetry.js';
 import { openapiDocument, swaggerHtml } from './openapi.js';
+
+// Initialize OTel SDK before any instrumented code runs.
+initTelemetry();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -200,6 +204,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
       });
     }
     await dbServices.close();
+    await shutdownTelemetry();
     process.exit(0);
   });
 });
