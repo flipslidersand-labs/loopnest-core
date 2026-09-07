@@ -253,6 +253,9 @@ export class EventWorker {
     try {
       const today = new Date().toISOString().slice(0, 10);
 
+      // Auto-resume paused contracts whose pause_until has passed.
+      await this.repos.recurringContracts.autoResumePaused(today);
+
       // Auto-complete expired contracts before billing.
       await this.repos.recurringContracts.expireCompleted(today);
 
