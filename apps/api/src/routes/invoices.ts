@@ -3,10 +3,81 @@ import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
 import { requireRole } from '../middleware/auth.js';
+import type { InvoiceService } from '../services/InvoiceService.js';
 
-export function invoiceRoutes(repos: RepositoryContainer) {
+function invoicesToCsv(invoices: any[]): string {
+  const HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
+  const rows = invoices.map((inv) => [
+    inv.id,
+    inv.invoiceNumber,
+    inv.customerId,
+    inv.totalAmount,
+    inv.currency,
+    inv.status,
+    inv.createdAt instanceof Date ? inv.createdAt.toISOString() : inv.createdAt,
+    inv.paymentDueDate ?? '',
+    inv.paidAt instanceof Date ? inv.paidAt.toISOString() : (inv.paidAt ?? ''),
+  ].join(','));
+  return [HEADER, ...rows].join('\n');
+}
+
+export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceService) {
   const router = Router();
   const pdfService = new PdfService(repos);
+
+  // ── Bulk operations ────────────────────────────────────────────────────────
+
+  router.post(
+    '/bulk-create',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      if (!invoiceSvc) throw new ApiErrorResponse(501, 'NOT_IMPLEMENTED', 'InvoiceService not wired');
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'items must be a non-empty array');
+      }
+      const userId = (req as any).user?.userId ?? 'system';
+      const result = await invoiceSvc.bulkCreate(items, userId);
+      res.status(result.failed.length === 0 ? 201 : 207).json(result);
+    })
+  );
+
+  router.post(
+    '/bulk-status',
+    requireRole('editor', 'admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      if (!invoiceSvc) throw new ApiErrorResponse(501, 'NOT_IMPLEMENTED', 'InvoiceService not wired');
+      const { ids, action } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'ids must be a non-empty array');
+      }
+      if (action !== 'void' && action !== 'send') {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'action must be "void" or "send"');
+      }
+      const result = action === 'void'
+        ? await invoiceSvc.bulkVoid(ids)
+        : await invoiceSvc.bulkSend(ids);
+      res.status(207).json(result);
+    })
+  );
+
+  // ── CSV export ─────────────────────────────────────────────────────────────
+
+  router.get(
+    '/export',
+    asyncHandler(async (req: Request, res: Response) => {
+      const filter = {
+        status: req.query.status as string | undefined,
+        customerId: req.query.customerId as string | undefined,
+        createdAtFrom: req.query.from as string | undefined,
+        createdAtTo: req.query.to as string | undefined,
+      };
+      const invoices = await repos.invoices.findForExport(filter);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
+      res.send(invoicesToCsv(invoices));
+    })
+  );
 
   router.get(
     '/',
