@@ -1,6 +1,6 @@
 export { QuoteService, type QuoteWorkflowAction } from './QuoteService.js';
 export { ApprovalService, type ApprovalRequest, type ApprovalStep } from './ApprovalService.js';
-export { InvoiceService, type InvoiceCreationResult } from './InvoiceService.js';
+export { InvoiceService, type InvoiceCreationResult, type BulkCreateItem, type BulkCreateResult, type BulkStatusResult } from './InvoiceService.js';
 export { AuditService, type AuditLogEntry } from './AuditService.js';
 export { ReportingService } from './ReportingService.js';
 export { WebhookService } from './WebhookService.js';
