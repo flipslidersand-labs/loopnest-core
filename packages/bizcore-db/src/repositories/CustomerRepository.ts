@@ -3,6 +3,12 @@ import { sql } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
 import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
+import { decodeCursor, makeCursor } from '../utils/cursor.js';
+
+export interface CustomerPage {
+  data: Customer[];
+  pagination: { limit: number; nextCursor: string | null };
+}
 
 export interface Customer {
   id: string;
@@ -27,6 +33,7 @@ export interface CreditStatus {
 
 export interface CustomerFilter extends FindOptions {
   organizationId?: string;
+  cursor?: string; // opaque cursor from CustomerPage.pagination.nextCursor
 }
 
 export class CustomerRepository extends BaseRepository<Customer> {
@@ -45,12 +52,41 @@ export class CustomerRepository extends BaseRepository<Customer> {
   }
 
   async findAll(options?: CustomerFilter): Promise<Customer[]> {
-    let q = this.db.selectFrom('core.customers').selectAll().orderBy('name', 'asc');
+    if (options?.skip !== undefined) {
+      process.stderr.write('[CustomerRepository] skip/take is deprecated; use findPage() instead\n');
+    }
+    let q = this.db.selectFrom('core.customers').selectAll()
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc');
     if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
     if (options?.skip) q = q.offset(options.skip);
     if (options?.take) q = q.limit(options.take);
     const rows = await q.execute();
     return rows.map(r => this.map(r));
+  }
+
+  async findPage(options?: CustomerFilter): Promise<CustomerPage> {
+    const limit = Math.min(options?.take ?? 20, 100);
+    let q = this.db.selectFrom('core.customers').selectAll()
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
+      .limit(limit + 1);
+    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    if (options?.cursor) {
+      const c = decodeCursor(options.cursor);
+      if (c) {
+        const ts = new Date(c.createdAt);
+        q = q.where((eb: any) => eb.or([
+          eb('created_at', '<', ts),
+          eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
+        ]));
+      }
+    }
+    const rows = await q.execute();
+    const hasMore = rows.length > limit;
+    const data = rows.slice(0, limit).map(r => this.map(r));
+    const nextCursor = hasMore ? makeCursor(data[data.length - 1]) : null;
+    return { data, pagination: { limit, nextCursor } };
   }
 
   async findOne(where: Partial<Customer>, options?: FindOptions): Promise<Customer | null> {

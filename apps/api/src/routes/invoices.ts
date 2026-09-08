@@ -82,16 +82,24 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
   router.get(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Number.parseInt(req.query.skip as string) || 0;
-      const take = Number.parseInt(req.query.take as string) || 20;
+      const cursor = req.query.cursor as string | undefined;
+      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
       const status = req.query.status as string | undefined;
       const customerId = req.query.customerId as string | undefined;
 
-      const [invoices, total] = await Promise.all([
-        repos.invoices.findAll({ skip, take, status, customerId }),
-        repos.invoices.count({ status, customerId }),
-      ]);
-      res.json({ data: invoices, pagination: { skip, take, total }, filter: { status, customerId } });
+      if (cursor || req.query.limit) {
+        // cursor-based pagination
+        const page = await repos.invoices.findPage({ cursor, take, status, customerId });
+        res.json(page);
+      } else {
+        // legacy offset pagination (deprecated)
+        const skip = Number.parseInt(req.query.skip as string) || 0;
+        const [invoices, total] = await Promise.all([
+          repos.invoices.findAll({ skip, take, status, customerId }),
+          repos.invoices.count({ status, customerId }),
+        ]);
+        res.json({ data: invoices, pagination: { skip, take, total }, filter: { status, customerId } });
+      }
     })
   );
 

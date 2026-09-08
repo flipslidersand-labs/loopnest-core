@@ -113,22 +113,26 @@ export function paymentRoutes(
   router.get(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Math.max(0, Number.parseInt((req.query.skip as string) || '0', 10));
-      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.take as string) || '20', 10)));
+      const cursor = req.query.cursor as string | undefined;
+      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
       // A scoped token is pinned to its own org; a global admin may filter freely.
       const organizationId = req.user?.orgId ?? (req.query.organizationId as string | undefined);
+      const invoiceId = req.query.invoiceId as string | undefined;
+      const status = req.query.status as PaymentStatus | undefined;
+      const method = req.query.method as PaymentMethod | undefined;
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
 
-      const data = await payments.listPayments({
-        skip,
-        take,
-        organizationId,
-        invoiceId: req.query.invoiceId as string | undefined,
-        status: req.query.status as PaymentStatus | undefined,
-        method: req.query.method as PaymentMethod | undefined,
-        from: req.query.from as string | undefined,
-        to: req.query.to as string | undefined,
-      });
-      res.json({ data, pagination: { skip, take } });
+      if (cursor || req.query.limit) {
+        // cursor-based pagination
+        const page = await repos.payments.listPage({ cursor, take, organizationId, invoiceId, status, method, from, to });
+        res.json(page);
+      } else {
+        // legacy offset pagination (deprecated)
+        const skip = Math.max(0, Number.parseInt((req.query.skip as string) || '0', 10));
+        const data = await payments.listPayments({ skip, take, organizationId, invoiceId, status, method, from, to });
+        res.json({ data, pagination: { skip, take } });
+      }
     })
   );
 
