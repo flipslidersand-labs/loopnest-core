@@ -129,9 +129,12 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(swaggerHtml);
   });
-  // Legacy aliases — keep backward compat for existing bookmarks.
-  app.get('/openapi.json', (_req: Request, res: Response) => res.redirect('/api/docs/openapi.json'));
-  app.get('/docs', (_req: Request, res: Response) => res.redirect('/api/docs'));
+  // Aliases at root — serve directly so curl without -L works (used by integration tests).
+  app.get('/openapi.json', (_req: Request, res: Response) => res.json(openapiDocument));
+  app.get('/docs', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(swaggerHtml);
+  });
 
   // Portal routes use their own auth (login is unauthenticated, protected routes
   // use router-level authenticate + requireCustomer), so mount before global auth.
