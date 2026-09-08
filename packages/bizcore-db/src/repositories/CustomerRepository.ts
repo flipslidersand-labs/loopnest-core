@@ -2,8 +2,29 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
 import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, scrypt, timingSafeEqual, randomBytes } from 'node:crypto';
+import { promisify } from 'node:util';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
+
+const scryptAsync = promisify(scrypt);
+const SCRYPT_KEYLEN = 64;
+
+export async function hashPortalPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const key = await scryptAsync(password, salt, SCRYPT_KEYLEN) as Buffer;
+  return `${salt}:${key.toString('hex')}`;
+}
+
+export async function verifyPortalPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    const [salt, storedKey] = hash.split(':');
+    if (!salt || !storedKey) return false;
+    const key = await scryptAsync(password, salt, SCRYPT_KEYLEN) as Buffer;
+    return timingSafeEqual(Buffer.from(storedKey, 'hex'), key);
+  } catch {
+    return false;
+  }
+}
 
 export interface CustomerPage {
   data: Customer[];
@@ -192,6 +213,34 @@ export class CustomerRepository extends BaseRepository<Customer> {
       isUnlimited: limit === null,
       isOverLimit: limit !== null && used > limit,
     };
+  }
+
+  async findByEmail(email: string): Promise<Customer | null> {
+    const row = await this.db
+      .selectFrom('core.customers')
+      .selectAll()
+      .where('contact_email', '=', email)
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
+  }
+
+  /** Returns the raw portal_password_hash for verification — never exposed via map(). */
+  async getPortalPasswordHash(id: string): Promise<string | null> {
+    const row = await this.db
+      .selectFrom('core.customers')
+      .select('portal_password_hash')
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return (row as any)?.portal_password_hash ?? null;
+  }
+
+  async setPortalPasswordHash(id: string, hash: string): Promise<boolean> {
+    const result = await this.db
+      .updateTable('core.customers')
+      .set({ portal_password_hash: hash } as any)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return (result?.numUpdatedRows ?? 0n) > 0n;
   }
 
   private map(row: any): Customer {
