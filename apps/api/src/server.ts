@@ -192,7 +192,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     creditNoteRoutes(serviceContainer.creditNotes, dbServices.repos, serviceContainer.webhooks, serviceContainer.audit)
   );
 
-  app.use('/api/recurring-contracts', recurringContractRoutes(dbServices.repos));
+  app.use('/api/recurring-contracts', recurringContractRoutes(dbServices.repos, serviceContainer.webhooks));
   app.use('/api/dunning-rules', dunningRuleRoutes(dbServices.repos));
   app.use('/api/exchange-rates', exchangeRateRoutes(dbServices.repos));
   app.use('/api/invoices/:invoiceId/dunning-logs', invoiceDunningRoutes(dbServices.repos));
