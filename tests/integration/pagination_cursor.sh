@@ -1,99 +1,97 @@
 #!/usr/bin/env bash
 # Integration tests: cursor-based pagination (Issue #103 / M26)
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib.sh"
+set +e
+source "$(dirname "$0")/lib.sh"
 
-BASE="${API_BASE:-http://localhost:3000}"
-
-# ── helpers ────────────────────────────────────────────────────────────────────
-
-auth_header() { echo "Authorization: Bearer $(token_for viewer)"; }
+echo "=== Cursor-based Pagination Tests ==="
+echo ""
 
 jq_val() { echo "$1" | jq -r "$2"; }
 
-# ── test: cursor pagination on invoices ───────────────────────────────────────
+# ── Cursor pagination on invoices ─────────────────────────────────────────────
 
-section "Cursor pagination — /api/invoices"
+echo "GET /api/invoices?limit=2 (cursor mode)"
 
-# 1. First page (limit=2)
-R=$(curl -sf -H "$(auth_header)" "$BASE/api/invoices?limit=2")
-check "invoices first page returns data array" \
+R=$(curl -s "$BASE_URL/invoices?limit=2")
+check "invoices first page data array" \
   "$(jq_val "$R" '.data | type')" "array"
-check "invoices first page returns pagination object" \
+check "invoices first page pagination object" \
   "$(jq_val "$R" '.pagination | type')" "object"
 check "invoices first page limit=2 in response" \
   "$(jq_val "$R" '.pagination.limit')" "2"
+check "invoices first page nextCursor field present" \
+  "$(jq_val "$R" '.pagination | has("nextCursor")')" "true"
 
 NEXT=$(jq_val "$R" '.pagination.nextCursor')
 
 if [ "$NEXT" != "null" ] && [ -n "$NEXT" ]; then
-  # 2. Second page using cursor
-  R2=$(curl -sf -H "$(auth_header)" "$BASE/api/invoices?limit=2&cursor=${NEXT}")
-  check "invoices second page returns data array" \
+  echo "GET /api/invoices?limit=2&cursor=<next>"
+  R2=$(curl -s "$BASE_URL/invoices?limit=2&cursor=${NEXT}")
+  check "invoices second page data array" \
     "$(jq_val "$R2" '.data | type')" "array"
-  check "invoices second page has pagination.nextCursor field" \
+  check "invoices second page has nextCursor" \
     "$(jq_val "$R2" '.pagination | has("nextCursor")')" "true"
-  pass "cursor pagination second page OK"
 else
-  pass "first page is last page (nextCursor=null) — fewer than 2 invoices in DB"
+  pass "invoices: only one page (nextCursor=null)"
 fi
 
-# 3. Bad cursor is silently ignored (falls back to first page)
-R3=$(curl -sf -H "$(auth_header)" "$BASE/api/invoices?limit=5&cursor=INVALID_BASE64!!!")
-check "invalid cursor returns data array (not 400)" \
+echo "GET /api/invoices?limit=5&cursor=INVALID (bad cursor ignored)"
+R3=$(curl -s "$BASE_URL/invoices?limit=5&cursor=INVALID_CURSOR__")
+check "invalid cursor returns array not 400" \
   "$(jq_val "$R3" '.data | type')" "array"
 
-# ── test: cursor pagination on customers ──────────────────────────────────────
+# ── Cursor pagination on customers ────────────────────────────────────────────
 
-section "Cursor pagination — /api/customers"
+echo ""
+echo "GET /api/customers?limit=2 (cursor mode)"
 
-RC=$(curl -sf -H "$(auth_header)" "$BASE/api/customers?limit=2")
-check "customers first page returns data array" \
+RC=$(curl -s "$BASE_URL/customers?limit=2")
+check "customers first page data array" \
   "$(jq_val "$RC" '.data | type')" "array"
-check "customers first page has pagination.nextCursor" \
+check "customers first page pagination.nextCursor present" \
   "$(jq_val "$RC" '.pagination | has("nextCursor")')" "true"
 check "customers first page limit=2" \
   "$(jq_val "$RC" '.pagination.limit')" "2"
 
 NC=$(jq_val "$RC" '.pagination.nextCursor')
 if [ "$NC" != "null" ] && [ -n "$NC" ]; then
-  RC2=$(curl -sf -H "$(auth_header)" "$BASE/api/customers?limit=2&cursor=${NC}")
+  RC2=$(curl -s "$BASE_URL/customers?limit=2&cursor=${NC}")
   check "customers second page data array" \
     "$(jq_val "$RC2" '.data | type')" "array"
-  pass "customer cursor page 2 OK"
 else
-  pass "customers: first page is last"
+  pass "customers: only one page"
 fi
 
-# ── test: cursor pagination on payments ───────────────────────────────────────
+# ── Cursor pagination on payments ─────────────────────────────────────────────
 
-section "Cursor pagination — /api/payments"
+echo ""
+echo "GET /api/payments?limit=2 (cursor mode)"
 
-RP=$(curl -sf -H "$(auth_header)" "$BASE/api/payments?limit=2")
-check "payments first page returns data array" \
+RP=$(curl -s "$BASE_URL/payments?limit=2")
+check "payments first page data array" \
   "$(jq_val "$RP" '.data | type')" "array"
-check "payments pagination.nextCursor present" \
+check "payments first page pagination.nextCursor present" \
   "$(jq_val "$RP" '.pagination | has("nextCursor")')" "true"
 
 NP=$(jq_val "$RP" '.pagination.nextCursor')
 if [ "$NP" != "null" ] && [ -n "$NP" ]; then
-  RP2=$(curl -sf -H "$(auth_header)" "$BASE/api/payments?limit=2&cursor=${NP}")
+  RP2=$(curl -s "$BASE_URL/payments?limit=2&cursor=${NP}")
   check "payments second page data array" \
     "$(jq_val "$RP2" '.data | type')" "array"
-  pass "payment cursor page 2 OK"
 else
-  pass "payments: first page is last"
+  pass "payments: only one page"
 fi
 
-# ── test: backward-compat (skip/take still works) ─────────────────────────────
+# ── Backward compat — legacy skip/take still returns old shape ────────────────
 
-section "Backward compat — legacy skip/take"
+echo ""
+echo "GET /api/invoices?skip=0&take=5 (legacy)"
 
-RL=$(curl -sf -H "$(auth_header)" "$BASE/api/invoices?skip=0&take=5")
+RL=$(curl -s "$BASE_URL/invoices?skip=0&take=5")
 check "legacy skip/take returns data array" \
   "$(jq_val "$RL" '.data | type')" "array"
-check "legacy skip/take response has total (old shape)" \
+check "legacy response has total field (old shape)" \
   "$(jq_val "$RL" '.pagination | has("total")')" "true"
 
+echo ""
 summary
