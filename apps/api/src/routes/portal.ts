@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import { hashPortalPassword, verifyPortalPassword } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { authenticate, requireCustomer } from '../middleware/auth.js';
+import { authenticate, requireCustomer, requireRole } from '../middleware/auth.js';
 import { signToken } from '../lib/jwt.js';
 
 const PORTAL_TOKEN_TTL = 30 * 24 * 3600; // 30 days
@@ -11,15 +12,32 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 export function portalRoutes(repos: RepositoryContainer) {
   const router = Router();
 
-  // POST /api/portal/login — exchange customerId for a portal JWT (no password, demo auth)
+  // POST /api/portal/login — exchange email + password for a portal JWT
   router.post(
     '/login',
     asyncHandler(async (req: Request, res: Response) => {
-      const { customerId } = req.body;
-      if (!customerId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'customerId is required');
+      const { email, password } = req.body;
+      if (!email || !password) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'email and password are required');
+      }
 
-      const customer = await repos.customers.findById(customerId);
-      if (!customer) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+      // Always perform a constant-time-ish lookup to avoid timing-based email enumeration
+      const customer = await repos.customers.findByEmail(email);
+      if (!customer) {
+        // Use a dummy verify to waste the same time as a real verify
+        await verifyPortalPassword(password, 'dummy:dummy');
+        throw new ApiErrorResponse(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+      }
+
+      const hash = await repos.customers.getPortalPasswordHash(customer.id);
+      if (!hash) {
+        throw new ApiErrorResponse(401, 'PORTAL_NOT_CONFIGURED', 'Portal access has not been enabled for this account');
+      }
+
+      const valid = await verifyPortalPassword(password, hash);
+      if (!valid) {
+        throw new ApiErrorResponse(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+      }
 
       const token = signToken(
         { sub: customer.id, role: 'customer', customerId: customer.id },
@@ -27,6 +45,27 @@ export function portalRoutes(repos: RepositoryContainer) {
         PORTAL_TOKEN_TTL,
       );
       res.json({ token, expiresIn: PORTAL_TOKEN_TTL, customerId: customer.id, name: customer.name });
+    })
+  );
+
+  // POST /api/portal/admin/set-password — admin sets a portal password for a customer
+  router.post(
+    '/admin/set-password',
+    requireRole('admin'),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { customerId, password } = req.body;
+      if (!customerId || !password) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'customerId and password are required');
+      }
+      if (typeof password !== 'string' || password.length < 8) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'password must be at least 8 characters');
+      }
+      const customer = await repos.customers.findById(customerId);
+      if (!customer) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+
+      const hash = await hashPortalPassword(password);
+      await repos.customers.setPortalPasswordHash(customerId, hash);
+      res.json({ data: { customerId, message: 'Portal password set successfully' } });
     })
   );
 
