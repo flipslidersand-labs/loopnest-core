@@ -5,9 +5,10 @@ import { PdfService } from '../services/PdfService.js';
 import { requireRole } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
 
-function invoicesToCsv(invoices: any[]): string {
-  const HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
-  const rows = invoices.map((inv) => [
+const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
+
+function invoiceToCsvRow(inv: any): string {
+  return [
     inv.id,
     inv.invoiceNumber,
     inv.customerId,
@@ -17,8 +18,7 @@ function invoicesToCsv(invoices: any[]): string {
     inv.createdAt instanceof Date ? inv.createdAt.toISOString() : inv.createdAt,
     inv.paymentDueDate ?? '',
     inv.paidAt instanceof Date ? inv.paidAt.toISOString() : (inv.paidAt ?? ''),
-  ].join(','));
-  return [HEADER, ...rows].join('\n');
+  ].join(',');
 }
 
 export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceService) {
@@ -72,10 +72,13 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
         createdAtFrom: req.query.from as string | undefined,
         createdAtTo: req.query.to as string | undefined,
       };
-      const invoices = await repos.invoices.findForExport(filter);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
-      res.send(invoicesToCsv(invoices));
+      res.write(CSV_HEADER + '\n');
+      for await (const invoice of repos.invoices.streamForExport(filter)) {
+        res.write(invoiceToCsvRow(invoice) + '\n');
+      }
+      res.end();
     })
   );
 

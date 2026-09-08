@@ -174,6 +174,28 @@ export class InvoiceRepository {
     return rows.map((r: any) => this.map(r));
   }
 
+  /**
+   * Same result set as `findForExport`, but yielded row-by-row via a DB cursor
+   * so callers (e.g. CSV export) can stream output instead of buffering the
+   * full 10,000-row result set in memory.
+   */
+  async *streamForExport(
+    filter: Omit<InvoiceFilter, 'skip' | 'take'> = {}
+  ): AsyncIterableIterator<InvoiceRecord> {
+    let q = this.db
+      .selectFrom('finance.invoices')
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .limit(10000);
+    if (filter.status)        q = q.where('status', '=', filter.status);
+    if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
+    if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
+    for await (const r of q.stream()) {
+      yield this.map(r);
+    }
+  }
+
   async count(filter: Pick<InvoiceFilter, 'status' | 'customerId'> = {}): Promise<number> {
     let q = this.db
       .selectFrom('finance.invoices')
