@@ -51,6 +51,7 @@ export function portalRoutes(repos: RepositoryContainer) {
   // POST /api/portal/admin/set-password — admin sets a portal password for a customer
   router.post(
     '/admin/set-password',
+    authenticate,
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { customerId, password } = req.body;

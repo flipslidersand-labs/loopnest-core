@@ -123,6 +123,7 @@ export class CustomerRepository extends BaseRepository<Customer> {
       .values({
         id: randomUUID(),
         name: data.name,
+        contact_email: (data as any).email ?? null,
         address: data.address ?? null,
         phone: data.phone ?? null,
         organization_id: data.organizationId ?? null,

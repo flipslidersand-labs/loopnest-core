@@ -49,7 +49,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     '/',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { name, address, phone } = req.body;
+      const { name, address, phone, email, contactEmail } = req.body;
 
       if (!name) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Name is required');
@@ -57,10 +57,11 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
 
       const customer = await repos.customers.create({
         name,
+        email: email ?? contactEmail,
         address,
         phone,
         organizationId: req.user?.orgId,
-      });
+      } as any);
 
       await audit.logResourceCreated('customer', customer.id, req.user?.sub ?? 'system', { name });
       res.status(201).json({ data: customer });
