@@ -1,4 +1,10 @@
 import { randomUUID } from 'crypto';
+import { decodeCursor, makeCursor } from '../utils/cursor.js';
+
+export interface InvoicePage {
+  data: InvoiceRecord[];
+  pagination: { limit: number; nextCursor: string | null };
+}
 
 export type InvoiceStatus = 'issued' | 'sent' | 'paid' | 'cancelled';
 
@@ -57,7 +63,8 @@ export interface InvoiceFilter {
   customerId?: string;
   createdAtFrom?: string; // ISO datetime, inclusive
   createdAtTo?: string;   // ISO datetime, exclusive
-  skip?: number;
+  cursor?: string;        // opaque cursor from InvoicePage.pagination.nextCursor
+  skip?: number;          // @deprecated use cursor instead
   take?: number;
 }
 
@@ -106,10 +113,14 @@ export class InvoiceRepository {
   }
 
   async findAll(filter: InvoiceFilter = {}): Promise<InvoiceRecord[]> {
+    if (filter.skip !== undefined) {
+      process.stderr.write('[InvoiceRepository] skip/take is deprecated; use cursor-based pagination\n');
+    }
     let q = this.db
       .selectFrom('finance.invoices')
       .selectAll()
       .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
       .limit(filter.take ?? 20)
       .offset(filter.skip ?? 0);
     if (filter.status)        q = q.where('status', '=', filter.status);
@@ -118,6 +129,35 @@ export class InvoiceRepository {
     if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     const rows = await q.execute();
     return rows.map((r: any) => this.map(r));
+  }
+
+  async findPage(filter: InvoiceFilter = {}): Promise<InvoicePage> {
+    const limit = Math.min(filter.take ?? 20, 100);
+    let q = this.db
+      .selectFrom('finance.invoices')
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
+      .limit(limit + 1);
+    if (filter.status)        q = q.where('status', '=', filter.status);
+    if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
+    if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
+    if (filter.cursor) {
+      const c = decodeCursor(filter.cursor);
+      if (c) {
+        const ts = new Date(c.createdAt);
+        q = q.where((eb: any) => eb.or([
+          eb('created_at', '<', ts),
+          eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
+        ]));
+      }
+    }
+    const rows = await q.execute();
+    const hasMore = rows.length > limit;
+    const data = rows.slice(0, limit).map((r: any) => this.map(r));
+    const nextCursor = hasMore ? makeCursor(data[data.length - 1]) : null;
+    return { data, pagination: { limit, nextCursor } };
   }
 
   async findForExport(filter: Omit<InvoiceFilter, 'skip' | 'take'> = {}): Promise<InvoiceRecord[]> {

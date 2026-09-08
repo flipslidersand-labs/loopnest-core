@@ -1,4 +1,10 @@
 import { randomUUID } from 'crypto';
+import { decodeCursor, makeCursor } from '../utils/cursor.js';
+
+export interface PaymentPage {
+  data: PaymentRecord[];
+  pagination: { limit: number; nextCursor: string | null };
+}
 
 export type PaymentMethod = 'bank_transfer' | 'credit_card' | 'cash' | 'offset';
 export type PaymentStatus = 'confirmed' | 'reversed';
@@ -35,7 +41,8 @@ export interface PaymentFilter {
   method?: PaymentMethod;
   from?: Date | string;
   to?: Date | string;
-  skip?: number;
+  cursor?: string; // opaque cursor from PaymentPage.pagination.nextCursor
+  skip?: number;   // @deprecated use cursor instead
   take?: number;
 }
 
@@ -128,11 +135,14 @@ export class PaymentRepository {
   }
 
   async list(filter: PaymentFilter = {}): Promise<PaymentRecord[]> {
+    if (filter.skip !== undefined) {
+      process.stderr.write('[PaymentRepository] skip/take is deprecated; use listPage() instead\n');
+    }
     let q = this.db
       .selectFrom('finance.payments')
       .selectAll()
-      .orderBy('paid_on', 'desc')
       .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
       .limit(filter.take ?? 20)
       .offset(filter.skip ?? 0);
     if (filter.organizationId) q = q.where('organization_id', '=', filter.organizationId);
@@ -143,6 +153,37 @@ export class PaymentRepository {
     if (filter.to)             q = q.where('paid_on', '<=', filter.to);
     const rows = await q.execute();
     return rows.map((r: any) => this.map(r));
+  }
+
+  async listPage(filter: PaymentFilter = {}): Promise<PaymentPage> {
+    const limit = Math.min(filter.take ?? 20, 100);
+    let q = this.db
+      .selectFrom('finance.payments')
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
+      .limit(limit + 1);
+    if (filter.organizationId) q = q.where('organization_id', '=', filter.organizationId);
+    if (filter.invoiceId)      q = q.where('invoice_id', '=', filter.invoiceId);
+    if (filter.status)         q = q.where('status', '=', filter.status);
+    if (filter.method)         q = q.where('method', '=', filter.method);
+    if (filter.from)           q = q.where('paid_on', '>=', filter.from);
+    if (filter.to)             q = q.where('paid_on', '<=', filter.to);
+    if (filter.cursor) {
+      const c = decodeCursor(filter.cursor);
+      if (c) {
+        const ts = new Date(c.createdAt);
+        q = q.where((eb: any) => eb.or([
+          eb('created_at', '<', ts),
+          eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
+        ]));
+      }
+    }
+    const rows = await q.execute();
+    const hasMore = rows.length > limit;
+    const data = rows.slice(0, limit).map((r: any) => this.map(r));
+    const nextCursor = hasMore ? makeCursor(data[data.length - 1]) : null;
+    return { data, pagination: { limit, nextCursor } };
   }
 
   private map(r: any): PaymentRecord {

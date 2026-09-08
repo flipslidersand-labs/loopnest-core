@@ -14,3 +14,6 @@ export type { FindOptions, CreateInput, UpdateInput, Organization, Customer, Pro
 // Export factory
 export { initializeDatabaseServices, getRepositoryContainer } from './factory.js';
 export type { DatabaseServices } from './factory.js';
+
+export { encodeCursor, decodeCursor, makeCursor } from './utils/cursor.js';
+export type { CursorPayload } from './utils/cursor.js';
