@@ -54,6 +54,12 @@ export function organizationRoutes(repos: RepositoryContainer) {
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { name, type, parentId } = req.body;
+      if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Name must be a non-empty string');
+      }
+      if (type !== undefined && (typeof type !== 'string' || !type.trim())) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Type must be a non-empty string');
+      }
       const org = await repos.organizations.update(req.params.id, { name, type, parentId });
       res.json({ data: org });
     })
