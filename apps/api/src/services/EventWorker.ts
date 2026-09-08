@@ -427,6 +427,7 @@ export class EventWorker {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
+        signal: AbortSignal.timeout(10000),
       });
     } catch (err) {
       await this.recordExport(
