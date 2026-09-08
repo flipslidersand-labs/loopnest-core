@@ -45,12 +45,12 @@ check "supplied correlation id is preserved" "$SUPPLIED" "$ECHOED"
 
 # 5. API docs are served and the spec is valid OpenAPI.
 echo ""
-SPEC=$(curl -s "$ROOT_URL/openapi.json")
+SPEC=$(curl -sL "$ROOT_URL/openapi.json")
 check "/openapi.json is OpenAPI 3.x" "1" \
   "$(echo "$SPEC" | jq -r '.openapi | startswith("3.") // false' | grep -c true)"
 check "/openapi.json exposes paths" "true" \
   "$(echo "$SPEC" | jq -r '(.paths | length) > 0')"
 check "/docs serves Swagger UI" "1" \
-  "$(curl -s "$ROOT_URL/docs" | grep -c 'swagger-ui-bundle.js')"
+  "$(curl -sL "$ROOT_URL/docs" | grep -c 'swagger-ui-bundle.js')"
 
 summary
