@@ -14,6 +14,7 @@ export interface InvoiceRecord {
   totalAmount: number;
   status: InvoiceStatus;
   paidAt: Date | null;
+  paymentDueDate: string | null; // ISO date YYYY-MM-DD
   createdBy: string | null;
   createdAt: Date;
   currency: string;         // ISO 4217, default 'JPY'
@@ -46,6 +47,7 @@ export interface InvoiceInput {
   totalAmount: number;
   status?: string;
   createdBy?: string;
+  paymentDueDate?: string | null; // ISO date YYYY-MM-DD
   currency?: string;        // ISO 4217, defaults to 'JPY'
   exchangeRate?: number;    // rate to JPY, defaults to 1.0
 }
@@ -53,6 +55,8 @@ export interface InvoiceInput {
 export interface InvoiceFilter {
   status?: string;
   customerId?: string;
+  createdAtFrom?: string; // ISO datetime, inclusive
+  createdAtTo?: string;   // ISO datetime, exclusive
   skip?: number;
   take?: number;
 }
@@ -60,7 +64,7 @@ export interface InvoiceFilter {
 const COLS = [
   'id', 'quote_id', 'contract_id', 'invoice_number', 'customer_id',
   'subtotal_amount', 'tax_amount', 'discount_amount', 'total_amount',
-  'status', 'paid_at', 'created_by', 'created_at',
+  'status', 'paid_at', 'payment_due_date', 'created_by', 'created_at',
   'currency', 'exchange_rate',
 ] as const;
 
@@ -90,6 +94,7 @@ export class InvoiceRepository {
         discount_amount: (data.discountAmount ?? 0).toString(),
         total_amount: data.totalAmount.toString(),
         status: data.status || 'issued',
+        payment_due_date: data.paymentDueDate ?? null,
         created_by: data.createdBy,
         created_at: new Date(),
         currency: data.currency ?? 'JPY',
@@ -107,8 +112,24 @@ export class InvoiceRepository {
       .orderBy('created_at', 'desc')
       .limit(filter.take ?? 20)
       .offset(filter.skip ?? 0);
-    if (filter.status)     q = q.where('status', '=', filter.status);
-    if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
+    if (filter.status)        q = q.where('status', '=', filter.status);
+    if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
+    if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
+    const rows = await q.execute();
+    return rows.map((r: any) => this.map(r));
+  }
+
+  async findForExport(filter: Omit<InvoiceFilter, 'skip' | 'take'> = {}): Promise<InvoiceRecord[]> {
+    let q = this.db
+      .selectFrom('finance.invoices')
+      .selectAll()
+      .orderBy('created_at', 'desc')
+      .limit(10000);
+    if (filter.status)        q = q.where('status', '=', filter.status);
+    if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
+    if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     const rows = await q.execute();
     return rows.map((r: any) => this.map(r));
   }
@@ -237,6 +258,11 @@ export class InvoiceRepository {
       totalAmount: parseFloat(r.total_amount.toString()),
       status: r.status,
       paidAt: r.paid_at ?? null,
+      paymentDueDate: r.payment_due_date
+        ? (r.payment_due_date instanceof Date
+            ? r.payment_due_date.toISOString().slice(0, 10)
+            : String(r.payment_due_date))
+        : null,
       createdBy: r.created_by,
       createdAt: r.created_at,
       currency: r.currency ?? 'JPY',

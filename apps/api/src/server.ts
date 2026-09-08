@@ -152,7 +152,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   app.use('/api/products', productRoutes(dbServices.repos));
   app.use('/api/quotes', quoteRoutes(dbServices.repos));
   app.use('/api/users', userRoutes(dbServices.repos));
-  app.use('/api/invoices', invoiceRoutes(dbServices.repos));
+  app.use('/api/invoices', invoiceRoutes(dbServices.repos, serviceContainer.invoices));
   app.use('/api/audit', auditRoutes(serviceContainer.audit));
   app.use('/api/reports', reportRoutes(serviceContainer.reporting));
   app.use('/api/webhooks', webhookRoutes(serviceContainer.webhooks));
