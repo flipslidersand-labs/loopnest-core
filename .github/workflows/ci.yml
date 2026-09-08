@@ -55,7 +55,7 @@ jobs:
           # Docker image used in local dev, avoiding behaviour differences with older apt versions).
           sudo apt-get install -y --no-install-recommends curl ca-certificates
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+            | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/postgresql.gpg
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
             https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
