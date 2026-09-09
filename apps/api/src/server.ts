@@ -29,6 +29,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rateLimit.js';
+import { withRedisTimeout } from './middleware/redisTimeout.js';
 import { requestMetrics } from './middleware/requestMetrics.js';
 import { renderMetrics, dbQueryDurationMs } from './observability/metrics.js';
 import { initTelemetry, shutdownTelemetry } from './lib/telemetry.js';
@@ -104,8 +105,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
           checks.postgres = 'ok';
         })
         .catch(() => undefined),
-      redis
-        .ping()
+      withRedisTimeout(redis.ping(), 1000)
         .then(() => {
           checks.redis = 'ok';
         })
