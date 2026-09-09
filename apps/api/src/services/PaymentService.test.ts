@@ -56,6 +56,7 @@ function makeTrx(invoice: any, repos: any) {
 function makeDb(invoice: any, repos: any) {
   const trx = makeTrx(invoice, repos);
   return {
+    trx,
     transaction: () => ({
       execute: (fn: (trx: any) => Promise<any>) => fn(trx),
     }),
@@ -113,15 +114,27 @@ describe('PaymentService', () => {
     ).rejects.toMatchObject({ code: 'INVALID_STATUS' });
   });
 
-  it('fire-and-forget credit decrement — does not throw on failure', async () => {
-    repos.customers.decrementCreditUsed = vi.fn().mockRejectedValue(new Error('DB error'));
-    const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
+  it('full payment enqueues invoice_paid with customerId/creditDecrement instead of decrementing directly (#120)', async () => {
+    const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent', customer_id: 'cust-1' });
     const db = makeDb(invoice, repos);
+    const trx = db.trx;
     const svc = new PaymentService(repos as any, db as any);
 
-    // Should resolve without throwing even if credit decrement fails
-    await expect(
-      svc.recordPayment('inv-1', { amount: 1000, method: 'bank_transfer' }, 'user-1')
-    ).resolves.toBeDefined();
+    await svc.recordPayment('inv-1', { amount: 1000, method: 'bank_transfer' }, 'user-1');
+
+    // Credit release now rides the outbox (EventWorker's invoice_paid handler)
+    // instead of a fire-and-forget call made directly from recordPayment —
+    // a transient failure must retry/dead-letter, not silently drift
+    // customer.credit_used.
+    expect(repos.customers.decrementCreditUsed).not.toHaveBeenCalled();
+
+    const invoicePaidCall = trx.values.mock.calls.find(
+      ([values]: any[]) => values.event_type === 'invoice_paid'
+    );
+    expect(invoicePaidCall).toBeDefined();
+    expect(invoicePaidCall![0].payload).toMatchObject({
+      customerId: 'cust-1',
+      creditDecrement: 1000,
+    });
   });
 });

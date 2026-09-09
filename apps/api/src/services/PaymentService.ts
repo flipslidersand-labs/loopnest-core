@@ -126,10 +126,6 @@ export class PaymentService {
     }
     const paidOn = input.paidOn ?? new Date().toISOString().slice(0, 10);
 
-    // Captured inside the transaction for post-commit credit adjustment.
-    let paidCustomerId: string | null = null;
-    let creditDecrement: number | null = null;
-
     const result = await this.db.transaction().execute(async (trx) => {
       const inv = await trx
         .selectFrom("finance.invoices")
@@ -208,14 +204,18 @@ export class PaymentService {
         status: newStatus,
       });
       if (newStatus === "paid") {
+        // Credit release rides the same at-least-once outbox delivery as
+        // every other side effect here (see EventWorker's "invoice_paid"
+        // handler) instead of a fire-and-forget post-commit call, so a
+        // transient decrementCreditUsed failure retries/dead-letters
+        // instead of permanently drifting customer.credit_used (#120).
         await this.enqueue(trx, "invoice_paid", invoiceId, {
           invoiceId,
           paidTotal,
           paidAt,
+          customerId: inv.customer_id,
+          creditDecrement: total,
         });
-        // Capture for post-commit credit release.
-        paidCustomerId = inv.customer_id;
-        creditDecrement = total;
       }
 
       return {
@@ -229,13 +229,6 @@ export class PaymentService {
         },
       };
     });
-
-    // Release credit_used after the DB transaction commits (fire-and-forget on error).
-    if (paidCustomerId && creditDecrement) {
-      await this.repos.customers.decrementCreditUsed(paidCustomerId, creditDecrement).catch((err) => {
-        console.error('credit decrement failed', { operation: 'decrementCreditUsed', customerId: paidCustomerId, amount: creditDecrement, error: String(err) });
-      });
-    }
 
     return result;
   }

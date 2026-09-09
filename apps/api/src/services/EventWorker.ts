@@ -208,7 +208,7 @@ export class EventWorker {
         logger.info(`💰 Payment recorded for invoice ${aggregateId}`);
         break;
       case "invoice_paid":
-        logger.info(`✅ Invoice fully paid: ${aggregateId}`);
+        await this.handleInvoicePaid(aggregateId, payload);
         break;
       case "payment_reversed":
         logger.info(`↩️  Payment reversed for invoice ${aggregateId}`);
@@ -401,6 +401,23 @@ export class EventWorker {
     } finally {
       this.isScanningOverdue = false;
     }
+  }
+
+  /**
+   * Release the credit limit an invoice was holding once it's fully paid.
+   * Throws on failure so the outbox retries/dead-letters it (#120) instead of
+   * a fire-and-forget post-commit call permanently drifting
+   * customer.credit_used on a transient DB error.
+   */
+  private async handleInvoicePaid(
+    invoiceId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    logger.info(`✅ Invoice fully paid: ${invoiceId}`);
+    const customerId = payload.customerId as string | undefined;
+    const creditDecrement = Number(payload.creditDecrement);
+    if (!customerId || !(creditDecrement > 0)) return;
+    await this.repos.customers.decrementCreditUsed(customerId, creditDecrement);
   }
 
   /**
