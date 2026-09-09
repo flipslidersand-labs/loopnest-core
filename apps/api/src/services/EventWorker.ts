@@ -359,6 +359,13 @@ export class EventWorker {
    * outstanding balance, and emit a `payment_overdue` event (durable outbox row)
    * plus a fire-and-forget `payment.overdue` webhook. Dedup is by invoice per
    * UTC day, so re-running the scan does not spam duplicate alerts.
+   *
+   * The NOT EXISTS below is only a candidate filter, not the guard — under
+   * multiple EventWorker replicas two instances could both pass it for the
+   * same invoice before either inserts. The actual guard is the partial
+   * unique index `idx_outbox_payment_overdue_daily` (migration 024): the
+   * INSERT itself fails with 23505 for whichever instance loses the race,
+   * matching the pattern scanDunning() already uses (see #118).
    */
   private async scanOverdue(): Promise<void> {
     if (this.isScanningOverdue) return;
@@ -417,7 +424,16 @@ export class EventWorker {
           daysOverdue: Number(row.days_overdue),
           outstanding,
         };
-        await this.repos.outbox.publish("payment_overdue", row.id, payload);
+        try {
+          await this.repos.outbox.publish("payment_overdue", row.id, payload);
+        } catch (err: any) {
+          // idx_outbox_payment_overdue_daily (migration 024) — another
+          // instance already flagged this invoice today between our
+          // NOT EXISTS check and this INSERT. Skip the webhook/email below
+          // too, since they're only meant to fire once per invoice per day.
+          if (err?.code === '23505') continue;
+          throw err;
+        }
         if (this.webhooks && row.organization_id) {
           this.webhooks
             .deliver(row.organization_id, "payment.overdue", payload)
