@@ -96,6 +96,40 @@ export function reportRoutes(reportingService: ReportingService) {
     })
   );
 
+  // Tax report (M29) — consumption tax summary by month and rate
+  router.get(
+    '/tax',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { from, to, format } = req.query as { from?: string; to?: string; format?: string };
+      if (!from || !to) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from and to query params are required (YYYY-MM-DD)');
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from and to must be ISO dates (YYYY-MM-DD)');
+      }
+      if (from > to) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from must be before or equal to to');
+      }
+
+      const report = await reportingService.getTaxReport(from, to, req.user?.orgId);
+
+      if (format === 'csv') {
+        const lines: string[] = ['month,taxRate,taxableAmount,taxAmount,invoiceCount'];
+        for (const r of report.rows) {
+          lines.push(`${r.month},${r.taxRate},${r.taxableAmount},${r.taxAmount},${r.invoiceCount}`);
+        }
+        lines.push(`totals,,${report.totals.taxableAmount},${report.totals.taxAmount},`);
+        const fromMonth = from.slice(0, 7);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=tax_report_${fromMonth}.csv`);
+        res.send(lines.join('\n'));
+        return;
+      }
+
+      res.json({ data: report });
+    })
+  );
+
   // Accounts-receivable aging (M13) — viewer and above
   router.get(
     '/accounts-receivable',
