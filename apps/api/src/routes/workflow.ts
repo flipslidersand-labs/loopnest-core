@@ -22,6 +22,16 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     if (!q) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
   };
 
+  // Guard: the body-supplied actor userId is only an audit/authorization label,
+  // not an authenticated identity, so a non-admin caller must not be able to
+  // claim to be someone else (e.g. an assigned approver) just by naming them.
+  // Admins remain trusted to act/delegate on behalf of any userId.
+  const assertActorIdentity = (req: Request, userId: string): void => {
+    if (req.user?.role !== 'admin' && req.user?.sub !== userId) {
+      throw new ApiErrorResponse(403, 'FORBIDDEN', 'Cannot act as another user');
+    }
+  };
+
   // ── Quote state machine ──────────────────────────────────────────────────
 
   router.post(
@@ -31,6 +41,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       validateQuoteId(req.params.id);
       const { userId } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      assertActorIdentity(req, userId);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.submitForApproval(req.params.id, userId);
       await services.audit.logQuoteSubmitted(req.params.id, userId);
@@ -46,6 +57,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       validateQuoteId(req.params.id);
       const { userId, notes } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      assertActorIdentity(req, userId);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.approve(req.params.id, userId, notes);
       await services.audit.logQuoteApproved(req.params.id, userId);
@@ -63,6 +75,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!userId || !reason) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId and reason are required');
       }
+      assertActorIdentity(req, userId);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await services.quotes.reject(req.params.id, userId, reason);
       await services.audit.logQuoteRejected(req.params.id, userId, reason);
@@ -77,6 +90,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       validateQuoteId(req.params.id);
       const { userId } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      assertActorIdentity(req, userId);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       // Pre-check credit limit before the atomic status transition so a rejection
       // does not strand the quote in 'invoiced' status with no actual invoice.
@@ -155,6 +169,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     asyncHandler(async (req: Request, res: Response) => {
       const { userId, notes } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      assertActorIdentity(req, userId);
       const step = await services.approvals.approveStep(req.params.requestId, req.params.stepId, userId, notes);
       res.json({ data: step, message: 'Approval step approved' });
     })
@@ -168,6 +183,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!userId || !reason) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId and reason are required');
       }
+      assertActorIdentity(req, userId);
       const step = await services.approvals.rejectStep(req.params.requestId, req.params.stepId, userId, reason);
       res.json({ data: step, message: 'Approval step rejected' });
     })
@@ -179,6 +195,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     asyncHandler(async (req: Request, res: Response) => {
       const { userId } = req.body;
       if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
+      assertActorIdentity(req, userId);
       await services.approvals.cancelApprovalRequest(req.params.requestId, userId);
       res.json({ message: 'Approval request cancelled' });
     })

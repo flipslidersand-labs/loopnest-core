@@ -101,4 +101,43 @@ R=$(command curl -s -w "\n%{http_code}" \
   -d '{"name":"x","email":"x@x.com","organizationId":"00000000-0000-0000-0000-000000000001","role":"viewer"}')
 check "editor POST /users → 403" "403" "$(http_code "$R")"
 
+# ── 6. Workflow actor identity: non-admin cannot claim to act as another
+#      userId, only as themselves (req.user.sub). Admin may act on behalf of
+#      any userId (matches how the rest of the suite drives workflows). ─────
+echo ""
+echo "Workflow actor-identity guard (issue #121)"
+EDITOR_CID=$(command curl -s \
+  -H "Authorization: Bearer $EDITOR_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/customers" \
+  -d '{"name":"Actor Guard Corp","phone":"0000000002","address":"x"}' | jq -r '.data.id')
+QNUM="QT-ACTORGUARD-$(date +%s)-$RANDOM"
+EDITOR_QID=$(command curl -s \
+  -H "Authorization: Bearer $EDITOR_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/quotes" \
+  -d "{\"quoteNumber\":\"$QNUM\",\"customerId\":\"$EDITOR_CID\",\"subtotalAmount\":1000,\"taxAmount\":100,\"totalAmount\":1100,\"createdBy\":\"itest-editor\"}" \
+  | jq -r '.data.id')
+
+# Editor claiming to be someone else -> 403, quote stays untouched.
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $EDITOR_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/workflow/quotes/$EDITOR_QID/submit" \
+  -d '{"userId":"someone-else"}')
+check "editor submit as another userId → 403" "403" "$(http_code "$R")"
+check "editor submit as another userId error code" "FORBIDDEN" "$(http_body "$R" | jq -r '.error.code')"
+
+# Editor acting as themselves (sub matches body userId) -> allowed.
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $EDITOR_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/workflow/quotes/$EDITOR_QID/submit" \
+  -d '{"userId":"itest-editor"}')
+check "editor submit as self → 200" "200" "$(http_code "$R")"
+
+# Admin may act on behalf of an arbitrary userId (trusted delegate, matches
+# how the rest of this test suite already drives workflows under admin).
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/workflow/quotes/$EDITOR_QID/approve" \
+  -d '{"userId":"some-approver","notes":"admin delegate"}')
+check "admin approve on behalf of another userId → 200" "200" "$(http_code "$R")"
+
 summary
