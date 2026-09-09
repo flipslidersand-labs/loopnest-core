@@ -73,6 +73,10 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     asyncHandler(async (req: Request, res: Response) => {
       const { name, address, phone } = req.body;
 
+      if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Name must be a non-empty string');
+      }
+
       const customer = await repos.customers.update(req.params.id, {
         name,
         address,
