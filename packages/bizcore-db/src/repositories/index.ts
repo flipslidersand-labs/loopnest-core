@@ -2,7 +2,7 @@ export { BaseRepository } from './BaseRepository.js';
 export type { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 export { OrganizationRepository } from './OrganizationRepository.js';
 export type { Organization } from './OrganizationRepository.js';
-export { CustomerRepository } from './CustomerRepository.js';
+export { CustomerRepository, hashPortalPassword, verifyPortalPassword } from './CustomerRepository.js';
 export type { Customer, CreditStatus, CustomerFilter, CustomerPage } from './CustomerRepository.js';
 export { ProductRepository } from './ProductRepository.js';
 export type { Product } from './ProductRepository.js';
