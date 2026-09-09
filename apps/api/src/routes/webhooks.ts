@@ -1,7 +1,10 @@
 import { Router, Request, Response } from 'express';
+import { randomBytes } from 'node:crypto';
 import { WebhookService } from '../services/WebhookService.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+
+const MIN_SECRET_LENGTH = 16;
 
 export const WEBHOOK_EVENT_TYPES = [
   'invoice.created',
@@ -50,6 +53,7 @@ export function webhookRoutes(webhookService: WebhookService) {
   // List webhooks for this org — viewer+
   router.get(
     '/',
+    requireRole('viewer', 'editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const webhooks = await webhookService.list(req.user?.orgId);
       res.json({ data: webhooks, count: webhooks.length });
@@ -60,6 +64,7 @@ export function webhookRoutes(webhookService: WebhookService) {
   // Must be before /:id to avoid Express matching "deliveries" as a webhook id
   router.get(
     '/deliveries',
+    requireRole('viewer', 'editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { webhookId, status, eventType, limit, offset } = req.query;
       if (status !== undefined && status !== 'success' && status !== 'failed') {
@@ -97,6 +102,7 @@ export function webhookRoutes(webhookService: WebhookService) {
   // Get one — viewer+
   router.get(
     '/:id',
+    requireRole('viewer', 'editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const webhook = await webhookService.findById(req.params.id, req.user?.orgId);
       if (!webhook) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found');
@@ -109,11 +115,23 @@ export function webhookRoutes(webhookService: WebhookService) {
     '/',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { url, events, secret } = req.body;
+      const { url, events } = req.body;
+      let { secret } = req.body;
       if (!url) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url is required');
       const validatedEvents = validateEvents(events);
       try { new URL(url); } catch {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
+      }
+      if (secret !== undefined) {
+        if (typeof secret !== 'string' || secret.length === 0) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'secret must be a non-empty string');
+        }
+        if (secret.length < MIN_SECRET_LENGTH) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', `secret must be at least ${MIN_SECRET_LENGTH} characters`);
+        }
+      } else {
+        // Auto-generate a secret so HMAC signing is always active
+        secret = randomBytes(32).toString('hex');
       }
       const webhook = await webhookService.register({
         organizationId: req.user?.orgId,
@@ -121,7 +139,8 @@ export function webhookRoutes(webhookService: WebhookService) {
         events: validatedEvents,
         secret,
       });
-      res.status(201).json({ data: webhook });
+      // Return the plaintext secret once — it is not retrievable again
+      res.status(201).json({ data: webhook, secret });
     })
   );
 
@@ -130,16 +149,27 @@ export function webhookRoutes(webhookService: WebhookService) {
     '/:id',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { url, events, secret, isActive } = req.body;
+      const { url, events, isActive } = req.body;
+      let { secret } = req.body;
       if (url) {
         try { new URL(url); } catch {
           throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
         }
       }
+      if (secret !== undefined) {
+        if (typeof secret !== 'string' || secret.length === 0) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'secret must be a non-empty string');
+        }
+        if (secret.length < MIN_SECRET_LENGTH) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', `secret must be at least ${MIN_SECRET_LENGTH} characters`);
+        }
+      }
       const validatedEvents = events !== undefined ? validateEvents(events) : undefined;
       const webhook = await webhookService.update(req.params.id, { url, events: validatedEvents, secret, isActive }, req.user?.orgId);
       if (!webhook) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found');
-      res.json({ data: webhook });
+      const responseBody: Record<string, unknown> = { data: webhook };
+      if (secret !== undefined) responseBody.secret = secret;
+      res.json(responseBody);
     })
   );
 
