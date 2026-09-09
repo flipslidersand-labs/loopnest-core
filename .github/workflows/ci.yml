@@ -106,8 +106,10 @@ jobs:
             let body;
             try {
               const summary = JSON.parse(fs.readFileSync('apps/api/coverage/coverage-summary.json', 'utf8'));
+              // Single source of truth shared with apps/api/vitest.config.ts (issue #112).
+              const thresholds = JSON.parse(fs.readFileSync('apps/api/coverage-thresholds.json', 'utf8'));
               const pct = summary.total.lines.pct;
-              const threshold = 35;
+              const threshold = thresholds.lines;
               const status = pct >= threshold ? '✅' : '❌';
               body = MARKER + '\n### 📊 apps/api coverage: **' + pct + '%** ' + status + '\n\n閾値: ' + threshold + '%';
             } catch (e) {
