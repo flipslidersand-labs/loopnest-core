@@ -58,12 +58,14 @@ export type OrganizationUpdate = Updateable<OrganizationTable>;
 export interface CustomerTable {
   id: Generated<string>;
   name: string;
+  contact_email: string | null;
   phone: string | null;
   address: string | null;
   organization_id: string | null;
   credit_limit: number | null;
   credit_used: Generated<number>;
   created_at: Generated<Date>;
+  portal_password_hash: string | null;
 }
 
 export type CustomerRow = Selectable<CustomerTable>;
