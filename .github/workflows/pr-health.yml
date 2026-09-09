@@ -13,11 +13,11 @@ jobs:
     permissions:
       pull-requests: write
       issues: write
-    uses: flipslidersand-labs/qa-workflows/.github/workflows/stale-pr.yml@main
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/stale-pr.yml@d039ea2ade5f0faef5be443e0d07be2b8456c480 # main (2026-09-08)
 
   size-label:
     if: github.event_name == 'pull_request_target'
     permissions:
       contents: read
       pull-requests: write
-    uses: flipslidersand-labs/qa-workflows/.github/workflows/size-label.yml@main
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/size-label.yml@d039ea2ade5f0faef5be443e0d07be2b8456c480 # main (2026-09-08)
