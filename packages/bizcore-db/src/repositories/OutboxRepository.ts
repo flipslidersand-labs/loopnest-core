@@ -33,39 +33,40 @@ export class OutboxRepository {
       .execute();
   }
 
+  /**
+   * Atomically claims up to `limit` pending events by folding the previous
+   * SELECT-then-UPDATE into a single statement: the candidate ids are chosen
+   * with `FOR UPDATE SKIP LOCKED` inside the UPDATE's own subquery, so the row
+   * selection and the 'processing' transition happen under the same row locks.
+   * This closes the race where two `EventWorker` replicas polling at the same
+   * time could both select the same pending ids before either one updated
+   * them, and then both dispatch (e.g. `handleInvoiceCreated`, which POSTs to
+   * an external, non-idempotent accounting API) the same event.
+   */
   async claimPending(limit: number = 50): Promise<OutboxEvent[]> {
-    const pendingIds = await this.db
-      .selectFrom('events.outbox_events')
-      .select('id')
-      .where((eb: any) => eb('status', '=', 'pending'))
-      .orderBy('created_at', 'asc')
-      .limit(limit)
-      .execute();
+    const { sql } = await import('kysely');
+    const result = await sql<any>`
+      UPDATE events.outbox_events
+      SET status = 'processing'
+      WHERE id IN (
+        SELECT id FROM events.outbox_events
+        WHERE status = 'pending'
+        ORDER BY created_at ASC
+        LIMIT ${limit}
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING
+        id,
+        event_type,
+        aggregate_id,
+        payload,
+        status,
+        created_at,
+        processed_at,
+        retry_count
+    `.execute(this.db);
 
-    if (pendingIds.length === 0) {
-      return [];
-    }
-
-    const ids = pendingIds.map((row: any) => row.id);
-
-    const events = await this.db
-      .updateTable('events.outbox_events')
-      .set({ status: 'processing' })
-      .where((eb: any) => {
-        if (ids.length === 0) return eb.noWhere();
-        return eb('id', 'in', ids);
-      })
-      .returning([
-        'id',
-        'event_type',
-        'aggregate_id',
-        'payload',
-        'status',
-        'created_at',
-        'processed_at',
-        'retry_count',
-      ])
-      .execute();
+    const events = result.rows;
 
     return events.map((e: any) => ({
       id: e.id,
