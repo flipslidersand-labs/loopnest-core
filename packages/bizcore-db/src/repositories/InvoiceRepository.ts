@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
-export type InvoiceStatus = 'issued' | 'sent' | 'paid' | 'cancelled';
+export type InvoiceStatus = "issued" | "sent" | "paid" | "cancelled";
 
 export interface InvoiceRecord {
   id: string;
@@ -35,16 +35,24 @@ export interface InvoiceFilter {
 }
 
 const COLS = [
-  'id', 'quote_id', 'invoice_number', 'customer_id',
-  'subtotal_amount', 'tax_amount', 'total_amount',
-  'status', 'paid_at', 'created_by', 'created_at',
+  "id",
+  "quote_id",
+  "invoice_number",
+  "customer_id",
+  "subtotal_amount",
+  "tax_amount",
+  "total_amount",
+  "status",
+  "paid_at",
+  "created_by",
+  "created_at",
 ] as const;
 
 export class InvoiceRepository {
   constructor(private db: any) {}
 
   async nextSequenceValue(): Promise<number> {
-    const { sql } = await import('kysely');
+    const { sql } = await import("kysely");
     const result = await sql<{ nextval: string }>`
       SELECT nextval('finance.invoice_number_seq') AS nextval
     `.execute(this.db);
@@ -54,7 +62,7 @@ export class InvoiceRepository {
   async create(data: InvoiceInput): Promise<InvoiceRecord> {
     const id = randomUUID();
     const result = await this.db
-      .insertInto('finance.invoices')
+      .insertInto("finance.invoices")
       .values({
         id,
         quote_id: data.quoteId,
@@ -63,7 +71,7 @@ export class InvoiceRepository {
         subtotal_amount: data.subtotal.toString(),
         tax_amount: data.taxAmount.toString(),
         total_amount: data.totalAmount.toString(),
-        status: data.status || 'issued',
+        status: data.status || "issued",
         created_by: data.createdBy,
         created_at: new Date(),
       })
@@ -74,50 +82,52 @@ export class InvoiceRepository {
 
   async findAll(filter: InvoiceFilter = {}): Promise<InvoiceRecord[]> {
     let q = this.db
-      .selectFrom('finance.invoices')
+      .selectFrom("finance.invoices")
       .selectAll()
-      .orderBy('created_at', 'desc')
+      .orderBy("created_at", "desc")
       .limit(filter.take ?? 20)
       .offset(filter.skip ?? 0);
-    if (filter.status)     q = q.where('status', '=', filter.status);
-    if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
+    if (filter.status) q = q.where("status", "=", filter.status);
+    if (filter.customerId) q = q.where("customer_id", "=", filter.customerId);
     const rows = await q.execute();
     return rows.map((r: any) => this.map(r));
   }
 
-  async count(filter: Pick<InvoiceFilter, 'status' | 'customerId'> = {}): Promise<number> {
+  async count(
+    filter: Pick<InvoiceFilter, "status" | "customerId"> = {},
+  ): Promise<number> {
     let q = this.db
-      .selectFrom('finance.invoices')
-      .select((eb: any) => eb.fn.countAll().as('n'));
-    if (filter.status)     q = q.where('status', '=', filter.status);
-    if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
+      .selectFrom("finance.invoices")
+      .select((eb: any) => eb.fn.countAll().as("n"));
+    if (filter.status) q = q.where("status", "=", filter.status);
+    if (filter.customerId) q = q.where("customer_id", "=", filter.customerId);
     const result = await q.executeTakeFirst();
     return Number(result?.n ?? 0);
   }
 
   async findById(id: string): Promise<InvoiceRecord | null> {
     const r = await this.db
-      .selectFrom('finance.invoices')
+      .selectFrom("finance.invoices")
       .selectAll()
-      .where('id', '=', id)
+      .where("id", "=", id)
       .executeTakeFirst();
     return r ? this.map(r) : null;
   }
 
   async findByNumber(invoiceNumber: string): Promise<InvoiceRecord | null> {
     const r = await this.db
-      .selectFrom('finance.invoices')
+      .selectFrom("finance.invoices")
       .selectAll()
-      .where('invoice_number', '=', invoiceNumber)
+      .where("invoice_number", "=", invoiceNumber)
       .executeTakeFirst();
     return r ? this.map(r) : null;
   }
 
   async findByQuoteId(quoteId: string): Promise<InvoiceRecord | null> {
     const r = await this.db
-      .selectFrom('finance.invoices')
+      .selectFrom("finance.invoices")
       .selectAll()
-      .where('quote_id', '=', quoteId)
+      .where("quote_id", "=", quoteId)
       .executeTakeFirst();
     return r ? this.map(r) : null;
   }
@@ -125,22 +135,25 @@ export class InvoiceRepository {
   // issued → sent
   async markSent(id: string): Promise<InvoiceRecord | null> {
     const r = await this.db
-      .updateTable('finance.invoices')
-      .set({ status: 'sent' })
-      .where('id', '=', id)
-      .where('status', '=', 'issued')
+      .updateTable("finance.invoices")
+      .set({ status: "sent" })
+      .where("id", "=", id)
+      .where("status", "=", "issued")
       .returning(COLS)
       .executeTakeFirst();
     return r ? this.map(r) : null;
   }
 
   // issued | sent → paid
-  async markPaid(id: string, paidAt = new Date()): Promise<InvoiceRecord | null> {
+  async markPaid(
+    id: string,
+    paidAt = new Date(),
+  ): Promise<InvoiceRecord | null> {
     const r = await this.db
-      .updateTable('finance.invoices')
-      .set({ status: 'paid', paid_at: paidAt })
-      .where('id', '=', id)
-      .where('status', 'in', ['issued', 'sent'])
+      .updateTable("finance.invoices")
+      .set({ status: "paid", paid_at: paidAt })
+      .where("id", "=", id)
+      .where("status", "in", ["issued", "sent"])
       .returning(COLS)
       .executeTakeFirst();
     return r ? this.map(r) : null;
@@ -149,10 +162,10 @@ export class InvoiceRepository {
   // issued | sent → cancelled
   async cancelInvoice(id: string): Promise<InvoiceRecord | null> {
     const r = await this.db
-      .updateTable('finance.invoices')
-      .set({ status: 'cancelled' })
-      .where('id', '=', id)
-      .where('status', 'in', ['issued', 'sent'])
+      .updateTable("finance.invoices")
+      .set({ status: "cancelled" })
+      .where("id", "=", id)
+      .where("status", "in", ["issued", "sent"])
       .returning(COLS)
       .executeTakeFirst();
     return r ? this.map(r) : null;
@@ -160,7 +173,11 @@ export class InvoiceRepository {
 
   // Legacy helper kept for compatibility.
   async updateStatus(id: string, status: string): Promise<void> {
-    await this.db.updateTable('finance.invoices').set({ status }).where('id', '=', id).execute();
+    await this.db
+      .updateTable("finance.invoices")
+      .set({ status })
+      .where("id", "=", id)
+      .execute();
   }
 
   private map(r: any): InvoiceRecord {

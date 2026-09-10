@@ -1,10 +1,15 @@
-import { PrismaClient } from '@prisma/client';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { PrismaClient } from "@prisma/client";
+import {
+  BaseRepository,
+  FindOptions,
+  CreateInput,
+  UpdateInput,
+} from "./BaseRepository.js";
 
 export interface Organization {
   id: string;
   name: string;
-  type: 'company' | 'department' | 'division';
+  type: "company" | "department" | "division";
   parentId: string | null;
   createdAt: Date;
 }
@@ -25,12 +30,15 @@ export class OrganizationRepository extends BaseRepository<Organization> {
     const orgs = await this.prisma.organization.findMany({
       skip: options?.skip,
       take: options?.take,
-      orderBy: options?.orderBy || { name: 'asc' },
+      orderBy: options?.orderBy || { name: "asc" },
     });
     return orgs.map((org: any) => this.mapToOrganization(org));
   }
 
-  async findOne(where: Partial<Organization>, options?: FindOptions): Promise<Organization | null> {
+  async findOne(
+    where: Partial<Organization>,
+    options?: FindOptions,
+  ): Promise<Organization | null> {
     const org = await this.prisma.organization.findFirst({
       where: {
         ...(where.name && { name: where.name }),
@@ -43,7 +51,7 @@ export class OrganizationRepository extends BaseRepository<Organization> {
   async findChildren(parentId: string): Promise<Organization[]> {
     const orgs = await this.prisma.organization.findMany({
       where: { parentId },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
     });
     return orgs.map((org: any) => this.mapToOrganization(org));
   }
@@ -59,7 +67,10 @@ export class OrganizationRepository extends BaseRepository<Organization> {
     return this.mapToOrganization(org);
   }
 
-  async update(id: string, data: UpdateInput<Organization>): Promise<Organization> {
+  async update(
+    id: string,
+    data: UpdateInput<Organization>,
+  ): Promise<Organization> {
     const org = await this.prisma.organization.update({
       where: { id },
       data: {

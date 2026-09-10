@@ -2,17 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [master, main, 'feat/**', 'fix/**', 'hotfix/**', 'refactor/**']
+    branches: [master, main, "feat/**", "fix/**", "hotfix/**", "refactor/**"]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/*.md'
+      - "**.md"
+      - "docs/**"
+      - ".github/*.md"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/*.md'
+      - "**.md"
+      - "docs/**"
+      - ".github/*.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -132,7 +132,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
     uses: flipslidersand-labs/qa-platform/.github/workflows/ai-review.yml@main
     with:
-      model: 'claude-haiku-4-5-20251001'
+      model: "claude-haiku-4-5-20251001"
       fail-on-high: false
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

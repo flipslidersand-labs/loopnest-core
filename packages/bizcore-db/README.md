@@ -4,13 +4,13 @@
 
 ## クライアント戦略
 
-| クライアント | 用途 | テーブル |
-|---|---|---|
-| **Prisma** | マスタテーブル、migration 自動生成 | organizations / users / customers / products |
-| **Kysely** | 複雑な JOIN、型安全な SQL | quotes / quote_items / invoices / invoice_items / accounting_exports |
-| **Drizzle ORM** | 状態遷移が多い、ORM 的に扱う | approval_requests / approval_steps |
-| **生SQL (pg)** | 高速書き込み、ログ系 | audit_logs / request_logs |
-| **Redis (ioredis)** | idempotency_keys、キャッシュ | - |
+| クライアント        | 用途                               | テーブル                                                             |
+| ------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| **Prisma**          | マスタテーブル、migration 自動生成 | organizations / users / customers / products                         |
+| **Kysely**          | 複雑な JOIN、型安全な SQL          | quotes / quote_items / invoices / invoice_items / accounting_exports |
+| **Drizzle ORM**     | 状態遷移が多い、ORM 的に扱う       | approval_requests / approval_steps                                   |
+| **生SQL (pg)**      | 高速書き込み、ログ系               | audit_logs / request_logs                                            |
+| **Redis (ioredis)** | idempotency_keys、キャッシュ       | -                                                                    |
 
 ## ディレクトリ構造
 
@@ -61,7 +61,7 @@ pnpm type-check
 ### Prisma（マスタテーブル）
 
 ```typescript
-import { prismaCoreDb } from '@loopnest/bizcore-db';
+import { prismaCoreDb } from "@loopnest/bizcore-db";
 
 // Users を取得
 const users = await prismaCoreDb.user.findMany();
@@ -69,8 +69,8 @@ const users = await prismaCoreDb.user.findMany();
 // Customer を作成
 const customer = await prismaCoreDb.customer.create({
   data: {
-    name: 'ACME Corp',
-    email: 'contact@acme.example',
+    name: "ACME Corp",
+    email: "contact@acme.example",
   },
 });
 ```
@@ -78,13 +78,13 @@ const customer = await prismaCoreDb.customer.create({
 ### Kysely（複雑な JOIN）
 
 ```typescript
-import { kyselyDb } from '@loopnest/bizcore-db';
+import { kyselyDb } from "@loopnest/bizcore-db";
 
 // Quote と Quote Items を取得
 const quote = await kyselyDb
-  .selectFrom('core.quotes')
-  .innerJoin('core.quote_items', 'core.quotes.id', 'core.quote_items.quote_id')
-  .where('core.quotes.id', '=', quoteId)
+  .selectFrom("core.quotes")
+  .innerJoin("core.quote_items", "core.quotes.id", "core.quote_items.quote_id")
+  .where("core.quotes.id", "=", quoteId)
   .selectAll()
   .execute();
 ```
@@ -92,9 +92,9 @@ const quote = await kyselyDb
 ### Drizzle（状態遷移）
 
 ```typescript
-import { drizzleDb } from '@loopnest/bizcore-db';
-import { eq } from 'drizzle-orm';
-import { approvalRequests } from '@loopnest/bizcore-db';
+import { drizzleDb } from "@loopnest/bizcore-db";
+import { eq } from "drizzle-orm";
+import { approvalRequests } from "@loopnest/bizcore-db";
 
 // 承認依頼を取得
 const approval = await drizzleDb.query.approvalRequests.findFirst({
@@ -107,27 +107,34 @@ const approval = await drizzleDb.query.approvalRequests.findFirst({
 // ステータス更新
 await drizzleDb
   .update(approvalRequests)
-  .set({ status: 'approved' })
+  .set({ status: "approved" })
   .where(eq(approvalRequests.id, approvalId));
 ```
 
 ### 生SQL（高速書き込み）
 
 ```typescript
-import { pgPool } from '@loopnest/bizcore-db';
+import { pgPool } from "@loopnest/bizcore-db";
 
 // 監査ログ書き込み（高速）
 await pgPool.query(
   `INSERT INTO audit.audit_logs (actor_id, action, resource_type, resource_id, metadata, correlation_id)
    VALUES ($1, $2, $3, $4, $5, $6)`,
-  [actorId, 'quote_created', 'quote', quoteId, JSON.stringify(metadata), correlationId]
+  [
+    actorId,
+    "quote_created",
+    "quote",
+    quoteId,
+    JSON.stringify(metadata),
+    correlationId,
+  ],
 );
 ```
 
 ### Redis（idempotency）
 
 ```typescript
-import { redis } from '@loopnest/bizcore-db';
+import { redis } from "@loopnest/bizcore-db";
 
 // Idempotency チェック
 const key = `idempotency:${requestId}`;
@@ -137,10 +144,14 @@ if (existing) {
 }
 
 // 処理後、24h TTL で記録
-await redis.setex(key, 86400, JSON.stringify({
-  processed_at: new Date().toISOString(),
-  result,
-}));
+await redis.setex(
+  key,
+  86400,
+  JSON.stringify({
+    processed_at: new Date().toISOString(),
+    result,
+  }),
+);
 ```
 
 ## 開発フロー
@@ -148,6 +159,7 @@ await redis.setex(key, 86400, JSON.stringify({
 ### 新しいテーブルを追加
 
 1. **Prisma**（マスタテーブルの場合）
+
    ```bash
    # prisma/schema.prisma に model を追加
    pnpm prisma:generate
@@ -155,6 +167,7 @@ await redis.setex(key, 86400, JSON.stringify({
    ```
 
 2. **Drizzle**（workflow 系の場合）
+
    ```bash
    # drizzle/schema.ts に export const を追加
    pnpm drizzle:generate

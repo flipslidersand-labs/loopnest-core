@@ -1,9 +1,9 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export interface FindOptions {
   skip?: number;
   take?: number;
-  orderBy?: Record<string, 'asc' | 'desc'>;
+  orderBy?: Record<string, "asc" | "desc">;
   include?: Record<string, any>;
 }
 

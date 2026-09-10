@@ -1,7 +1,7 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
-export type PaymentMethod = 'bank_transfer' | 'credit_card' | 'cash' | 'offset';
-export type PaymentStatus = 'confirmed' | 'reversed';
+export type PaymentMethod = "bank_transfer" | "credit_card" | "cash" | "offset";
+export type PaymentStatus = "confirmed" | "reversed";
 
 export interface PaymentRecord {
   id: string;
@@ -40,8 +40,18 @@ export interface PaymentFilter {
 }
 
 const COLS = [
-  'id', 'invoice_id', 'organization_id', 'amount', 'method', 'paid_on',
-  'reference', 'status', 'reversed_at', 'reversal_reason', 'created_by', 'created_at',
+  "id",
+  "invoice_id",
+  "organization_id",
+  "amount",
+  "method",
+  "paid_on",
+  "reference",
+  "status",
+  "reversed_at",
+  "reversal_reason",
+  "created_by",
+  "created_at",
 ] as const;
 
 /**
@@ -54,23 +64,28 @@ export class PaymentRepository {
 
   /** Sum of confirmed payments for an invoice. Pass a trx for read-after-write. */
   async confirmedTotal(invoiceId: string, db: any = this.db): Promise<number> {
-    const { sql } = await import('kysely');
+    const { sql } = await import("kysely");
     const r = await db
-      .selectFrom('finance.payments')
-      .select((eb: any) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
-      .where('invoice_id', '=', invoiceId)
-      .where('status', '=', 'confirmed')
+      .selectFrom("finance.payments")
+      .select((eb: any) =>
+        eb.fn.coalesce(eb.fn.sum("amount"), sql`0`).as("total"),
+      )
+      .where("invoice_id", "=", invoiceId)
+      .where("status", "=", "confirmed")
       .executeTakeFirst();
     return Number(r?.total ?? 0);
   }
 
   /** Latest paid_on among confirmed payments (used to stamp invoice.paid_at). */
-  async lastConfirmedPaidOn(invoiceId: string, db: any = this.db): Promise<Date | null> {
+  async lastConfirmedPaidOn(
+    invoiceId: string,
+    db: any = this.db,
+  ): Promise<Date | null> {
     const r = await db
-      .selectFrom('finance.payments')
-      .select((eb: any) => eb.fn.max('paid_on').as('last'))
-      .where('invoice_id', '=', invoiceId)
-      .where('status', '=', 'confirmed')
+      .selectFrom("finance.payments")
+      .select((eb: any) => eb.fn.max("paid_on").as("last"))
+      .where("invoice_id", "=", invoiceId)
+      .where("status", "=", "confirmed")
       .executeTakeFirst();
     return r?.last ? new Date(r.last) : null;
   }
@@ -78,16 +93,19 @@ export class PaymentRepository {
   async insert(data: PaymentInput, db: any = this.db): Promise<PaymentRecord> {
     const id = randomUUID();
     const r = await db
-      .insertInto('finance.payments')
+      .insertInto("finance.payments")
       .values({
         id,
         invoice_id: data.invoiceId,
         organization_id: data.organizationId ?? null,
         amount: data.amount.toString(),
         method: data.method,
-        paid_on: typeof data.paidOn === 'string' ? data.paidOn : data.paidOn.toISOString().slice(0, 10),
+        paid_on:
+          typeof data.paidOn === "string"
+            ? data.paidOn
+            : data.paidOn.toISOString().slice(0, 10),
         reference: data.reference ?? null,
-        status: 'confirmed',
+        status: "confirmed",
         created_by: data.createdBy ?? null,
         created_at: new Date(),
       })
@@ -98,19 +116,27 @@ export class PaymentRepository {
 
   async findById(id: string, db: any = this.db): Promise<PaymentRecord | null> {
     const r = await db
-      .selectFrom('finance.payments')
+      .selectFrom("finance.payments")
       .selectAll()
-      .where('id', '=', id)
+      .where("id", "=", id)
       .executeTakeFirst();
     return r ? this.map(r) : null;
   }
 
-  async markReversed(id: string, reason: string, db: any = this.db): Promise<PaymentRecord | null> {
+  async markReversed(
+    id: string,
+    reason: string,
+    db: any = this.db,
+  ): Promise<PaymentRecord | null> {
     const r = await db
-      .updateTable('finance.payments')
-      .set({ status: 'reversed', reversed_at: new Date(), reversal_reason: reason })
-      .where('id', '=', id)
-      .where('status', '=', 'confirmed')
+      .updateTable("finance.payments")
+      .set({
+        status: "reversed",
+        reversed_at: new Date(),
+        reversal_reason: reason,
+      })
+      .where("id", "=", id)
+      .where("status", "=", "confirmed")
       .returning(COLS)
       .executeTakeFirst();
     return r ? this.map(r) : null;
@@ -118,29 +144,30 @@ export class PaymentRepository {
 
   async listByInvoice(invoiceId: string): Promise<PaymentRecord[]> {
     const rows = await this.db
-      .selectFrom('finance.payments')
+      .selectFrom("finance.payments")
       .selectAll()
-      .where('invoice_id', '=', invoiceId)
-      .orderBy('paid_on', 'asc')
-      .orderBy('created_at', 'asc')
+      .where("invoice_id", "=", invoiceId)
+      .orderBy("paid_on", "asc")
+      .orderBy("created_at", "asc")
       .execute();
     return rows.map((r: any) => this.map(r));
   }
 
   async list(filter: PaymentFilter = {}): Promise<PaymentRecord[]> {
     let q = this.db
-      .selectFrom('finance.payments')
+      .selectFrom("finance.payments")
       .selectAll()
-      .orderBy('paid_on', 'desc')
-      .orderBy('created_at', 'desc')
+      .orderBy("paid_on", "desc")
+      .orderBy("created_at", "desc")
       .limit(filter.take ?? 20)
       .offset(filter.skip ?? 0);
-    if (filter.organizationId) q = q.where('organization_id', '=', filter.organizationId);
-    if (filter.invoiceId)      q = q.where('invoice_id', '=', filter.invoiceId);
-    if (filter.status)         q = q.where('status', '=', filter.status);
-    if (filter.method)         q = q.where('method', '=', filter.method);
-    if (filter.from)           q = q.where('paid_on', '>=', filter.from);
-    if (filter.to)             q = q.where('paid_on', '<=', filter.to);
+    if (filter.organizationId)
+      q = q.where("organization_id", "=", filter.organizationId);
+    if (filter.invoiceId) q = q.where("invoice_id", "=", filter.invoiceId);
+    if (filter.status) q = q.where("status", "=", filter.status);
+    if (filter.method) q = q.where("method", "=", filter.method);
+    if (filter.from) q = q.where("paid_on", ">=", filter.from);
+    if (filter.to) q = q.where("paid_on", "<=", filter.to);
     const rows = await q.execute();
     return rows.map((r: any) => this.map(r));
   }

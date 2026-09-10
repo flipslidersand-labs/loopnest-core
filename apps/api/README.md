@@ -14,9 +14,11 @@ npm start               # Production mode
 ## API Endpoints
 
 ### Health Check
+
 - `GET /health` — Server status
 
 ### Organizations
+
 - `GET /api/organizations` — List all organizations (paginated)
 - `GET /api/organizations/:id` — Get organization by ID
 - `GET /api/organizations/:id/children` — Get child organizations
@@ -25,10 +27,12 @@ npm start               # Production mode
 - `DELETE /api/organizations/:id` — Delete organization
 
 **Query Parameters**:
+
 - `skip` (number) — Pagination offset (default: 0)
 - `take` (number) — Pagination limit (default: 10)
 
 ### Customers
+
 - `GET /api/customers` — List all customers (paginated)
 - `GET /api/customers/:id` — Get customer by ID
 - `POST /api/customers` — Create new customer
@@ -36,6 +40,7 @@ npm start               # Production mode
 - `DELETE /api/customers/:id` — Delete customer
 
 **Request Body (POST/PATCH)**:
+
 ```json
 {
   "name": "Customer Name",
@@ -45,6 +50,7 @@ npm start               # Production mode
 ```
 
 ### Products
+
 - `GET /api/products` — List products (paginated, with optional category filter)
 - `GET /api/products/:id` — Get product by ID
 - `GET /api/products/sku/:sku` — Get product by SKU
@@ -53,10 +59,12 @@ npm start               # Production mode
 - `DELETE /api/products/:id` — Delete product
 
 **Query Parameters**:
+
 - `category` (string) — Filter by category
 - `skip`, `take` — Pagination
 
 **Request Body (POST/PATCH)**:
+
 ```json
 {
   "sku": "SKU-001",
@@ -67,6 +75,7 @@ npm start               # Production mode
 ```
 
 ### Quotes
+
 - `GET /api/quotes` — List quotes (with optional filters)
 - `GET /api/quotes/:id` — Get quote with line items
 - `GET /api/quotes/number/:quoteNumber` — Get quote by quote number
@@ -75,11 +84,13 @@ npm start               # Production mode
 - `DELETE /api/quotes/:id` — Delete quote
 
 **Query Parameters**:
+
 - `status` (string) — Filter by status (draft, pending_approval, approved, rejected, invoiced)
 - `customerId` (UUID) — Filter by customer
 - `skip`, `take` — Pagination
 
 **Request Body (POST)**:
+
 ```json
 {
   "quoteNumber": "Q202605-00001",
@@ -93,6 +104,7 @@ npm start               # Production mode
 ```
 
 ### Users (Staff)
+
 - `GET /api/users` — List users (paginated, with optional filters)
 - `GET /api/users/:id` — Get user by ID
 - `GET /api/users/email/:email` — Get user by email
@@ -101,11 +113,13 @@ npm start               # Production mode
 - `DELETE /api/users/:id` — Delete user
 
 **Query Parameters**:
+
 - `role` (string) — Filter by role (director, manager, senior, sales_rep)
 - `organizationId` (UUID) — Filter by organization
 - `skip`, `take` — Pagination
 
 **Request Body (POST/PATCH)**:
+
 ```json
 {
   "name": "田中 健司",
@@ -124,15 +138,21 @@ npm start               # Production mode
 ## Response Format
 
 ### Success (2xx)
+
 ```json
 {
-  "data": { /* result object or array */ },
+  "data": {
+    /* result object or array */
+  },
   "pagination": { "skip": 0, "take": 10, "total": 27 },
-  "filter": { /* optional: active filters */ }
+  "filter": {
+    /* optional: active filters */
+  }
 }
 ```
 
 ### Error (4xx/5xx)
+
 ```json
 {
   "error": {
@@ -170,6 +190,7 @@ apps/api/
 ## Database Integration
 
 Uses `@loopnest/bizcore-db` Repository pattern:
+
 - `OrganizationRepository` (Prisma)
 - `CustomerRepository` (Prisma)
 - `ProductRepository` (Prisma)

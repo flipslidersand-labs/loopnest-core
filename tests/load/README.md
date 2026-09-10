@@ -28,18 +28,18 @@ per-IP limiter does not throttle the run by default.)
 
 ## Scenario mix
 
-| Scenario | Weight | Calls |
-|----------|--------|-------|
-| `read_customers` | 45 | GET /customers |
-| `read_products` | 25 | GET /products |
-| `full_workflow` | 30 | create customer → quote → submit → approve → invoice |
+| Scenario         | Weight | Calls                                                |
+| ---------------- | ------ | ---------------------------------------------------- |
+| `read_customers` | 45     | GET /customers                                       |
+| `read_products`  | 25     | GET /products                                        |
+| `full_workflow`  | 30     | create customer → quote → submit → approve → invoice |
 
 ## Baseline (local dev, 20 workers / 15s)
 
-| Metric | Value |
-|--------|-------|
-| Throughput | ~1,000 req/s |
-| Success | 100% |
+| Metric          | Value              |
+| --------------- | ------------------ |
+| Throughput      | ~1,000 req/s       |
+| Success         | 100%               |
 | p50 / p95 / p99 | ~12 / ~41 / ~51 ms |
 
 Numbers are machine-dependent; treat as a smoke/regression baseline, not an SLA.

@@ -10,6 +10,7 @@
 ## Executive Summary
 
 M01 delivers a **complete, production-ready BtoB Quote-to-Billing system** with:
+
 - 14 relational database tables across 4 schemas
 - 5 specialized repository classes with type safety
 - 43 REST API endpoints (30 CRUD + 13 workflow)
@@ -87,6 +88,7 @@ M01 delivers a **complete, production-ready BtoB Quote-to-Billing system** with:
 ### Database Schema (14 tables)
 
 **Core Schema** (7 tables):
+
 - `organizations` — Hierarchical company structure (7 records)
 - `users` — Staff master with profiles (32 records)
 - `customers` — Customer master (27 records)
@@ -96,15 +98,18 @@ M01 delivers a **complete, production-ready BtoB Quote-to-Billing system** with:
 - `quote_items` — Quote line items (28 records)
 
 **Workflow Schema** (2 tables):
+
 - `approval_requests` — Approval workflows
 - `approval_steps` — Individual approval steps with state machine
 
 **Finance Schema** (3 tables):
+
 - `invoices` — Invoice documents
 - `invoice_items` — Invoice line items
 - `accounting_exports` — Accounting system sync records
 
 **Audit Schema** (2 tables):
+
 - `audit_logs` — Operation audit trail (high-volume)
 - `request_logs` — HTTP request logging
 
@@ -113,6 +118,7 @@ M01 delivers a **complete, production-ready BtoB Quote-to-Billing system** with:
 ### API Endpoints (43 total)
 
 **CRUD Operations** (30 endpoints):
+
 ```
 Organizations:  GET all, GET by ID, GET children, POST, PATCH, DELETE
 Customers:      GET all, GET by ID, POST, PATCH, DELETE
@@ -122,6 +128,7 @@ Users:          GET all, GET by ID, GET by email, POST, PATCH, DELETE
 ```
 
 **Workflow Operations** (13 endpoints):
+
 ```
 Quote Workflow:
 - POST /workflow/quotes/:id/submit — Submit for approval
@@ -140,18 +147,21 @@ Approval Workflow:
 ### Service Layer (4 services)
 
 **QuoteService**:
+
 - Quote state machine (draft → pending → approved → invoiced)
 - Status validation
 - Workflow stage filtering
 - 8 public methods
 
 **ApprovalService**:
+
 - Multi-step approval chains
 - Step-by-step decision tracking
 - Approval progress calculation
 - 6 public methods
 
 **InvoiceService**:
+
 - Automatic invoice generation from quotes
 - Invoice number generation (format: INV-YYYYMM-XXXXX)
 - Amount calculations (subtotal, tax, total)
@@ -159,6 +169,7 @@ Approval Workflow:
 - 5 public methods
 
 **AuditService**:
+
 - Comprehensive operation logging
 - Structured audit entries
 - Actor tracking
@@ -180,6 +191,7 @@ Quote Items:    28 (average 2.8 items per quote)
 ## Key Features
 
 ### 1. **Quote Workflow State Machine**
+
 ```
 ┌──────────┐
 │  DRAFT   │ (Sales rep creates)
@@ -204,30 +216,35 @@ Quote Items:    28 (average 2.8 items per quote)
 ```
 
 ### 2. **Multi-Step Approval Chain**
+
 - Create approval requests with N approvers
 - Individual step-by-step approvals
 - Rejection with reason rollback
 - Progress tracking
 
 ### 3. **Audit Trail**
+
 - Every operation logged with timestamp, actor, action, resource
 - Correlation IDs for tracing related operations
 - Structured audit entries for compliance
 - <5ms logging overhead (async)
 
 ### 4. **Amount Validation**
+
 - Quote totals = subtotal + tax (10%)
 - Invoice amounts match quote amounts (with tolerance)
 - Line item calculations verified
 - Prevents accounting discrepancies
 
 ### 5. **Hierarchical Organizations**
+
 - Company → Department → Division structure
 - 7 organizations with parent/child relationships
 - Organization-scoped user queries
 - Supports multi-subsidiary structures
 
 ### 6. **Rich Staff Profiles**
+
 - 32 staff members with detailed profiles
 - Role-based access (director, manager, senior, sales_rep)
 - Performance metrics (speed, accuracy)
@@ -239,6 +256,7 @@ Quote Items:    28 (average 2.8 items per quote)
 ## Data Validation & Error Handling
 
 ### Status Transition Validation
+
 ```typescript
 draft ──submit──> pending_approval
 pending_approval ──approve──> approved
@@ -251,12 +269,14 @@ Cannot invoice rejected quote → INVALID_STATUS error
 ```
 
 ### Request Validation
+
 - Required field checking
 - Type validation (UUID, string, number)
 - Amount validation (non-negative)
 - Email format validation
 
 ### Error Codes
+
 - `NOT_FOUND` (404) — Resource doesn't exist
 - `VALIDATION_ERROR` (400) — Invalid request data
 - `INVALID_STATUS` (400) — Cannot perform action in current state
@@ -266,16 +286,17 @@ Cannot invoice rejected quote → INVALID_STATUS error
 
 ## Performance Characteristics
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Quote Creation | ~50ms | Includes validation |
-| Quote Retrieval | ~10ms | Simple lookup |
-| Quote with Items | ~20ms | Includes nested data |
-| Status Transition | ~30ms | State validation + update |
-| Invoice Generation | ~100ms | Multiple operations |
-| Audit Logging | <5ms | Async, non-blocking |
+| Operation          | Latency | Notes                     |
+| ------------------ | ------- | ------------------------- |
+| Quote Creation     | ~50ms   | Includes validation       |
+| Quote Retrieval    | ~10ms   | Simple lookup             |
+| Quote with Items   | ~20ms   | Includes nested data      |
+| Status Transition  | ~30ms   | State validation + update |
+| Invoice Generation | ~100ms  | Multiple operations       |
+| Audit Logging      | <5ms    | Async, non-blocking       |
 
 **Scalability**:
+
 - Database connection pooling
 - Indexed queries (35+ indexes)
 - Repository-level caching ready
@@ -287,6 +308,7 @@ Cannot invoice rejected quote → INVALID_STATUS error
 ## Type Safety & Code Quality
 
 ### TypeScript Coverage
+
 - ✅ 100% source code in TypeScript
 - ✅ Strict mode enabled
 - ✅ Full generic types for repositories
@@ -294,12 +316,14 @@ Cannot invoice rejected quote → INVALID_STATUS error
 - ✅ API request/response types
 
 ### Compilation
+
 ```bash
 npm run type-check  # Zero errors
 npm run build       # Zero errors
 ```
 
 ### Code Organization
+
 ```
 packages/bizcore-db/
 ├── src/
@@ -330,6 +354,7 @@ apps/api/
 ## Testing & Validation
 
 ### Compilation Testing
+
 ```bash
 ✅ bizcore-db: npm run type-check  # PASS
 ✅ api: npm run type-check          # PASS
@@ -338,6 +363,7 @@ apps/api/
 ```
 
 ### Database Validation
+
 ```
 ✅ 7 organizations (hierarchical)
 ✅ 32 users (all roles represented)
@@ -348,6 +374,7 @@ apps/api/
 ```
 
 ### Seed Scripts
+
 ```
 ✅ seed-simple.sql — Organizations with parent/child
 ✅ seed-staff.js — 32 staff with profiles
@@ -361,6 +388,7 @@ apps/api/
 ## Dependencies
 
 ### Production
+
 - `express` — HTTP server
 - `@prisma/client` — ORM for master tables
 - `drizzle-orm` — ORM for state machines
@@ -372,6 +400,7 @@ apps/api/
 - `zod` — Schema validation
 
 ### Development
+
 - `typescript` — Type checking
 - `@types/express`, `@types/node`, etc. — Type definitions
 
@@ -387,13 +416,14 @@ apps/api/
 ✅ **Logging** audit trail complete  
 ✅ **Type safety** 100% coverage  
 ✅ **API documentation** detailed  
-✅ **Example workflows** provided  
+✅ **Example workflows** provided
 
 ---
 
 ## What's Next (M02)
 
 ### Planned Features
+
 1. **Outbox Pattern** — Async event-driven notifications
 2. **Multi-level Approvals** — Configurable approval chains
 3. **Accounting Export** — Integration with accounting systems
@@ -402,6 +432,7 @@ apps/api/
 6. **Advanced Analytics** — Reporting views and dashboards
 
 ### Optional Enhancements
+
 - [ ] Swagger/OpenAPI documentation
 - [ ] GraphQL API layer
 - [ ] Real-time WebSocket updates
@@ -420,7 +451,7 @@ apps/api/
 ✅ **Separation of concerns** — Repository, service, controller layers  
 ✅ **Real-world workflows** — Approval states, audit trails, validations  
 ✅ **Comprehensive testing** — Type checking, seed data, compilation  
-✅ **Professional code quality** — Error handling, logging, documentation  
+✅ **Professional code quality** — Error handling, logging, documentation
 
 **Estimated production deployment**: Runway-ready with minimal DevOps setup.
 
@@ -428,18 +459,18 @@ apps/api/
 
 ## Metrics
 
-| Metric | Value |
-|--------|-------|
-| Total Lines of Code | ~3,500 |
-| TypeScript Files | 15 |
-| Database Tables | 14 |
-| API Endpoints | 43 |
-| Service Methods | 27 |
-| Repository Methods | 35+ |
-| Test Scenarios | 9 (documented in WORKFLOW_EXAMPLE.md) |
-| Database Records Seeded | 65+ |
-| Build Time | <10 seconds |
-| Type Check Time | <5 seconds |
+| Metric                  | Value                                 |
+| ----------------------- | ------------------------------------- |
+| Total Lines of Code     | ~3,500                                |
+| TypeScript Files        | 15                                    |
+| Database Tables         | 14                                    |
+| API Endpoints           | 43                                    |
+| Service Methods         | 27                                    |
+| Repository Methods      | 35+                                   |
+| Test Scenarios          | 9 (documented in WORKFLOW_EXAMPLE.md) |
+| Database Records Seeded | 65+                                   |
+| Build Time              | <10 seconds                           |
+| Type Check Time         | <5 seconds                            |
 
 ---
 

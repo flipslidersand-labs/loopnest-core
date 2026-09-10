@@ -30,6 +30,7 @@ curl -X GET http://localhost:3000/api/customers \
 ```
 
 **Response** (excerpt):
+
 ```json
 {
   "data": [
@@ -54,6 +55,7 @@ curl -X GET 'http://localhost:3000/api/products?category=server&take=3' \
 ```
 
 **Response** (excerpt):
+
 ```json
 {
   "data": [
@@ -85,7 +87,8 @@ curl -X GET 'http://localhost:3000/api/products?category=server&take=3' \
 }
 ```
 
-**Store**: 
+**Store**:
+
 - `PRODUCT_1 = "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5"`
 - `PRODUCT_2 = "b2b2b2b2-c3c3-d4d4-e5e5-e6e6e6e6e6e6"`
 - `PRODUCT_3 = "c3c3c3c3-d4d4-e5e5-e6e6-e7e7e7e7e7e7"`
@@ -98,6 +101,7 @@ curl -X GET 'http://localhost:3000/api/users?role=sales_rep&take=1' \
 ```
 
 **Response**:
+
 ```json
 {
   "data": [
@@ -129,6 +133,7 @@ curl -X GET 'http://localhost:3000/api/users?role=manager&take=1' \
 ### Create a new quote with 3 line items
 
 **Request**:
+
 ```bash
 curl -X POST http://localhost:3000/api/quotes \
   -H "Content-Type: application/json" \
@@ -144,6 +149,7 @@ curl -X POST http://localhost:3000/api/quotes \
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -174,6 +180,7 @@ curl -X GET http://localhost:3000/api/workflow/quotes/quote-001/status \
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -197,6 +204,7 @@ curl -X GET http://localhost:3000/api/workflow/quotes/quote-001/status \
 Sales rep submits the draft quote for approval (draft → pending_approval):
 
 **Request**:
+
 ```bash
 curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/submit \
   -H "Content-Type: application/json" \
@@ -206,6 +214,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/submit \
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -221,6 +230,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/submit \
 ```
 
 **Audit Log** (internal):
+
 ```
 [AUDIT] {
   timestamp: "2026-05-18T22:35:00Z",
@@ -244,6 +254,7 @@ curl -X GET 'http://localhost:3000/api/workflow/quotes/stage/pending-approval' \
 ```
 
 **Response**:
+
 ```json
 {
   "data": [
@@ -267,6 +278,7 @@ curl -X GET 'http://localhost:3000/api/workflow/quotes/stage/pending-approval' \
 Manager approves the quote (pending_approval → approved):
 
 **Request**:
+
 ```bash
 curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/approve \
   -H "Content-Type: application/json" \
@@ -277,6 +289,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/approve \
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -292,6 +305,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/approve \
 ```
 
 **Audit Log** (internal):
+
 ```
 [AUDIT] {
   timestamp: "2026-05-18T22:40:00Z",
@@ -310,6 +324,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/approve \
 Accounting converts the approved quote to an invoice (approved → invoiced):
 
 **Request**:
+
 ```bash
 curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/invoice \
   -H "Content-Type: application/json" \
@@ -319,6 +334,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/invoice \
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -342,6 +358,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/invoice \
 ```
 
 **Audit Logs** (internal):
+
 ```
 [AUDIT] {
   action: "QUOTE_INVOICED",
@@ -369,6 +386,7 @@ curl -X GET http://localhost:3000/api/workflow/quotes/quote-001/status \
 ```
 
 **Response**:
+
 ```json
 {
   "data": {
@@ -397,6 +415,7 @@ curl -X GET 'http://localhost:3000/api/workflow/quotes/stage/invoiced' \
 ```
 
 **Response**:
+
 ```json
 {
   "data": [
@@ -446,6 +465,7 @@ curl -X GET 'http://localhost:3000/api/workflow/quotes/stage/invoiced' \
 ## Key Workflow Validations
 
 ### Status Transition Rules
+
 - ✅ draft → pending_approval (via `submit`)
 - ✅ pending_approval → approved (via `approve`)
 - ✅ pending_approval → rejected (via `reject`)
@@ -454,7 +474,9 @@ curl -X GET 'http://localhost:3000/api/workflow/quotes/stage/invoiced' \
 - ❌ Cannot revert (e.g., approved → draft)
 
 ### Audit Trail
+
 Every operation is logged with:
+
 - Actor ID (who performed the action)
 - Action type (QUOTE_SUBMITTED, QUOTE_APPROVED, etc.)
 - Resource type & ID
@@ -462,6 +484,7 @@ Every operation is logged with:
 - Metadata (status changes, notes, etc.)
 
 ### Amount Validation
+
 - Subtotal = sum of line items
 - Tax = subtotal × 10% (Japanese consumption tax)
 - Total = subtotal + tax
@@ -480,6 +503,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-001/approve \
 ```
 
 **Response** (400 Bad Request):
+
 ```json
 {
   "error": {
@@ -498,6 +522,7 @@ curl -X POST http://localhost:3000/api/workflow/quotes/quote-002/invoice \
 ```
 
 **Response** (400 Bad Request):
+
 ```json
 {
   "error": {

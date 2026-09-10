@@ -10,12 +10,12 @@
  */
 export const withRedisTimeout = <T>(
   op: Promise<T>,
-  timeoutMs = 200
+  timeoutMs = 200,
 ): Promise<T> => {
   return Promise.race([
     op,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('redis-timeout')), timeoutMs)
+      setTimeout(() => reject(new Error("redis-timeout")), timeoutMs),
     ),
   ]);
 };

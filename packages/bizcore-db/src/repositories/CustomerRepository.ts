@@ -1,5 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { PrismaClient } from "@prisma/client";
+import {
+  BaseRepository,
+  FindOptions,
+  CreateInput,
+  UpdateInput,
+} from "./BaseRepository.js";
 
 export interface Customer {
   id: string;
@@ -19,7 +24,10 @@ export class CustomerRepository extends BaseRepository<Customer> {
     super();
   }
 
-  async findById(id: string, organizationId?: string): Promise<Customer | null> {
+  async findById(
+    id: string,
+    organizationId?: string,
+  ): Promise<Customer | null> {
     const customer = organizationId
       ? await this.prisma.customer.findFirst({ where: { id, organizationId } })
       : await this.prisma.customer.findUnique({ where: { id } });
@@ -30,13 +38,18 @@ export class CustomerRepository extends BaseRepository<Customer> {
     const customers = await this.prisma.customer.findMany({
       skip: options?.skip,
       take: options?.take,
-      orderBy: options?.orderBy || { name: 'asc' },
-      where: options?.organizationId ? { organizationId: options.organizationId } : undefined,
+      orderBy: options?.orderBy || { name: "asc" },
+      where: options?.organizationId
+        ? { organizationId: options.organizationId }
+        : undefined,
     });
     return customers.map((c: any) => this.mapToCustomer(c));
   }
 
-  async findOne(where: Partial<Customer>, options?: FindOptions): Promise<Customer | null> {
+  async findOne(
+    where: Partial<Customer>,
+    options?: FindOptions,
+  ): Promise<Customer | null> {
     const customer = await this.prisma.customer.findFirst({
       where: where.name ? { name: where.name } : {},
     });
@@ -74,7 +87,9 @@ export class CustomerRepository extends BaseRepository<Customer> {
 
   async count(where?: { organizationId?: string }): Promise<number> {
     return this.prisma.customer.count({
-      where: where?.organizationId ? { organizationId: where.organizationId } : undefined,
+      where: where?.organizationId
+        ? { organizationId: where.organizationId }
+        : undefined,
     });
   }
 

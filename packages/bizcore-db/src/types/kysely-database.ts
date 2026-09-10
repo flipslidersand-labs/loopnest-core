@@ -1,4 +1,4 @@
-import { Generated, Insertable, Selectable, Updateable } from 'kysely';
+import { Generated, Insertable, Selectable, Updateable } from "kysely";
 
 // ============================================
 // core.quote_requests
@@ -186,7 +186,7 @@ export interface CreditNoteTable {
   amount: number;
   reason: string;
   cn_type: string; // 'return' | 'pricing_error' | 'goodwill' | 'adjustment'
-  status: string;  // 'issued' | 'partially_applied' | 'fully_applied' | 'refunded' | 'void'
+  status: string; // 'issued' | 'partially_applied' | 'fully_applied' | 'refunded' | 'void'
   applied_amount: number;
   refunded_amount: number;
   issued_at: Generated<Date>;
@@ -219,15 +219,15 @@ export type NewCreditNoteApplication = Insertable<CreditNoteApplicationTable>;
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
-  'core.quote_requests': QuoteRequestTable;
-  'core.quotes': QuoteTable;
-  'core.quote_items': QuoteItemTable;
-  'finance.invoices': InvoiceTable;
-  'finance.invoice_items': InvoiceItemTable;
-  'finance.accounting_exports': AccountingExportTable;
-  'finance.payments': PaymentTable;
-  'finance.credit_notes': CreditNoteTable;
-  'finance.credit_note_applications': CreditNoteApplicationTable;
-  'events.outbox_events': OutboxEventTable;
-  'events.webhooks': WebhookTable;
+  "core.quote_requests": QuoteRequestTable;
+  "core.quotes": QuoteTable;
+  "core.quote_items": QuoteItemTable;
+  "finance.invoices": InvoiceTable;
+  "finance.invoice_items": InvoiceItemTable;
+  "finance.accounting_exports": AccountingExportTable;
+  "finance.payments": PaymentTable;
+  "finance.credit_notes": CreditNoteTable;
+  "finance.credit_note_applications": CreditNoteApplicationTable;
+  "events.outbox_events": OutboxEventTable;
+  "events.webhooks": WebhookTable;
 }

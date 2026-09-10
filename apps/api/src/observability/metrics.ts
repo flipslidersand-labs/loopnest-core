@@ -12,20 +12,20 @@ const labelKey = (labels: Labels): string =>
   Object.keys(labels)
     .sort()
     .map((k) => `${k}=${labels[k]}`)
-    .join(',');
+    .join(",");
 
 const renderLabels = (labels: Labels): string => {
   const entries = Object.keys(labels)
     .sort()
     .map((k) => `${k}="${labels[k].replace(/"/g, '\\"')}"`);
-  return entries.length ? `{${entries.join(',')}}` : '';
+  return entries.length ? `{${entries.join(",")}}` : "";
 };
 
 class Counter {
   private values = new Map<string, { labels: Labels; value: number }>();
   constructor(
     readonly name: string,
-    readonly help: string
+    readonly help: string,
   ) {}
 
   inc(labels: Labels = {}, amount = 1): void {
@@ -36,11 +36,14 @@ class Counter {
   }
 
   render(): string {
-    const lines = [`# HELP ${this.name} ${this.help}`, `# TYPE ${this.name} counter`];
+    const lines = [
+      `# HELP ${this.name} ${this.help}`,
+      `# TYPE ${this.name} counter`,
+    ];
     for (const { labels, value } of this.values.values()) {
       lines.push(`${this.name}${renderLabels(labels)} ${value}`);
     }
-    return lines.join('\n');
+    return lines.join("\n");
   }
 }
 
@@ -48,7 +51,7 @@ class Gauge {
   private value = 0;
   constructor(
     readonly name: string,
-    readonly help: string
+    readonly help: string,
   ) {}
 
   inc(amount = 1): void {
@@ -66,7 +69,7 @@ class Gauge {
       `# HELP ${this.name} ${this.help}`,
       `# TYPE ${this.name} gauge`,
       `${this.name} ${this.value}`,
-    ].join('\n');
+    ].join("\n");
   }
 }
 
@@ -80,7 +83,7 @@ class Histogram {
   constructor(
     readonly name: string,
     readonly help: string,
-    buckets: number[]
+    buckets: number[],
   ) {
     this.buckets = [...buckets].sort((a, b) => a - b);
   }
@@ -102,7 +105,10 @@ class Histogram {
   }
 
   render(): string {
-    const lines = [`# HELP ${this.name} ${this.help}`, `# TYPE ${this.name} histogram`];
+    const lines = [
+      `# HELP ${this.name} ${this.help}`,
+      `# TYPE ${this.name} histogram`,
+    ];
     for (const key of this.counts.keys()) {
       const labels = this.labelSets.get(key)!;
       const bucketCounts = this.counts.get(key)!;
@@ -110,46 +116,52 @@ class Histogram {
         const le = { ...labels, le: String(this.buckets[i]) };
         lines.push(`${this.name}_bucket${renderLabels(le)} ${bucketCounts[i]}`);
       }
-      const inf = { ...labels, le: '+Inf' };
-      lines.push(`${this.name}_bucket${renderLabels(inf)} ${this.totals.get(key)}`);
-      lines.push(`${this.name}_sum${renderLabels(labels)} ${this.sums.get(key)}`);
-      lines.push(`${this.name}_count${renderLabels(labels)} ${this.totals.get(key)}`);
+      const inf = { ...labels, le: "+Inf" };
+      lines.push(
+        `${this.name}_bucket${renderLabels(inf)} ${this.totals.get(key)}`,
+      );
+      lines.push(
+        `${this.name}_sum${renderLabels(labels)} ${this.sums.get(key)}`,
+      );
+      lines.push(
+        `${this.name}_count${renderLabels(labels)} ${this.totals.get(key)}`,
+      );
     }
-    return lines.join('\n');
+    return lines.join("\n");
   }
 }
 
 // ---- Registry ----------------------------------------------------------------
 
 export const httpRequestsTotal = new Counter(
-  'http_requests_total',
-  'Total HTTP requests by method, route and status code'
+  "http_requests_total",
+  "Total HTTP requests by method, route and status code",
 );
 
 export const httpRequestDurationMs = new Histogram(
-  'http_request_duration_ms',
-  'HTTP request latency in milliseconds',
-  [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
+  "http_request_duration_ms",
+  "HTTP request latency in milliseconds",
+  [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
 );
 
 export const httpRequestsInFlight = new Gauge(
-  'http_requests_in_flight',
-  'Number of HTTP requests currently being served'
+  "http_requests_in_flight",
+  "Number of HTTP requests currently being served",
 );
 
 export const rateLimitRejectionsTotal = new Counter(
-  'rate_limit_rejections_total',
-  'Requests rejected by the rate limiter, by bucket'
+  "rate_limit_rejections_total",
+  "Requests rejected by the rate limiter, by bucket",
 );
 
 const processStart = Date.now();
 
 export const renderMetrics = (): string => {
   const uptime = [
-    '# HELP process_uptime_seconds Seconds since the API process started',
-    '# TYPE process_uptime_seconds gauge',
+    "# HELP process_uptime_seconds Seconds since the API process started",
+    "# TYPE process_uptime_seconds gauge",
     `process_uptime_seconds ${Math.floor((Date.now() - processStart) / 1000)}`,
-  ].join('\n');
+  ].join("\n");
 
   return (
     [
@@ -158,6 +170,6 @@ export const renderMetrics = (): string => {
       httpRequestsInFlight.render(),
       rateLimitRejectionsTotal.render(),
       uptime,
-    ].join('\n\n') + '\n'
+    ].join("\n\n") + "\n"
   );
 };
