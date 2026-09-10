@@ -4,6 +4,7 @@ import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
 import { requireRole } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
+import { parseTake, parseSkip } from '../middleware/pagination.js';
 
 const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
 
@@ -86,7 +87,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
     '/',
     asyncHandler(async (req: Request, res: Response) => {
       const cursor = req.query.cursor as string | undefined;
-      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
+      const take = parseTake(req.query.limit ?? req.query.take);
       const status = req.query.status as string | undefined;
       const customerId = req.query.customerId as string | undefined;
 

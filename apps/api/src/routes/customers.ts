@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { parseTake, parseSkip } from '../middleware/pagination.js';
 import { AuditService } from '../services/AuditService.js';
 import { StatementService } from '../services/StatementService.js';
 import { PdfService } from '../services/PdfService.js';
@@ -15,7 +16,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     '/',
     asyncHandler(async (req: Request, res: Response) => {
       const cursor = req.query.cursor as string | undefined;
-      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
+      const take = parseTake(req.query.limit ?? req.query.take);
       const orgId = req.user?.orgId;
 
       if (cursor || req.query.limit) {
