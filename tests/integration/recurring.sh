@@ -88,7 +88,7 @@ PAUSED=$(curl -sf -X PATCH \
   "${BASE_URL}/api/recurring-contracts/${CONTRACT_ID}/pause" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"reason\":\"Payment dispute\",\"pauseUntil\":\"$FUTURE\"}")
+  -d "{\"reason\":\"Payment dispute\",\"pauseUntil\":\"${FUTURE}T12:00:00.000Z\"}")
 P_STATUS=$(echo "$PAUSED" | jq -r '.data.status')
 if [ "$P_STATUS" = "paused" ]; then
   pass "PATCH /pause → status=paused"
