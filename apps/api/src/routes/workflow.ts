@@ -22,14 +22,21 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     if (!q) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
   };
 
-  // Guard: the body-supplied actor userId is only an audit/authorization label,
-  // not an authenticated identity, so a non-admin caller must not be able to
-  // claim to be someone else (e.g. an assigned approver) just by naming them.
-  // Admins remain trusted to act/delegate on behalf of any userId.
-  const assertActorIdentity = (req: Request, userId: string): void => {
-    if (req.user?.role !== 'admin' && req.user?.sub !== userId) {
+  /**
+   * Resolve the actor for audit/state-machine purposes.
+   * - Defaults to req.user.sub (the authenticated identity).
+   * - Admins may supply an optional body.userId to delegate on behalf of another
+   *   user (e.g. acting as an assigned approver). Non-admins that supply a
+   *   body.userId which doesn't match their own sub get a 403.
+   */
+  const resolveActor = (req: Request): string => {
+    const bodyUserId = req.body?.userId as string | undefined;
+    const jwtSub = req.user?.sub ?? 'system';
+    if (!bodyUserId || bodyUserId === jwtSub) return jwtSub;
+    if (req.user?.role !== 'admin') {
       throw new ApiErrorResponse(403, 'FORBIDDEN', 'Cannot act as another user');
     }
+    return bodyUserId; // admin delegation
   };
 
   // ── Quote state machine ──────────────────────────────────────────────────
@@ -39,13 +46,11 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
-      const { userId } = req.body;
-      if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
-      assertActorIdentity(req, userId);
+      const actorId = resolveActor(req);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await services.quotes.submitForApproval(req.params.id, userId);
-      await services.audit.logQuoteSubmitted(req.params.id, userId);
-      wh.deliver(req.user?.orgId, 'quote.submitted', { quoteId: req.params.id, userId, status: 'pending_approval' });
+      const quote = await services.quotes.submitForApproval(req.params.id, actorId);
+      await services.audit.logQuoteSubmitted(req.params.id, actorId);
+      wh.deliver(req.user?.orgId, 'quote.submitted', { quoteId: req.params.id, userId: actorId, status: 'pending_approval' });
       res.json({ data: quote, message: 'Quote submitted for approval' });
     })
   );
@@ -55,13 +60,12 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
-      const { userId, notes } = req.body;
-      if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
-      assertActorIdentity(req, userId);
+      const actorId = resolveActor(req);
+      const { notes } = req.body;
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await services.quotes.approve(req.params.id, userId, notes);
-      await services.audit.logQuoteApproved(req.params.id, userId);
-      wh.deliver(req.user?.orgId, 'quote.approved', { quoteId: req.params.id, userId, status: 'approved' });
+      const quote = await services.quotes.approve(req.params.id, actorId, notes);
+      await services.audit.logQuoteApproved(req.params.id, actorId);
+      wh.deliver(req.user?.orgId, 'quote.approved', { quoteId: req.params.id, userId: actorId, status: 'approved' });
       res.json({ data: quote, message: 'Quote approved' });
     })
   );
@@ -71,14 +75,12 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
-      const { userId, reason } = req.body;
-      if (!userId || !reason) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId and reason are required');
-      }
-      assertActorIdentity(req, userId);
+      const actorId = resolveActor(req);
+      const { reason } = req.body;
+      if (!reason) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await services.quotes.reject(req.params.id, userId, reason);
-      await services.audit.logQuoteRejected(req.params.id, userId, reason);
+      const quote = await services.quotes.reject(req.params.id, actorId, reason);
+      await services.audit.logQuoteRejected(req.params.id, actorId, reason);
       res.json({ data: quote, message: 'Quote rejected' });
     })
   );
@@ -88,16 +90,14 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
-      const { userId } = req.body;
-      if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
-      assertActorIdentity(req, userId);
+      const actorId = resolveActor(req);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       // Pre-check credit limit before the atomic status transition so a rejection
       // does not strand the quote in 'invoiced' status with no actual invoice.
       await services.invoices.assertCreditAllows(req.params.id);
-      const quote = await services.quotes.convertToInvoice(req.params.id, userId);
-      const invoiceResult = await services.invoices.createFromQuote(req.params.id, userId);
-      await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, userId);
+      const quote = await services.quotes.convertToInvoice(req.params.id, actorId);
+      const invoiceResult = await services.invoices.createFromQuote(req.params.id, actorId);
+      await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, actorId);
       wh.deliver(req.user?.orgId, 'invoice.created', { invoiceId: invoiceResult.invoiceId, quoteId: req.params.id, totalAmount: invoiceResult.totalAmount });
       res.json({ data: { quote, invoice: invoiceResult }, message: 'Invoice created from approved quote' });
     })
@@ -167,10 +167,9 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     '/approvals/:requestId/steps/:stepId/approve',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { userId, notes } = req.body;
-      if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
-      assertActorIdentity(req, userId);
-      const step = await services.approvals.approveStep(req.params.requestId, req.params.stepId, userId, notes);
+      const actorId = resolveActor(req);
+      const { notes } = req.body;
+      const step = await services.approvals.approveStep(req.params.requestId, req.params.stepId, actorId, notes);
       res.json({ data: step, message: 'Approval step approved' });
     })
   );
@@ -179,12 +178,10 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     '/approvals/:requestId/steps/:stepId/reject',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { userId, reason } = req.body;
-      if (!userId || !reason) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId and reason are required');
-      }
-      assertActorIdentity(req, userId);
-      const step = await services.approvals.rejectStep(req.params.requestId, req.params.stepId, userId, reason);
+      const actorId = resolveActor(req);
+      const { reason } = req.body;
+      if (!reason) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
+      const step = await services.approvals.rejectStep(req.params.requestId, req.params.stepId, actorId, reason);
       res.json({ data: step, message: 'Approval step rejected' });
     })
   );
@@ -193,10 +190,8 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
     '/approvals/:requestId/cancel',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { userId } = req.body;
-      if (!userId) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'userId is required');
-      assertActorIdentity(req, userId);
-      await services.approvals.cancelApprovalRequest(req.params.requestId, userId);
+      const actorId = resolveActor(req);
+      await services.approvals.cancelApprovalRequest(req.params.requestId, actorId);
       res.json({ message: 'Approval request cancelled' });
     })
   );
