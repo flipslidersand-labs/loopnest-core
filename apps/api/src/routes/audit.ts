@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { AuditService } from '../services/AuditService.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { parsePagination } from '../lib/pagination.js';
 
 export function auditRoutes(auditService: AuditService) {
   const router = Router();
@@ -13,8 +14,7 @@ export function auditRoutes(auditService: AuditService) {
   router.get(
     '/logs',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Number.parseInt(req.query.skip as string) || 0;
-      const take = Math.min(Number.parseInt(req.query.take as string) || 20, 100);
+      const { skip, take } = parsePagination(req.query);
       const filter = {
         actorId:      req.query.actorId as string | undefined,
         resourceType: req.query.resourceType as string | undefined,
@@ -82,8 +82,7 @@ export function auditRoutes(auditService: AuditService) {
   router.get(
     '/requests',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Number.parseInt(req.query.skip as string) || 0;
-      const take = Math.min(Number.parseInt(req.query.take as string) || 20, 100);
+      const { skip, take } = parsePagination(req.query);
       const statusCode = req.query.statusCode ? Number.parseInt(req.query.statusCode as string) : undefined;
       const filter = {
         actorId:    req.query.actorId as string | undefined,

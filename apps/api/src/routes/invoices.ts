@@ -93,7 +93,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
-        const skip = Number.parseInt(req.query.skip as string) || 0;
+        const skip = Math.max(0, Number.parseInt(req.query.skip as string) || 0);
         const [invoices, total] = await Promise.all([
           repos.invoices.findAll({ skip, take, status, customerId }),
           repos.invoices.count({ status, customerId }),

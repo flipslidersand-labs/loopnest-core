@@ -3,6 +3,7 @@ import { RepositoryContainer } from '@loopnest/bizcore-db';
 import type { User } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { parsePagination } from '../lib/pagination.js';
 
 /**
  * Enforce org isolation: a tenant-scoped token (req.user.orgId set) may only
@@ -27,8 +28,7 @@ export function userRoutes(repos: RepositoryContainer) {
     '/',
     requireRole('viewer', 'editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Number.parseInt(req.query.skip as string) || 0;
-      const take = Number.parseInt(req.query.take as string) || 10;
+      const { skip, take } = parsePagination(req.query, { defaultTake: 10 });
       const role = req.query.role as string | undefined;
       const orgId = resolveOrgId(req, req.query.organizationId as string | undefined);
 
