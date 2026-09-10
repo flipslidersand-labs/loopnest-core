@@ -17,6 +17,8 @@ function assertOrgAccess(req: Request, ownerOrgId: string | null): void {
   }
 }
 
+const PAYMENT_METHODS: readonly PaymentMethod[] = ['bank_transfer', 'credit_card', 'cash', 'offset'];
+
 /**
  * Load an invoice and resolve its owning org via the originating quote
  * (finance.invoices is not org-tagged), 404ing if the invoice is missing.
@@ -69,10 +71,21 @@ export function invoicePaymentRoutes(
       if (amount === undefined || method === undefined) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'amount and method are required');
       }
+      const amountNum = Number(amount);
+      if (!Number.isFinite(amountNum) || amountNum <= 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'amount must be a positive finite number');
+      }
+      if (!PAYMENT_METHODS.includes(method)) {
+        throw new ApiErrorResponse(
+          400,
+          'VALIDATION_ERROR',
+          `method must be one of: ${PAYMENT_METHODS.join(', ')}`
+        );
+      }
 
       const result = await payments.recordPayment(
         invoiceId,
-        { amount, method, paidOn, reference },
+        { amount: amountNum, method, paidOn, reference },
         req.user!.sub
       );
 
