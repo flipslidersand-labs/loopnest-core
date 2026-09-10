@@ -35,6 +35,8 @@ export class EventWorker {
   private expiryTimer: NodeJS.Timeout | null = null;
   private recurringTimer: NodeJS.Timeout | null = null;
   private dunningTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private stopped = false;
   private listenClient: PgClient | null = null;
   private isProcessing = false;
   private isScanningOverdue = false;
@@ -58,6 +60,7 @@ export class EventWorker {
   start(
     intervalMs: number = Number(process.env.EVENT_WORKER_INTERVAL_MS) || 5000,
   ): void {
+    this.stopped = false;
     // Keep original poll interval unchanged — it drives retries for failed events.
     // LISTEN/NOTIFY supplements it: new inserts wake processBatch() immediately.
     logger.info(`🔄 EventWorker started (LISTEN/NOTIFY + ${intervalMs}ms poll)`);
@@ -93,6 +96,11 @@ export class EventWorker {
   }
 
   stop(): void {
+    this.stopped = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -118,6 +126,8 @@ export class EventWorker {
   }
 
   private async startListening(): Promise<void> {
+    if (this.stopped) return;
+
     const client = new PgClient({
       host: process.env.POSTGRES_HOST || 'localhost',
       port: parseInt(process.env.POSTGRES_PORT || '5432'),
@@ -138,14 +148,22 @@ export class EventWorker {
       client.on('error', (err: Error) => {
         logger.error({ err }, `[EventWorker] LISTEN client error, reconnecting in 5s`);
         void this.stopListening();
-        setTimeout(() => void this.startListening(), 5_000);
+        if (this.stopped) return;
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          void this.startListening();
+        }, 5_000);
       });
 
       logger.info(`👂 EventWorker LISTEN on channel '${NOTIFY_CHANNEL}'`);
     } catch (err) {
       logger.error({ err }, '[EventWorker] Failed to connect LISTEN client, retrying in 5s');
       await client.end().catch(() => undefined);
-      setTimeout(() => void this.startListening(), 5_000);
+      if (this.stopped) return;
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        void this.startListening();
+      }, 5_000);
     }
   }
 
