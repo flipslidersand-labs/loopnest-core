@@ -24,7 +24,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
-        const skip = Number.parseInt(req.query.skip as string) || 0;
+        const skip = Math.max(0, Number.parseInt(req.query.skip as string) || 0);
         const customers = await repos.customers.findAll({ skip, take, organizationId: orgId });
         const count = await repos.customers.count({ organizationId: orgId });
         res.json({ data: customers, pagination: { skip, take, total: count } });

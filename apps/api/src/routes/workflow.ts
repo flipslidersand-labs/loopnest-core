@@ -3,6 +3,7 @@ import { ServiceContainer } from '../services/index.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
+import { parseLimit } from '../lib/pagination.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -115,7 +116,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
   router.get(
     '/quotes/stage/draft',
     asyncHandler(async (req: Request, res: Response) => {
-      const limit = Number.parseInt(req.query.limit as string) || 10;
+      const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getDraftQuotes(limit);
       res.json({ data: quotes, stage: 'draft' });
     })
@@ -124,7 +125,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
   router.get(
     '/quotes/stage/pending-approval',
     asyncHandler(async (req: Request, res: Response) => {
-      const limit = Number.parseInt(req.query.limit as string) || 10;
+      const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getPendingApprovalQuotes(limit);
       res.json({ data: quotes, stage: 'pending_approval' });
     })
@@ -133,7 +134,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
   router.get(
     '/quotes/stage/approved',
     asyncHandler(async (req: Request, res: Response) => {
-      const limit = Number.parseInt(req.query.limit as string) || 10;
+      const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getApprovedQuotes(limit);
       res.json({ data: quotes, stage: 'approved' });
     })
@@ -142,7 +143,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
   router.get(
     '/quotes/stage/invoiced',
     asyncHandler(async (req: Request, res: Response) => {
-      const limit = Number.parseInt(req.query.limit as string) || 10;
+      const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getInvoicedQuotes(limit);
       res.json({ data: quotes, stage: 'invoiced' });
     })
