@@ -18,7 +18,7 @@ echo "POST /api/invoices/bulk-create"
 
 BULK_BODY=$(jq -n --arg cid "$CUST" '{
   items: [
-    { customerId: $cid, lineItems: [{ quantity: 2, unitPrice: 1000 }], dueDate: "2026-12-31" },
+    { customerId: $cid, lineItems: [{ quantity: 2, unitPrice: 1000 }], dueDate: "2026-12-31T12:00:00.000Z" },
     { customerId: $cid, lineItems: [{ quantity: 1, unitPrice: 5000 }] }
   ]
 }')
