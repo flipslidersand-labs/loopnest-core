@@ -28,8 +28,8 @@ export function webhookRoutes(webhookService: WebhookService) {
         webhookId: webhookId as string | undefined,
         status:    status as 'success' | 'failed' | undefined,
         eventType: eventType as string | undefined,
-        limit:     limit  ? parseInt(limit as string, 10)  : 20,
-        offset:    offset ? parseInt(offset as string, 10) : 0,
+        limit:     Math.min(100, Math.max(1, limit  ? parseInt(limit as string,  10) : 20)),
+        offset:    Math.max(0,              offset ? parseInt(offset as string, 10) : 0),
       });
       res.json({ data: result.data, total: result.total });
     })

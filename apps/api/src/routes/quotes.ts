@@ -4,6 +4,7 @@ import type { QuoteEntity } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { PdfService } from '../services/PdfService.js';
+import { parsePagination } from '../lib/pagination.js';
 
 export function quoteRoutes(repos: RepositoryContainer) {
   const router = Router();
@@ -12,8 +13,7 @@ export function quoteRoutes(repos: RepositoryContainer) {
   router.get(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Number.parseInt(req.query.skip as string) || 0;
-      const take = Number.parseInt(req.query.take as string) || 10;
+      const { skip, take } = parsePagination(req.query, { defaultTake: 10 });
       const status = req.query.status as string;
       const customerId = req.query.customerId as string;
       const orgId = req.user?.orgId;
