@@ -174,6 +174,34 @@ export class InvoiceRepository {
     return rows.map((r: any) => this.map(r));
   }
 
+  /**
+   * Same result set as `findForExport`, but pushed row-by-row via a DB cursor
+   * so callers (e.g. CSV export) can stream output instead of buffering the
+   * full 10,000-row result set in memory. Postgres server-side cursors only
+   * live for the duration of a transaction, so the whole scan runs inside one
+   * (query.stream() outside a transaction can silently drop rows once the
+   * connection is returned to the pool).
+   */
+  async streamForExport(
+    filter: Omit<InvoiceFilter, 'skip' | 'take'> = {},
+    onRow: (record: InvoiceRecord) => void | Promise<void>
+  ): Promise<void> {
+    await this.db.transaction().execute(async (trx: any) => {
+      let q = trx
+        .selectFrom('finance.invoices')
+        .selectAll()
+        .orderBy('created_at', 'desc')
+        .limit(10000);
+      if (filter.status)        q = q.where('status', '=', filter.status);
+      if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+      if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
+      if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
+      for await (const r of q.stream()) {
+        await onRow(this.map(r));
+      }
+    });
+  }
+
   async count(filter: Pick<InvoiceFilter, 'status' | 'customerId'> = {}): Promise<number> {
     let q = this.db
       .selectFrom('finance.invoices')
