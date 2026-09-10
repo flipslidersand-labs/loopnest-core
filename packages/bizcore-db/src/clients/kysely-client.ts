@@ -8,8 +8,8 @@ import {
   UnknownRow,
   RootOperationNode,
 } from 'kysely';
-import { Pool } from 'pg';
 import { KyselyDatabase } from '../types/kysely-database.js';
+import { pgPool, closePgPool } from './pg-client.js';
 
 type QueryObserver = (kind: string, durationMs: number) => void;
 
@@ -43,19 +43,13 @@ class TimingPlugin implements KyselyPlugin {
   }
 }
 
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  user: process.env.POSTGRES_USER || 'loopnest',
-  password: process.env.POSTGRES_PASSWORD,
-  database: process.env.POSTGRES_DB || 'omni_local',
-});
-
+// Reuses the shared pgPool (pg-client.ts) instead of creating a second Pool
+// against the same DB — see #124.
 export const kyselyDb = new Kysely<KyselyDatabase>({
-  dialect: new PostgresDialect({ pool }),
+  dialect: new PostgresDialect({ pool: pgPool }),
   plugins: [new TimingPlugin()],
 });
 
 export async function closeKysely() {
-  await pool.end();
+  await closePgPool();
 }
