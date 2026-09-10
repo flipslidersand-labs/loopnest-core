@@ -73,6 +73,7 @@ start_server() {
   RATE_LIMIT_GLOBAL_MAX="${RATE_LIMIT_GLOBAL_MAX:-100000}" \
   RATE_LIMIT_WORKFLOW_MAX="${RATE_LIMIT_WORKFLOW_MAX:-100000}" \
   RECURRING_SCAN_INTERVAL_MS="${RECURRING_SCAN_INTERVAL_MS:-3000}" \
+  OVERDUE_SCAN_INTERVAL_MS="${OVERDUE_SCAN_INTERVAL_MS:-3000}" \
     node apps/api/dist/src/server.js > /tmp/loopnest-itest-server.log 2>&1 &
   SERVER_PID=$!
   until curl -s -m 2 -o /dev/null "http://localhost:3000/health"; do
@@ -108,7 +109,7 @@ if [ "$#" -gt 0 ]; then
   SUITES=("$@")
 else
   # auth first; quote_items + invoices before workflow suites; tenancy after auth; outbox_dispatch before rate_limit.
-  SUITES=(exchange_rates observability auth tenancy e2e_workflow tax_rates discounts credit_limit quote_expiry quote_templates quote_items invoices invoices_bulk pagination_cursor pdf_invoice pdf_quote payments credit_notes audit_api reports financial_reports webhooks webhook_deliveries outbox_dispatch approvals error_scenarios concurrency idempotency rate_limit search members portal_auth users_authz installments recurring dunning statement)
+  SUITES=(exchange_rates observability auth tenancy e2e_workflow tax_rates discounts credit_limit quote_expiry quote_templates quote_items invoices invoices_bulk pagination_cursor pdf_invoice pdf_quote payments credit_notes audit_api reports financial_reports webhooks webhook_deliveries outbox_dispatch overdue_scan approvals error_scenarios concurrency idempotency rate_limit search members portal_auth users_authz installments recurring dunning statement)
 fi
 
 TOTAL_FAIL=0
