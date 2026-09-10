@@ -4,6 +4,7 @@ import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
 import { requireRole } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
+import { clampSkip, clampTake } from '../lib/pagination.js';
 
 function invoicesToCsv(invoices: any[]): string {
   const HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
@@ -83,7 +84,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
     '/',
     asyncHandler(async (req: Request, res: Response) => {
       const cursor = req.query.cursor as string | undefined;
-      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
+      const take = clampTake(req.query.limit ?? req.query.take, 20);
       const status = req.query.status as string | undefined;
       const customerId = req.query.customerId as string | undefined;
 
@@ -93,7 +94,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
-        const skip = Number.parseInt(req.query.skip as string) || 0;
+        const skip = clampSkip(req.query.skip);
         const [invoices, total] = await Promise.all([
           repos.invoices.findAll({ skip, take, status, customerId }),
           repos.invoices.count({ status, customerId }),

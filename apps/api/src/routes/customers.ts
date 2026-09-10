@@ -5,6 +5,7 @@ import { requireRole } from '../middleware/auth.js';
 import { AuditService } from '../services/AuditService.js';
 import { StatementService } from '../services/StatementService.js';
 import { PdfService } from '../services/PdfService.js';
+import { clampSkip, clampTake } from '../lib/pagination.js';
 
 export function customerRoutes(repos: RepositoryContainer, audit: AuditService) {
   const router = Router();
@@ -15,7 +16,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     '/',
     asyncHandler(async (req: Request, res: Response) => {
       const cursor = req.query.cursor as string | undefined;
-      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
+      const take = clampTake(req.query.limit ?? req.query.take, 20);
       const orgId = req.user?.orgId;
 
       if (cursor || req.query.limit) {
@@ -24,7 +25,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
-        const skip = Number.parseInt(req.query.skip as string) || 0;
+        const skip = clampSkip(req.query.skip);
         const customers = await repos.customers.findAll({ skip, take, organizationId: orgId });
         const count = await repos.customers.count({ organizationId: orgId });
         res.json({ data: customers, pagination: { skip, take, total: count } });

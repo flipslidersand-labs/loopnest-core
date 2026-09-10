@@ -5,6 +5,7 @@ import { requireRole } from '../middleware/auth.js';
 import { PaymentService } from '../services/PaymentService.js';
 import { WebhookService } from '../services/WebhookService.js';
 import { AuditService } from '../services/AuditService.js';
+import { clampSkip, clampTake } from '../lib/pagination.js';
 
 /**
  * Block a tenant-scoped caller from touching another org's invoice. A token
@@ -127,7 +128,7 @@ export function paymentRoutes(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
       const cursor = req.query.cursor as string | undefined;
-      const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
+      const take = clampTake(req.query.limit ?? req.query.take, 20);
       // A scoped token is pinned to its own org; a global admin may filter freely.
       const organizationId = req.user?.orgId ?? (req.query.organizationId as string | undefined);
       const invoiceId = req.query.invoiceId as string | undefined;
@@ -142,7 +143,7 @@ export function paymentRoutes(
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
-        const skip = Math.max(0, Number.parseInt((req.query.skip as string) || '0', 10));
+        const skip = clampSkip(req.query.skip);
         const data = await payments.listPayments({ skip, take, organizationId, invoiceId, status, method, from, to });
         res.json({ data, pagination: { skip, take } });
       }
