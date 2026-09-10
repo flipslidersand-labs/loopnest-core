@@ -42,7 +42,7 @@ R=$(command curl -s -w "\n%{http_code}" \
   -H "Authorization: Bearer $TOKEN" \
   -X POST "$BASE_URL/webhooks" \
   -H "Content-Type: application/json" \
-  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"quote.submitted\",\"invoice.created\"],\"secret\":\"test-secret-123\"}")
+  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"quote.submitted\",\"invoice.created\"],\"secret\":\"test-secret-1234567\"}")
 check "POST /webhooks → 201" "201" "$(http_code "$R")"
 WH_ID=$(http_body "$R" | jq -r '.data.id')
 check "webhook id returned" "true" "$([ -n "$WH_ID" ] && [ "$WH_ID" != "null" ] && echo true || echo false)"
@@ -117,7 +117,7 @@ curl -s -X DELETE "$MOCK_URL/received" > /dev/null
 R=$(command curl -s -X POST "$BASE_URL/webhooks" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"*\"],\"secret\":\"wh-secret-abc\"}")
+  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"*\"],\"secret\":\"wh-secret-abcdef12\"}")
 WH_DELIVERY_ID=$(echo "$R" | jq -r '.data.id')
 
 # Create customer + quote with the ORG-SCOPED token so organization_id is set.
