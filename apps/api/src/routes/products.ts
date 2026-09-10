@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
+import { clampSkip, clampTake } from '../lib/pagination.js';
 
 export function productRoutes(repos: RepositoryContainer) {
   const router = Router();
@@ -9,8 +10,8 @@ export function productRoutes(repos: RepositoryContainer) {
   router.get(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
-      const skip = Number.parseInt(req.query.skip as string) || 0;
-      const take = Number.parseInt(req.query.take as string) || 10;
+      const skip = clampSkip(req.query.skip);
+      const take = clampTake(req.query.take, 10);
       const category = req.query.category as string;
       const orgId = req.user?.orgId;
       let products, count;

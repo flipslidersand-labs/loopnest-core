@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { SearchService } from '../services/SearchService.js';
+import { clampSkip, clampTake } from '../lib/pagination.js';
 
 const MAX_TAKE = 50;
 
@@ -23,8 +24,8 @@ export function searchRoutes(searchService: SearchService) {
       const rawTypes = (req.query.types as string | undefined) ?? '';
       const types = rawTypes ? rawTypes.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-      const skip = Math.max(0, Number.parseInt((req.query.skip as string) || '0', 10));
-      const take = Math.min(MAX_TAKE, Math.max(1, Number.parseInt((req.query.take as string) || '20', 10)));
+      const skip = clampSkip(req.query.skip);
+      const take = clampTake(req.query.take, 20, MAX_TAKE);
 
       const { results, total } = await searchService.search(q, types, skip, take, req.user?.orgId);
 
