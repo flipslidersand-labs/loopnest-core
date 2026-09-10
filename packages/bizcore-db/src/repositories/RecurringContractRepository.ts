@@ -76,7 +76,13 @@ export class RecurringContractRepository {
     return row ? this.map(row) : null;
   }
 
-  /** Contracts due for billing: active and next_billing_at <= today */
+  /**
+   * Contracts due for billing: active and next_billing_at <= today.
+   * This is a plain, unlocked read used only to enumerate candidates for a
+   * scan — concurrent workers may see the same candidate ids. Actually
+   * claiming a contract for billing must go through `lockDue()` inside the
+   * same transaction as the invoice creation + `advanceNextBilling()`.
+   */
   async findDue(asOf: string): Promise<RecurringContract[]> {
     const rows = await this.db
       .selectFrom('core.recurring_contracts')
@@ -86,6 +92,30 @@ export class RecurringContractRepository {
       .orderBy('next_billing_at', 'asc')
       .execute();
     return rows.map((r: any) => this.map(r));
+  }
+
+  /**
+   * Re-checks and locks a single candidate contract for billing.
+   * `FOR UPDATE SKIP LOCKED` means a concurrent worker already billing this
+   * contract in another transaction causes this call to return null instead
+   * of blocking, so callers can just skip it. Re-checking `status`/
+   * `next_billing_at` also means a contract already advanced past `asOf` by
+   * a worker that committed since `findDue()` ran returns null here too.
+   * Must be called with the transaction's `db` (not the pool), and the lock
+   * is held until that transaction commits/rolls back — so callers must
+   * also call `advanceNextBilling` in the same transaction before committing.
+   */
+  async lockDue(id: string, asOf: string, db: any = this.db): Promise<RecurringContract | null> {
+    const row = await db
+      .selectFrom('core.recurring_contracts')
+      .selectAll()
+      .where('id', '=', id)
+      .where('status', '=', 'active')
+      .where('next_billing_at', '<=', asOf)
+      .forUpdate()
+      .skipLocked()
+      .executeTakeFirst();
+    return row ? this.map(row) : null;
   }
 
   async create(input: CreateRecurringInput): Promise<RecurringContract> {
@@ -172,8 +202,8 @@ export class RecurringContractRepository {
   }
 
   /** Advance next_billing_at by one interval after a successful billing run. */
-  async advanceNextBilling(id: string, nextBillingAt: string): Promise<void> {
-    await this.db
+  async advanceNextBilling(id: string, nextBillingAt: string, db: any = this.db): Promise<void> {
+    await db
       .updateTable('core.recurring_contracts')
       .set({ next_billing_at: nextBillingAt, updated_at: new Date() })
       .where('id', '=', id)

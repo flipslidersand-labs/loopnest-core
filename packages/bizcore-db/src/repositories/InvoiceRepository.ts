@@ -86,9 +86,9 @@ export class InvoiceRepository {
     return Number(result.rows[0].nextval);
   }
 
-  async create(data: InvoiceInput): Promise<InvoiceRecord> {
+  async create(data: InvoiceInput, db: any = this.db): Promise<InvoiceRecord> {
     const id = randomUUID();
-    const result = await this.db
+    const result = await db
       .insertInto('finance.invoices')
       .values({
         id,

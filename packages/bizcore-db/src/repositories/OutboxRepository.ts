@@ -17,10 +17,11 @@ export class OutboxRepository {
   async publish(
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    db: any = this.db
   ): Promise<void> {
     const id = randomUUID();
-    await this.db
+    await db
       .insertInto('events.outbox_events')
       .values({
         id,

@@ -277,16 +277,21 @@ export class EventWorker {
       // Auto-complete expired contracts before billing.
       await this.repos.recurringContracts.expireCompleted(today);
 
+      // findDue is an unlocked read used only to enumerate candidates; the
+      // actual claim (re-check + lock) happens per-contract in billContract,
+      // so a candidate already billed by another worker since this read is
+      // simply skipped there instead of double-billed.
       const due = await this.repos.recurringContracts.findDue(today);
+      let billed = 0;
       for (const contract of due) {
         try {
-          await this.billContract(contract, today);
+          if (await this.billContract(contract.id, today)) billed++;
         } catch (err) {
           logger.error({ contractId: contract.id, err }, 'failed to bill contract');
         }
       }
-      if (due.length > 0) {
-        logger.info(`🔁 Recurring scan billed ${due.length} contract(s)`);
+      if (billed > 0) {
+        logger.info(`🔁 Recurring scan billed ${billed} contract(s)`);
       }
     } catch (error) {
       logger.error({ err: error }, 'recurring scan error');
@@ -295,39 +300,57 @@ export class EventWorker {
     }
   }
 
-  private async billContract(contract: { id: string; amount: number; taxRate: number; customerId: string; nextBillingAt: string; intervalUnit: string; intervalValue: number }, today: string): Promise<void> {
-    const seq = await this.repos.invoices.nextSequenceValue();
-    const yyyymm = today.slice(0, 7).replace('-', '');
-    const invoiceNumber = `REC-${yyyymm}-${String(seq).padStart(6, '0')}`;
+  /**
+   * Claims and bills one contract inside a single transaction, so a crash or
+   * error between the invoice insert and `advanceNextBilling` rolls back the
+   * invoice too instead of leaving next_billing_at stale for the next scan to
+   * re-bill. `lockDue` re-checks status/next_billing_at under `FOR UPDATE
+   * SKIP LOCKED`, so a concurrent worker (or a contract already billed since
+   * `findDue` ran) is skipped here rather than double-billed.
+   * Returns false if the contract was skipped (already claimed/billed).
+   */
+  private async billContract(contractId: string, today: string): Promise<boolean> {
+    return this.kyselyDb.transaction().execute(async (trx) => {
+      const contract = await this.repos.recurringContracts.lockDue(contractId, today, trx);
+      if (!contract) return false;
 
-    const subtotal = Math.round(contract.amount * 100) / 100;
-    const taxAmount = Math.round(subtotal * contract.taxRate * 100) / 100;
-    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+      const seq = await this.repos.invoices.nextSequenceValue();
+      const yyyymm = today.slice(0, 7).replace('-', '');
+      const invoiceNumber = `REC-${yyyymm}-${String(seq).padStart(6, '0')}`;
 
-    const invoice = await this.repos.invoices.create({
-      quoteId: null,
-      contractId: contract.id,
-      invoiceNumber,
-      customerId: contract.customerId,
-      subtotal,
-      taxAmount,
-      totalAmount,
-      createdBy: 'recurring-worker',
-    });
+      const subtotal = Math.round(contract.amount * 100) / 100;
+      const taxAmount = Math.round(subtotal * contract.taxRate * 100) / 100;
+      const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
-    // Advance next_billing_at by one interval.
-    const next = advanceDate(contract.nextBillingAt, contract.intervalUnit, contract.intervalValue);
-    await this.repos.recurringContracts.advanceNextBilling(contract.id, next);
+      const invoice = await this.repos.invoices.create({
+        quoteId: null,
+        contractId: contract.id,
+        invoiceNumber,
+        customerId: contract.customerId,
+        subtotal,
+        taxAmount,
+        totalAmount,
+        createdBy: 'recurring-worker',
+      }, trx);
 
-    // Publish outbox event for observability / downstream hooks.
-    await this.repos.outbox.publish('recurring_invoice_created', contract.id, {
-      contractId: contract.id,
-      invoiceId: invoice.id,
-      invoiceNumber,
-      customerId: contract.customerId,
-      totalAmount,
-      billingDate: today,
-      nextBillingAt: next,
+      // Advance next_billing_at by one interval, still inside the same
+      // transaction/lock so a concurrent lockDue() only ever sees either the
+      // pre-billing or post-billing state, never a gap where both fire.
+      const next = advanceDate(contract.nextBillingAt, contract.intervalUnit, contract.intervalValue);
+      await this.repos.recurringContracts.advanceNextBilling(contract.id, next, trx);
+
+      // Publish outbox event for observability / downstream hooks.
+      await this.repos.outbox.publish('recurring_invoice_created', contract.id, {
+        contractId: contract.id,
+        invoiceId: invoice.id,
+        invoiceNumber,
+        customerId: contract.customerId,
+        totalAmount,
+        billingDate: today,
+        nextBillingAt: next,
+      }, trx);
+
+      return true;
     });
   }
 
