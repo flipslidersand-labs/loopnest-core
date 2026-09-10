@@ -154,6 +154,40 @@ else
   fail "PATCH /cancel (already cancelled) → expected 409, got $HTTP"
 fi
 
+
+# ── Test 11: billing scan claims a due contract exactly once (issue #119) ────
+# Regression guard for the double-billing race: EventWorker.scanRecurring runs
+# on RECURRING_SCAN_INTERVAL_MS (set low by run-all.sh for tests). If two scan
+# ticks overlap and each one independently reads+bills a contract without
+# re-checking/locking it, this shows up here as 2 invoices instead of 1.
+PSQL_URL="${DATABASE_URL:-postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local}"
+db_scalar() { psql "$PSQL_URL" -tA -c "$1" 2>/dev/null || true; }
+
+BILL_CUSTOMER=$(curl -sf -X POST "${BASE_URL}/api/customers" \
+  -H "Content-Type: application/json" -d '{"name":"Billing Scan Co"}' | jq -r '.data.id')
+BILL_CONTRACT=$(curl -sf -X POST "${BASE_URL}/api/recurring-contracts" \
+  -H "Content-Type: application/json" \
+  -d "{\"customerId\":\"$BILL_CUSTOMER\",\"name\":\"Scan Test\",\"intervalUnit\":\"month\",\"intervalValue\":1,\"amount\":1000,\"startsAt\":\"$TODAY\"}" \
+  | jq -r '.data.id')
+
+# Wait for at least two scan cycles so an overlapping-scan regression has a
+# chance to double-bill before we assert.
+sleep 7
+
+INVOICE_COUNT=$(db_scalar "SELECT count(*) FROM finance.invoices WHERE contract_id = '$BILL_CONTRACT'")
+if [ "${INVOICE_COUNT:-0}" = "1" ]; then
+  pass "billing scan created exactly 1 invoice for due contract (not double-billed)"
+else
+  fail "billing scan invoice count for due contract (expected: 1, actual: ${INVOICE_COUNT:-0})"
+fi
+
+BILL_NEXT=$(curl -sf "${BASE_URL}/api/recurring-contracts/$BILL_CONTRACT" | jq -r '.data.nextBillingAt')
+if [ -n "$BILL_NEXT" ] && [ "$BILL_NEXT" != "null" ] && [ "$BILL_NEXT" != "$TODAY" ]; then
+  pass "next_billing_at advanced past today after billing (now $BILL_NEXT)"
+else
+  fail "next_billing_at did not advance past today (still $BILL_NEXT)"
+fi
+
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1
