@@ -228,6 +228,9 @@ export class EventWorker {
       case "invoice_paid":
         logger.info(`✅ Invoice fully paid: ${aggregateId}`);
         break;
+      case "credit_released":
+        await this.handleCreditReleased(aggregateId, payload);
+        break;
       case "payment_reversed":
         logger.info(`↩️  Payment reversed for invoice ${aggregateId}`);
         break;
@@ -258,6 +261,22 @@ export class EventWorker {
       default:
         logger.warn(`Unknown event type: ${eventType}`);
     }
+  }
+
+  /**
+   * Decrement credit_used after an invoice is paid. Runs via the outbox so
+   * transient DB errors are retried rather than silently dropped.
+   * Idempotent: decrementCreditUsed clamps to 0 on the DB side; a double-fire
+   * (e.g. at-least-once retry after a successful write) is bounded by the floor.
+   * The enqueue site guarantees customerId (NOT NULL column) and amount (> 0).
+   */
+  private async handleCreditReleased(
+    customerId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const amount = Number(payload.amount);
+    await this.repos.customers.decrementCreditUsed(customerId, amount);
+    logger.info(`💳 credit_used decremented for customer ${customerId} by ${amount}`);
   }
 
   /**
