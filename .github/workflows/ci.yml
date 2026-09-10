@@ -138,6 +138,32 @@ jobs:
       - name: Run integration suite
         run: SKIP_BUILD=1 bash tests/integration/run-all.sh
 
+      - name: Rate limit blocking test (dedicated low-cap server)
+        run: |
+          # run-all.sh's shared server sets RATE_LIMIT_WORKFLOW_MAX=100000 so
+          # the other suites' many workflow calls don't collide with each
+          # other's rate-limit buckets; rate_limit.sh detects that "high-limit
+          # mode" and only checks that the middleware is wired, never
+          # exercising the real 429/Retry-After path (#126). Start a fresh
+          # server with the app's normal default caps (WORKFLOW_RATE_MAX=60,
+          # GLOBAL_RATE_MAX=300 — no override) just for this one suite so it
+          # takes the actual blocking branch.
+          sudo fuser -k 3000/tcp 2>/dev/null || true
+          node apps/api/dist/src/server.js > /tmp/rate-limit-server.log 2>&1 &
+          SERVER_PID=$!
+          until curl -s -m 2 http://localhost:3000/health | grep -q '"status":"ok"'; do
+            kill -0 $SERVER_PID 2>/dev/null || { echo "server died"; cat /tmp/rate-limit-server.log; exit 1; }
+            sleep 1
+          done
+          AUTH_TOKEN=$(node tests/integration/gen-token.mjs itest-admin admin 7200)
+          export AUTH_TOKEN
+          set +e
+          bash tests/integration/rate_limit.sh
+          EXIT=$?
+          set -e
+          kill $SERVER_PID 2>/dev/null || true
+          exit $EXIT
+
       - name: Smoke load test
         run: |
           node apps/api/dist/src/server.js > /tmp/load-server.log 2>&1 &
@@ -153,6 +179,7 @@ jobs:
         if: failure()
         run: |
           echo "=== integration server ==="; tail -n 200 /tmp/loopnest-itest-server.log 2>/dev/null || true
+          echo "=== rate-limit server ==="; tail -n 100 /tmp/rate-limit-server.log 2>/dev/null || true
           echo "=== load server ==="; tail -n 100 /tmp/load-server.log 2>/dev/null || true
 
       - name: Checkout dep-policy
