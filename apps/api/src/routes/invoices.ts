@@ -75,9 +75,9 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
       res.write(CSV_HEADER + '\n');
-      for await (const invoice of repos.invoices.streamForExport(filter)) {
+      await repos.invoices.streamForExport(filter, (invoice) => {
         res.write(invoiceToCsvRow(invoice) + '\n');
-      }
+      });
       res.end();
     })
   );
