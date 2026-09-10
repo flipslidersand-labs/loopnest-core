@@ -9,6 +9,7 @@ import {
   RootOperationNode,
 } from 'kysely';
 import { Pool } from 'pg';
+import Cursor from 'pg-cursor';
 import { KyselyDatabase } from '../types/kysely-database.js';
 
 type QueryObserver = (kind: string, durationMs: number) => void;
@@ -52,7 +53,7 @@ const pool = new Pool({
 });
 
 export const kyselyDb = new Kysely<KyselyDatabase>({
-  dialect: new PostgresDialect({ pool }),
+  dialect: new PostgresDialect({ pool, cursor: Cursor }),
   plugins: [new TimingPlugin()],
 });
 
