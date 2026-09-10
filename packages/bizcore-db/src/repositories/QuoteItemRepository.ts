@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 export interface QuoteItemEntity {
   id: string;
@@ -34,12 +34,15 @@ export class QuoteItemRepository {
   async findByQuote(quoteId: string): Promise<QuoteItemEntity[]> {
     const items = await this.prisma.quoteItem.findMany({
       where: { quoteId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
     return items.map((i: any) => this.map(i));
   }
 
-  async addItem(quoteId: string, input: QuoteItemInput): Promise<QuoteItemEntity> {
+  async addItem(
+    quoteId: string,
+    input: QuoteItemInput,
+  ): Promise<QuoteItemEntity> {
     const lineTotal = Math.round(input.quantity * input.unitPrice * 100) / 100;
     const item = await this.prisma.quoteItem.create({
       data: {
@@ -57,13 +60,18 @@ export class QuoteItemRepository {
   async updateItem(
     itemId: string,
     quoteId: string,
-    input: Partial<Pick<QuoteItemInput, 'quantity' | 'unitPrice'>>
+    input: Partial<Pick<QuoteItemInput, "quantity" | "unitPrice">>,
   ): Promise<QuoteItemEntity | null> {
-    const current = await this.prisma.quoteItem.findFirst({ where: { id: itemId, quoteId } });
+    const current = await this.prisma.quoteItem.findFirst({
+      where: { id: itemId, quoteId },
+    });
     if (!current) return null;
 
     const qty = input.quantity ?? current.quantity;
-    const price = input.unitPrice !== undefined ? input.unitPrice : Number(current.unitPrice);
+    const price =
+      input.unitPrice !== undefined
+        ? input.unitPrice
+        : Number(current.unitPrice);
     const lineTotal = Math.round(qty * price * 100) / 100;
 
     const updated = await this.prisma.quoteItem.update({
@@ -79,7 +87,9 @@ export class QuoteItemRepository {
   }
 
   async removeItem(itemId: string, quoteId: string): Promise<boolean> {
-    const exists = await this.prisma.quoteItem.findFirst({ where: { id: itemId, quoteId } });
+    const exists = await this.prisma.quoteItem.findFirst({
+      where: { id: itemId, quoteId },
+    });
     if (!exists) return false;
     await this.prisma.quoteItem.delete({ where: { id: itemId } });
     await this.recalculate(quoteId);

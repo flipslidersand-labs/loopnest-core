@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
-import { redis } from '@loopnest/bizcore-db';
-import { withRedisTimeout } from './redisTimeout.js';
-import { rateLimitRejectionsTotal } from '../observability/metrics.js';
+import { Request, Response, NextFunction } from "express";
+import { redis } from "@loopnest/bizcore-db";
+import { withRedisTimeout } from "./redisTimeout.js";
+import { rateLimitRejectionsTotal } from "../observability/metrics.js";
 
 export interface RateLimitOptions {
   /** Time window in seconds. */
@@ -15,9 +15,9 @@ export interface RateLimitOptions {
 }
 
 const defaultIdentify = (req: Request): string => {
-  const forwarded = req.header('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-  return ip || 'unknown';
+  const forwarded = req.header("x-forwarded-for");
+  const ip = forwarded ? forwarded.split(",")[0].trim() : req.ip;
+  return ip || "unknown";
 };
 
 /**
@@ -50,27 +50,28 @@ export const rateLimit = (options: RateLimitOptions) => {
         .zadd(key, now, member)
         .zcard(key)
         .pexpire(key, windowMs)
-        .exec()
+        .exec(),
     )
       .then((results) => {
         // results: [zremrangebyscore, zadd, zcard, pexpire]
         const countRaw = results?.[2]?.[1];
-        const count = typeof countRaw === 'number' ? countRaw : Number(countRaw);
+        const count =
+          typeof countRaw === "number" ? countRaw : Number(countRaw);
 
         const remaining = Math.max(0, max - count);
-        res.setHeader('RateLimit-Limit', max);
-        res.setHeader('RateLimit-Remaining', remaining);
-        res.setHeader('RateLimit-Reset', Math.ceil(windowSeconds));
+        res.setHeader("RateLimit-Limit", max);
+        res.setHeader("RateLimit-Remaining", remaining);
+        res.setHeader("RateLimit-Reset", Math.ceil(windowSeconds));
 
         if (count > max) {
           // This request put us over the cap — remove our own marker so we
           // don't penalize the window further, then reject.
           redis.zrem(key, member).catch(() => undefined);
           rateLimitRejectionsTotal.inc({ bucket });
-          res.setHeader('Retry-After', Math.ceil(windowSeconds));
+          res.setHeader("Retry-After", Math.ceil(windowSeconds));
           res.status(429).json({
             error: {
-              code: 'RATE_LIMITED',
+              code: "RATE_LIMITED",
               message: `Rate limit exceeded. Max ${max} requests per ${windowSeconds}s.`,
             },
           });
@@ -81,7 +82,7 @@ export const rateLimit = (options: RateLimitOptions) => {
       })
       .catch((err) => {
         // Fail open: a Redis hiccup should not take down the API.
-        console.error('Rate limit check failed, allowing request:', err);
+        console.error("Rate limit check failed, allowing request:", err);
         next();
       });
   };

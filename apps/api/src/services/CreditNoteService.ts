@@ -1,14 +1,19 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 import {
   RepositoryContainer,
   CreditNoteRecord,
   CreditNoteApplicationRecord,
   CreditNoteType,
   CreditNoteFilter,
-} from '@loopnest/bizcore-db';
-import { ApiErrorResponse } from '../middleware/errorHandler.js';
+} from "@loopnest/bizcore-db";
+import { ApiErrorResponse } from "../middleware/errorHandler.js";
 
-const CN_TYPES: CreditNoteType[] = ['return', 'pricing_error', 'goodwill', 'adjustment'];
+const CN_TYPES: CreditNoteType[] = [
+  "return",
+  "pricing_error",
+  "goodwill",
+  "adjustment",
+];
 
 export interface IssueCreditNoteInput {
   amount: number;
@@ -54,57 +59,60 @@ function money(n: number): number {
 export class CreditNoteService {
   constructor(
     private repos: RepositoryContainer,
-    private db: any
+    private db: any,
   ) {}
 
   private async enqueue(
     trx: any,
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ): Promise<void> {
     await trx
-      .insertInto('events.outbox_events')
+      .insertInto("events.outbox_events")
       .values({
         id: randomUUID(),
         event_type: eventType,
         aggregate_id: aggregateId,
         payload,
-        status: 'pending',
+        status: "pending",
         created_at: new Date(),
       })
       .execute();
   }
 
-  private async resolveOrgForInvoice(trx: any, inv: any): Promise<string | null> {
+  private async resolveOrgForInvoice(
+    trx: any,
+    inv: any,
+  ): Promise<string | null> {
     if (inv.organization_id) return inv.organization_id;
     if (!inv.quote_id) return null;
     const q = await trx
-      .selectFrom('core.quotes')
-      .select('organization_id')
-      .where('id', '=', inv.quote_id)
+      .selectFrom("core.quotes")
+      .select("organization_id")
+      .where("id", "=", inv.quote_id)
       .executeTakeFirst();
     return q?.organization_id ?? null;
   }
 
   private buildCreditNumber(seq: number): string {
     const year = new Date().getFullYear();
-    return `CN-${year}-${String(seq).padStart(4, '0')}`;
+    return `CN-${year}-${String(seq).padStart(4, "0")}`;
   }
 
   /** Derive credit note status from applied and refunded amounts. */
   private deriveStatus(
     total: number,
     applied: number,
-    refunded: number
-  ): 'issued' | 'partially_applied' | 'fully_applied' | 'refunded' {
+    refunded: number,
+  ): "issued" | "partially_applied" | "fully_applied" | "refunded" {
     const consumed = money(applied + refunded);
-    if (consumed <= 0) return 'issued';
+    if (consumed <= 0) return "issued";
     if (money(total - consumed) <= 0) {
-      if (refunded >= total) return 'refunded';
-      return 'fully_applied';
+      if (refunded >= total) return "refunded";
+      return "fully_applied";
     }
-    return 'partially_applied';
+    return "partially_applied";
   }
 
   /**
@@ -115,44 +123,52 @@ export class CreditNoteService {
   async issueCreditNote(
     invoiceId: string,
     input: IssueCreditNoteInput,
-    userId: string
+    userId: string,
   ): Promise<IssueCreditNoteResult> {
-    if (typeof input.amount !== 'number' || !(input.amount > 0)) {
-      throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'amount must be a positive number');
+    if (typeof input.amount !== "number" || !(input.amount > 0)) {
+      throw new ApiErrorResponse(
+        400,
+        "VALIDATION_ERROR",
+        "amount must be a positive number",
+      );
     }
     if (!input.reason || !input.reason.trim()) {
-      throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
+      throw new ApiErrorResponse(400, "VALIDATION_ERROR", "reason is required");
     }
-    const cnType: CreditNoteType = input.cnType ?? 'adjustment';
+    const cnType: CreditNoteType = input.cnType ?? "adjustment";
     if (!CN_TYPES.includes(cnType)) {
       throw new ApiErrorResponse(
         400,
-        'VALIDATION_ERROR',
-        `cnType must be one of: ${CN_TYPES.join(', ')}`
+        "VALIDATION_ERROR",
+        `cnType must be one of: ${CN_TYPES.join(", ")}`,
       );
     }
 
     return this.db.transaction().execute(async (trx: any) => {
       const inv = await trx
-        .selectFrom('finance.invoices')
+        .selectFrom("finance.invoices")
         .selectAll()
-        .where('id', '=', invoiceId)
+        .where("id", "=", invoiceId)
         .forUpdate()
         .executeTakeFirst();
 
       if (!inv) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
       }
-      if (inv.status === 'cancelled') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Cannot issue credit note for a cancelled invoice');
+      if (inv.status === "cancelled") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Cannot issue credit note for a cancelled invoice",
+        );
       }
 
       const invoiceTotal = parseFloat(inv.total_amount.toString());
       if (input.amount > invoiceTotal + 0.001) {
         throw new ApiErrorResponse(
           409,
-          'EXCEEDS_INVOICE',
-          `Credit note amount ${input.amount} exceeds invoice total ${invoiceTotal}`
+          "EXCEEDS_INVOICE",
+          `Credit note amount ${input.amount} exceeds invoice total ${invoiceTotal}`,
         );
       }
 
@@ -170,10 +186,10 @@ export class CreditNoteService {
           cnType,
           createdBy: userId,
         },
-        trx
+        trx,
       );
 
-      await this.enqueue(trx, 'credit_note_issued', creditNote.id, {
+      await this.enqueue(trx, "credit_note_issued", creditNote.id, {
         creditNoteId: creditNote.id,
         creditNumber,
         invoiceId,
@@ -194,28 +210,40 @@ export class CreditNoteService {
   async applyCreditNote(
     creditNoteId: string,
     input: ApplyCreditNoteInput,
-    userId: string
+    userId: string,
   ): Promise<ApplyCreditNoteResult> {
-    if (typeof input.amount !== 'number' || !(input.amount > 0)) {
-      throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'amount must be a positive number');
+    if (typeof input.amount !== "number" || !(input.amount > 0)) {
+      throw new ApiErrorResponse(
+        400,
+        "VALIDATION_ERROR",
+        "amount must be a positive number",
+      );
     }
 
     return this.db.transaction().execute(async (trx: any) => {
       const cn = await trx
-        .selectFrom('finance.credit_notes')
+        .selectFrom("finance.credit_notes")
         .selectAll()
-        .where('id', '=', creditNoteId)
+        .where("id", "=", creditNoteId)
         .forUpdate()
         .executeTakeFirst();
 
       if (!cn) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Credit note not found");
       }
-      if (cn.status === 'void') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Credit note is void');
+      if (cn.status === "void") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Credit note is void",
+        );
       }
-      if (cn.status === 'fully_applied' || cn.status === 'refunded') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Credit note has no remaining balance');
+      if (cn.status === "fully_applied" || cn.status === "refunded") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Credit note has no remaining balance",
+        );
       }
 
       const cnTotal = parseFloat(cn.amount.toString());
@@ -226,43 +254,61 @@ export class CreditNoteService {
       if (input.amount > cnRemaining + 0.001) {
         throw new ApiErrorResponse(
           409,
-          'EXCEEDS_BALANCE',
-          `Application amount ${input.amount} exceeds remaining credit balance ${cnRemaining}`
+          "EXCEEDS_BALANCE",
+          `Application amount ${input.amount} exceeds remaining credit balance ${cnRemaining}`,
         );
       }
 
       const inv = await trx
-        .selectFrom('finance.invoices')
+        .selectFrom("finance.invoices")
         .selectAll()
-        .where('id', '=', input.targetInvoiceId)
+        .where("id", "=", input.targetInvoiceId)
         .forUpdate()
         .executeTakeFirst();
 
       if (!inv) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Target invoice not found');
+        throw new ApiErrorResponse(
+          404,
+          "NOT_FOUND",
+          "Target invoice not found",
+        );
       }
-      if (inv.status === 'cancelled') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Cannot apply credit to a cancelled invoice');
+      if (inv.status === "cancelled") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Cannot apply credit to a cancelled invoice",
+        );
       }
-      if (inv.status === 'paid') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice is already paid');
+      if (inv.status === "paid") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Invoice is already paid",
+        );
       }
 
       const invTotal = parseFloat(inv.total_amount.toString());
-      const paidTotal = await this.repos.payments.confirmedTotal(input.targetInvoiceId, trx);
-      // Sum of credit already applied to this invoice (from all CNs, not just this one)
-      const creditAppliedToInvoice = await this.repos.creditNotes.creditAppliedToInvoice(
+      const paidTotal = await this.repos.payments.confirmedTotal(
         input.targetInvoiceId,
-        trx
+        trx,
       );
+      // Sum of credit already applied to this invoice (from all CNs, not just this one)
+      const creditAppliedToInvoice =
+        await this.repos.creditNotes.creditAppliedToInvoice(
+          input.targetInvoiceId,
+          trx,
+        );
 
-      const invoiceOutstanding = money(invTotal - paidTotal - creditAppliedToInvoice);
+      const invoiceOutstanding = money(
+        invTotal - paidTotal - creditAppliedToInvoice,
+      );
 
       if (input.amount > invoiceOutstanding + 0.001) {
         throw new ApiErrorResponse(
           409,
-          'EXCEEDS_OUTSTANDING',
-          `Application amount ${input.amount} exceeds invoice outstanding balance ${invoiceOutstanding}`
+          "EXCEEDS_OUTSTANDING",
+          `Application amount ${input.amount} exceeds invoice outstanding balance ${invoiceOutstanding}`,
         );
       }
 
@@ -274,7 +320,7 @@ export class CreditNoteService {
           appliedBy: userId,
           notes: input.notes,
         },
-        trx
+        trx,
       );
 
       // Update CN applied_amount + recalculate CN status
@@ -284,30 +330,33 @@ export class CreditNoteService {
         creditNoteId,
         newCnStatus,
         { appliedAmount: newCnApplied },
-        trx
+        trx,
       );
 
       // Recalculate invoice status
       const newInvoiceOutstanding = money(invoiceOutstanding - input.amount);
       const newInvoiceStatus =
         newInvoiceOutstanding <= 0
-          ? 'paid'
+          ? "paid"
           : paidTotal + creditAppliedToInvoice + input.amount > 0
-          ? 'partially_paid'
-          : inv.status;
+            ? "partially_paid"
+            : inv.status;
 
       const paidAt =
-        newInvoiceStatus === 'paid'
-          ? await this.repos.payments.lastConfirmedPaidOn(input.targetInvoiceId, trx) ?? new Date()
+        newInvoiceStatus === "paid"
+          ? ((await this.repos.payments.lastConfirmedPaidOn(
+              input.targetInvoiceId,
+              trx,
+            )) ?? new Date())
           : null;
 
       await trx
-        .updateTable('finance.invoices')
+        .updateTable("finance.invoices")
         .set({ status: newInvoiceStatus, paid_at: paidAt })
-        .where('id', '=', input.targetInvoiceId)
+        .where("id", "=", input.targetInvoiceId)
         .execute();
 
-      await this.enqueue(trx, 'credit_note_applied', creditNoteId, {
+      await this.enqueue(trx, "credit_note_applied", creditNoteId, {
         creditNoteId,
         applicationId: application.id,
         targetInvoiceId: input.targetInvoiceId,
@@ -337,24 +386,32 @@ export class CreditNoteService {
    */
   async refundCreditNote(
     creditNoteId: string,
-    userId: string
+    userId: string,
   ): Promise<{ creditNote: CreditNoteRecord; refundedAmount: number }> {
     return this.db.transaction().execute(async (trx: any) => {
       const cn = await trx
-        .selectFrom('finance.credit_notes')
+        .selectFrom("finance.credit_notes")
         .selectAll()
-        .where('id', '=', creditNoteId)
+        .where("id", "=", creditNoteId)
         .forUpdate()
         .executeTakeFirst();
 
       if (!cn) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Credit note not found");
       }
-      if (cn.status === 'void') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Credit note is void');
+      if (cn.status === "void") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Credit note is void",
+        );
       }
-      if (cn.status === 'fully_applied' || cn.status === 'refunded') {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Credit note has no remaining balance to refund');
+      if (cn.status === "fully_applied" || cn.status === "refunded") {
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Credit note has no remaining balance to refund",
+        );
       }
 
       const cnTotal = parseFloat(cn.amount.toString());
@@ -365,12 +422,12 @@ export class CreditNoteService {
       const newRefunded = money(cnRefunded + remaining);
       const updated = await this.repos.creditNotes.updateStatus(
         creditNoteId,
-        'refunded',
+        "refunded",
         { refundedAmount: newRefunded },
-        trx
+        trx,
       );
 
-      await this.enqueue(trx, 'credit_note_refunded', creditNoteId, {
+      await this.enqueue(trx, "credit_note_refunded", creditNoteId, {
         creditNoteId,
         refundedAmount: remaining,
         issuedBy: userId,
@@ -383,46 +440,59 @@ export class CreditNoteService {
   /** Void a credit note that has not yet been applied or refunded. */
   async voidCreditNote(
     creditNoteId: string,
-    _userId: string
+    _userId: string,
   ): Promise<CreditNoteRecord> {
     return this.db.transaction().execute(async (trx: any) => {
       const cn = await trx
-        .selectFrom('finance.credit_notes')
+        .selectFrom("finance.credit_notes")
         .selectAll()
-        .where('id', '=', creditNoteId)
+        .where("id", "=", creditNoteId)
         .forUpdate()
         .executeTakeFirst();
 
       if (!cn) {
-        throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Credit note not found");
       }
-      if (cn.status !== 'issued') {
+      if (cn.status !== "issued") {
         throw new ApiErrorResponse(
           409,
-          'INVALID_STATUS',
-          'Only issued (unapplied) credit notes can be voided'
+          "INVALID_STATUS",
+          "Only issued (unapplied) credit notes can be voided",
         );
       }
 
       const voided = await this.repos.creditNotes.markVoid(creditNoteId, trx);
       if (!voided) {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Credit note could not be voided');
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Credit note could not be voided",
+        );
       }
 
-      await this.enqueue(trx, 'credit_note_voided', creditNoteId, { creditNoteId });
+      await this.enqueue(trx, "credit_note_voided", creditNoteId, {
+        creditNoteId,
+      });
       return voided;
     });
   }
 
   async getCreditNote(
-    creditNoteId: string
-  ): Promise<{ creditNote: CreditNoteRecord; balance: CreditNoteBalance; applications: CreditNoteApplicationRecord[] }> {
+    creditNoteId: string,
+  ): Promise<{
+    creditNote: CreditNoteRecord;
+    balance: CreditNoteBalance;
+    applications: CreditNoteApplicationRecord[];
+  }> {
     const creditNote = await this.repos.creditNotes.findById(creditNoteId);
     if (!creditNote) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Credit note not found');
+      throw new ApiErrorResponse(404, "NOT_FOUND", "Credit note not found");
     }
-    const applications = await this.repos.creditNotes.listApplications(creditNoteId);
-    const remaining = money(creditNote.amount - creditNote.appliedAmount - creditNote.refundedAmount);
+    const applications =
+      await this.repos.creditNotes.listApplications(creditNoteId);
+    const remaining = money(
+      creditNote.amount - creditNote.appliedAmount - creditNote.refundedAmount,
+    );
     return {
       creditNote,
       applications,

@@ -1,11 +1,11 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
 export interface OutboxEvent {
   id: string;
   eventType: string;
   aggregateId: string;
   payload: Record<string, any>;
-  status: 'pending' | 'processed' | 'failed';
+  status: "pending" | "processed" | "failed";
   createdAt: Date;
   processedAt: Date | null;
   retryCount: number;
@@ -17,17 +17,17 @@ export class OutboxRepository {
   async publish(
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
   ): Promise<void> {
     const id = randomUUID();
     await this.db
-      .insertInto('events.outbox_events')
+      .insertInto("events.outbox_events")
       .values({
         id,
         event_type: eventType,
         aggregate_id: aggregateId,
         payload,
-        status: 'pending',
+        status: "pending",
         created_at: new Date(),
       })
       .execute();
@@ -35,10 +35,10 @@ export class OutboxRepository {
 
   async claimPending(limit: number = 50): Promise<OutboxEvent[]> {
     const pendingIds = await this.db
-      .selectFrom('events.outbox_events')
-      .select('id')
-      .where((eb: any) => eb('status', '=', 'pending'))
-      .orderBy('created_at', 'asc')
+      .selectFrom("events.outbox_events")
+      .select("id")
+      .where((eb: any) => eb("status", "=", "pending"))
+      .orderBy("created_at", "asc")
       .limit(limit)
       .execute();
 
@@ -49,21 +49,21 @@ export class OutboxRepository {
     const ids = pendingIds.map((row: any) => row.id);
 
     const events = await this.db
-      .updateTable('events.outbox_events')
-      .set({ status: 'processing' })
+      .updateTable("events.outbox_events")
+      .set({ status: "processing" })
       .where((eb: any) => {
         if (ids.length === 0) return eb.noWhere();
-        return eb('id', 'in', ids);
+        return eb("id", "in", ids);
       })
       .returning([
-        'id',
-        'event_type',
-        'aggregate_id',
-        'payload',
-        'status',
-        'created_at',
-        'processed_at',
-        'retry_count',
+        "id",
+        "event_type",
+        "aggregate_id",
+        "payload",
+        "status",
+        "created_at",
+        "processed_at",
+        "retry_count",
       ])
       .execute();
 
@@ -81,9 +81,9 @@ export class OutboxRepository {
 
   async markProcessed(id: string): Promise<void> {
     await this.db
-      .updateTable('events.outbox_events')
-      .set({ status: 'processed', processed_at: new Date() })
-      .where((eb: any) => eb('id', '=', id))
+      .updateTable("events.outbox_events")
+      .set({ status: "processed", processed_at: new Date() })
+      .where((eb: any) => eb("id", "=", id))
       .execute();
   }
 
@@ -97,7 +97,7 @@ export class OutboxRepository {
    * retry_count.
    */
   async markFailed(id: string, maxRetries: number = 5): Promise<void> {
-    const { sql } = await import('kysely');
+    const { sql } = await import("kysely");
     await sql`
       UPDATE events.outbox_events
       SET retry_count = retry_count + 1,

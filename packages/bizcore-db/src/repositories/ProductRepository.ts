@@ -1,5 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { PrismaClient } from "@prisma/client";
+import {
+  BaseRepository,
+  FindOptions,
+  CreateInput,
+  UpdateInput,
+} from "./BaseRepository.js";
 
 export interface Product {
   id: string;
@@ -40,13 +45,16 @@ export class ProductRepository extends BaseRepository<Product> {
     const products = await this.prisma.product.findMany({
       skip: options?.skip,
       take: options?.take,
-      orderBy: options?.orderBy || { name: 'asc' },
+      orderBy: options?.orderBy || { name: "asc" },
       where: Object.keys(where).length ? where : undefined,
     });
     return products.map((p: any) => this.mapToProduct(p));
   }
 
-  async findOne(where: Partial<Product>, options?: FindOptions): Promise<Product | null> {
+  async findOne(
+    where: Partial<Product>,
+    options?: FindOptions,
+  ): Promise<Product | null> {
     const product = await this.prisma.product.findFirst({
       where: {
         ...(where.category && { category: where.category }),
@@ -56,15 +64,20 @@ export class ProductRepository extends BaseRepository<Product> {
     return product ? this.mapToProduct(product) : null;
   }
 
-  async findByCategory(category: string, options?: ProductFilter): Promise<Product[]> {
+  async findByCategory(
+    category: string,
+    options?: ProductFilter,
+  ): Promise<Product[]> {
     const products = await this.prisma.product.findMany({
       where: {
         category,
-        ...(options?.organizationId && { organizationId: options.organizationId }),
+        ...(options?.organizationId && {
+          organizationId: options.organizationId,
+        }),
       },
       skip: options?.skip,
       take: options?.take,
-      orderBy: options?.orderBy || { name: 'asc' },
+      orderBy: options?.orderBy || { name: "asc" },
     });
     return products.map((p: any) => this.mapToProduct(p));
   }
@@ -99,7 +112,10 @@ export class ProductRepository extends BaseRepository<Product> {
     return true;
   }
 
-  async count(where?: { organizationId?: string; category?: string }): Promise<number> {
+  async count(where?: {
+    organizationId?: string;
+    category?: string;
+  }): Promise<number> {
     const filter: any = {};
     if (where?.organizationId) filter.organizationId = where.organizationId;
     if (where?.category) filter.category = where.category;

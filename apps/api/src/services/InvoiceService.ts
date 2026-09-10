@@ -1,5 +1,5 @@
-import { RepositoryContainer } from '@loopnest/bizcore-db';
-import { ApiErrorResponse } from '../middleware/errorHandler.js';
+import { RepositoryContainer } from "@loopnest/bizcore-db";
+import { ApiErrorResponse } from "../middleware/errorHandler.js";
 
 export interface InvoiceCreationResult {
   invoiceId: string;
@@ -21,27 +21,30 @@ export class InvoiceService {
   private async generateInvoiceNumber(): Promise<string> {
     const now = new Date();
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, "0");
     const seq = await this.repos.invoices.nextSequenceValue();
-    const suffix = String(seq).padStart(6, '0');
+    const suffix = String(seq).padStart(6, "0");
     return `INV-${year}${month}-${suffix}`;
   }
 
   /**
    * Create invoice from approved quote
    */
-  async createFromQuote(quoteId: string, userId: string): Promise<InvoiceCreationResult> {
+  async createFromQuote(
+    quoteId: string,
+    userId: string,
+  ): Promise<InvoiceCreationResult> {
     const quote = await this.repos.quotes.findWithItems(quoteId);
 
     if (!quote) {
-      throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+      throw new ApiErrorResponse(404, "NOT_FOUND", "Quote not found");
     }
 
-    if (quote.status !== 'approved') {
+    if (quote.status !== "approved") {
       throw new ApiErrorResponse(
         409,
-        'INVALID_STATUS',
-        `Cannot create invoice from quote with status ${quote.status}. Must be approved.`
+        "INVALID_STATUS",
+        `Cannot create invoice from quote with status ${quote.status}. Must be approved.`,
       );
     }
 
@@ -57,13 +60,13 @@ export class InvoiceService {
       subtotal,
       taxAmount,
       totalAmount,
-      status: 'issued',
+      status: "issued",
       createdBy: userId,
     });
 
     const invoiceId = invoice.id;
 
-    await this.repos.outbox.publish('invoice_created', quoteId, {
+    await this.repos.outbox.publish("invoice_created", quoteId, {
       invoiceId,
       invoiceNumber,
       quoteId,
@@ -84,7 +87,9 @@ export class InvoiceService {
   /**
    * Calculate invoice subtotal from line items
    */
-  calculateSubtotal(items: Array<{ quantity: number; unitPrice: number }>): number {
+  calculateSubtotal(
+    items: Array<{ quantity: number; unitPrice: number }>,
+  ): number {
     return items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   }
 
@@ -101,7 +106,7 @@ export class InvoiceService {
   validateAmounts(
     quoteSubtotal: number,
     invoiceSubtotal: number,
-    tolerance: number = 1
+    tolerance: number = 1,
   ): boolean {
     return Math.abs(quoteSubtotal - invoiceSubtotal) <= tolerance;
   }
@@ -109,13 +114,17 @@ export class InvoiceService {
   /**
    * Get invoices by quote IDs
    */
-  async findByQuoteIds(quoteIds: string[]): Promise<Array<{ quoteId: string; invoiceId: string }>> {
+  async findByQuoteIds(
+    quoteIds: string[],
+  ): Promise<Array<{ quoteId: string; invoiceId: string }>> {
     const results = await Promise.all(
       quoteIds.map(async (quoteId) => {
         const invoice = await this.repos.invoices.findByQuoteId(quoteId);
         return invoice ? { quoteId, invoiceId: invoice.id } : null;
-      })
+      }),
     );
-    return results.filter((r): r is { quoteId: string; invoiceId: string } => r !== null);
+    return results.filter(
+      (r): r is { quoteId: string; invoiceId: string } => r !== null,
+    );
   }
 }

@@ -8,13 +8,13 @@
 
 ## マイルストーン
 
-| # | 内容 | 状態 |
-| --- | --- | --- |
-| M01 | BtoB Quote-to-Billing（見積〜請求 同期版） | ✅ 完了 |
-| M02 | Outbox 非同期化（信頼性・冪等性） | ✅ 完了 |
-| M03 | Error / Performance / Data Generator | ✅ 完了 |
+| #   | 内容                                                      | 状態    |
+| --- | --------------------------------------------------------- | ------- |
+| M01 | BtoB Quote-to-Billing（見積〜請求 同期版）                | ✅ 完了 |
+| M02 | Outbox 非同期化（信頼性・冪等性）                         | ✅ 完了 |
+| M03 | Error / Performance / Data Generator                      | ✅ 完了 |
 | M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
-| M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
+| M14 | Credit Notes & Refunds（クレジットノート・返金）          | ✅ 完了 |
 
 ## 技術スタック
 
@@ -75,14 +75,14 @@ bash tests/integration/credit_notes.sh
 
 ## 主要 API エンドポイント
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| POST | `/api/workflow/quotes/:id/submit` | 見積提出 |
-| POST | `/api/workflow/quotes/:id/approve` | 見積承認 |
-| POST | `/api/workflow/quotes/:id/invoice` | 請求書発行 |
-| POST | `/api/invoices/:id/payments` | 入金記録 |
-| POST | `/api/invoices/:id/credit-notes` | クレジットノート発行 |
-| POST | `/api/credit-notes/:id/apply` | クレジットノート適用 |
-| GET | `/api/reports/ar-aging` | AR エイジングレポート |
-| GET | `/health` | ヘルスチェック |
-| GET | `/docs` | Swagger UI |
+| メソッド | パス                               | 説明                  |
+| -------- | ---------------------------------- | --------------------- |
+| POST     | `/api/workflow/quotes/:id/submit`  | 見積提出              |
+| POST     | `/api/workflow/quotes/:id/approve` | 見積承認              |
+| POST     | `/api/workflow/quotes/:id/invoice` | 請求書発行            |
+| POST     | `/api/invoices/:id/payments`       | 入金記録              |
+| POST     | `/api/invoices/:id/credit-notes`   | クレジットノート発行  |
+| POST     | `/api/credit-notes/:id/apply`      | クレジットノート適用  |
+| GET      | `/api/reports/ar-aging`            | AR エイジングレポート |
+| GET      | `/health`                          | ヘルスチェック        |
+| GET      | `/docs`                            | Swagger UI            |

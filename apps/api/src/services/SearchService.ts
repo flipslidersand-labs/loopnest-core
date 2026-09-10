@@ -1,12 +1,12 @@
 export interface SearchResult {
-  type: 'customer' | 'product' | 'quote';
+  type: "customer" | "product" | "quote";
   id: string;
   title: string;
   excerpt: string | null;
   createdAt: Date;
 }
 
-const ALLOWED_TYPES = new Set(['customer', 'product', 'quote']);
+const ALLOWED_TYPES = new Set(["customer", "product", "quote"]);
 
 export class SearchService {
   constructor(private readonly pgPool: any) {}
@@ -16,16 +16,17 @@ export class SearchService {
     types: string[],
     skip = 0,
     take = 20,
-    orgId?: string
+    orgId?: string,
   ): Promise<{ results: SearchResult[]; total: number }> {
     if (!query || query.trim().length === 0) {
       return { results: [], total: 0 };
     }
 
     // Validate and default types
-    const requestedTypes = types.length > 0
-      ? types.filter(t => ALLOWED_TYPES.has(t))
-      : ['customer', 'product', 'quote'];
+    const requestedTypes =
+      types.length > 0
+        ? types.filter((t) => ALLOWED_TYPES.has(t))
+        : ["customer", "product", "quote"];
 
     if (requestedTypes.length === 0) {
       return { results: [], total: 0 };
@@ -38,10 +39,13 @@ export class SearchService {
     const params: any[] = [pattern];
 
     const orgCondition = orgId
-      ? (() => { params.push(orgId); return `AND organization_id = $${params.length}`; })()
-      : '';
+      ? (() => {
+          params.push(orgId);
+          return `AND organization_id = $${params.length}`;
+        })()
+      : "";
 
-    if (requestedTypes.includes('customer')) {
+    if (requestedTypes.includes("customer")) {
       unions.push(`
         SELECT 'customer'::text AS type,
                id::text,
@@ -54,7 +58,7 @@ export class SearchService {
       `);
     }
 
-    if (requestedTypes.includes('product')) {
+    if (requestedTypes.includes("product")) {
       unions.push(`
         SELECT 'product'::text AS type,
                id::text,
@@ -67,7 +71,7 @@ export class SearchService {
       `);
     }
 
-    if (requestedTypes.includes('quote')) {
+    if (requestedTypes.includes("quote")) {
       unions.push(`
         SELECT 'quote'::text AS type,
                id::text,
@@ -80,10 +84,10 @@ export class SearchService {
       `);
     }
 
-    const cte = unions.join('\n      UNION ALL\n      ');
+    const cte = unions.join("\n      UNION ALL\n      ");
 
     params.push(take, skip);
-    const limitParam  = params.length - 1;
+    const limitParam = params.length - 1;
     const offsetParam = params.length;
 
     const [dataResult, countResult] = await Promise.all([
@@ -93,20 +97,20 @@ export class SearchService {
          FROM results
          ORDER BY created_at DESC
          LIMIT $${limitParam} OFFSET $${offsetParam}`,
-        params
+        params,
       ),
       this.pgPool.query(
         `WITH results AS (${cte}) SELECT COUNT(*) FROM results`,
-        params.slice(0, params.length - 2) // exclude limit/offset
+        params.slice(0, params.length - 2), // exclude limit/offset
       ),
     ]);
 
     return {
       results: dataResult.rows.map((r: any) => ({
-        type:      r.type,
-        id:        r.id,
-        title:     r.title,
-        excerpt:   r.excerpt || null,
+        type: r.type,
+        id: r.id,
+        title: r.title,
+        excerpt: r.excerpt || null,
         createdAt: r.created_at,
       })),
       total: Number.parseInt(countResult.rows[0].count, 10),

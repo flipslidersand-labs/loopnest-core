@@ -1,15 +1,15 @@
-import { PrismaClient } from '@prisma/client';
-import { OrganizationRepository } from './OrganizationRepository.js';
-import { CustomerRepository } from './CustomerRepository.js';
-import { ProductRepository } from './ProductRepository.js';
-import { QuoteRepository } from './QuoteRepository.js';
-import { QuoteItemRepository } from './QuoteItemRepository.js';
-import { UserRepository } from './UserRepository.js';
-import { InvoiceRepository } from './InvoiceRepository.js';
-import { OutboxRepository } from './OutboxRepository.js';
-import { WebhookRepository } from './WebhookRepository.js';
-import { PaymentRepository } from './PaymentRepository.js';
-import { CreditNoteRepository } from './CreditNoteRepository.js';
+import { PrismaClient } from "@prisma/client";
+import { OrganizationRepository } from "./OrganizationRepository.js";
+import { CustomerRepository } from "./CustomerRepository.js";
+import { ProductRepository } from "./ProductRepository.js";
+import { QuoteRepository } from "./QuoteRepository.js";
+import { QuoteItemRepository } from "./QuoteItemRepository.js";
+import { UserRepository } from "./UserRepository.js";
+import { InvoiceRepository } from "./InvoiceRepository.js";
+import { OutboxRepository } from "./OutboxRepository.js";
+import { WebhookRepository } from "./WebhookRepository.js";
+import { PaymentRepository } from "./PaymentRepository.js";
+import { CreditNoteRepository } from "./CreditNoteRepository.js";
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -26,7 +26,7 @@ export class RepositoryContainer {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly db: any
+    private readonly db: any,
   ) {
     this.organizationRepo = new OrganizationRepository(prisma);
     this.customerRepo = new CustomerRepository(prisma);
@@ -90,10 +90,13 @@ export class RepositoryContainer {
    * Useful for operations that span multiple repositories.
    */
   async beginTransaction<T>(
-    callback: (container: RepositoryContainer) => Promise<T>
+    callback: (container: RepositoryContainer) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(async (tx: any) => {
-      const transactionContainer = new RepositoryContainer(tx as PrismaClient, this.db);
+      const transactionContainer = new RepositoryContainer(
+        tx as PrismaClient,
+        this.db,
+      );
       return callback(transactionContainer);
     });
   }

@@ -1,9 +1,9 @@
-import prismaCoreDb from './clients/prisma-client.js';
-import { kyselyDb, closeKysely } from './clients/kysely-client.js';
-import { drizzleDb, closeDrizzle } from './clients/drizzle-client.js';
-import { pgPool, closePgPool } from './clients/pg-client.js';
-import { redis, closeRedis } from './clients/redis-client.js';
-import { RepositoryContainer } from './repositories/RepositoryContainer.js';
+import prismaCoreDb from "./clients/prisma-client.js";
+import { kyselyDb, closeKysely } from "./clients/kysely-client.js";
+import { drizzleDb, closeDrizzle } from "./clients/drizzle-client.js";
+import { pgPool, closePgPool } from "./clients/pg-client.js";
+import { redis, closeRedis } from "./clients/redis-client.js";
+import { RepositoryContainer } from "./repositories/RepositoryContainer.js";
 
 export interface DatabaseServices {
   repos: RepositoryContainer;
@@ -43,6 +43,9 @@ export async function initializeDatabaseServices(): Promise<DatabaseServices> {
 /**
  * Get repository container from existing clients (for testing or advanced usage).
  */
-export function getRepositoryContainer(prisma: any, db: any): RepositoryContainer {
+export function getRepositoryContainer(
+  prisma: any,
+  db: any,
+): RepositoryContainer {
   return new RepositoryContainer(prisma, db);
 }
