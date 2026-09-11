@@ -27,3 +27,6 @@ coverage/
 # Misc
 *.tsbuildinfo
 .turbo/
+
+# Worktrees (git worktree add .wt/<branch>)
+.wt/
