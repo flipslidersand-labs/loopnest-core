@@ -222,8 +222,17 @@ export class RecurringContractRepository {
   }
 
   private map(r: any): RecurringContract {
-    const toDateStr = (v: any): string =>
-      v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+    const toDateStr = (v: any): string => {
+      if (v instanceof Date) {
+        // Use local date parts: pg parses DATE columns as local-midnight Date objects,
+        // and toISOString() would shift to the previous day in UTC+ timezones.
+        const y = v.getFullYear();
+        const m = String(v.getMonth() + 1).padStart(2, '0');
+        const d = String(v.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      return String(v);
+    };
 
     return {
       id: r.id,

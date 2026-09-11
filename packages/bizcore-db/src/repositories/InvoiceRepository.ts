@@ -314,6 +314,11 @@ export class InvoiceRepository {
   }
 
   private map(r: any): InvoiceRecord {
+    const toDateStr = (v: Date): string => {
+      // Use local date parts: pg parses DATE columns as local-midnight Date objects,
+      // and toISOString() shifts to the previous day in UTC+ timezones.
+      return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+    };
     return {
       id: r.id,
       quoteId: r.quote_id ?? null,
@@ -328,7 +333,7 @@ export class InvoiceRepository {
       paidAt: r.paid_at ?? null,
       paymentDueDate: r.payment_due_date
         ? (r.payment_due_date instanceof Date
-            ? r.payment_due_date.toISOString().slice(0, 10)
+            ? toDateStr(r.payment_due_date)
             : String(r.payment_due_date))
         : null,
       createdBy: r.created_by,
