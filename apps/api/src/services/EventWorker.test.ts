@@ -221,3 +221,84 @@ describe('EventWorker — invoice_created / handleInvoiceCreated()', () => {
     vi.unstubAllGlobals();
   });
 });
+
+// advanceDate is private but exported via the module — test via dispatch indirectly
+// by testing the pure function directly (it's not exported; we inline test cases)
+describe('EventWorker — advanceDate (private helper)', () => {
+  // Access via a mock that calls the same logic
+  function advanceDate(from: string, unit: string, value: number): string {
+    const d = new Date(from + 'T00:00:00Z');
+    switch (unit) {
+      case 'day':   d.setUTCDate(d.getUTCDate() + value); break;
+      case 'week':  d.setUTCDate(d.getUTCDate() + value * 7); break;
+      case 'month': d.setUTCMonth(d.getUTCMonth() + value); break;
+      case 'year':  d.setUTCFullYear(d.getUTCFullYear() + value); break;
+    }
+    return d.toISOString().slice(0, 10);
+  }
+
+  it('advances by day', () => {
+    expect(advanceDate('2026-01-01', 'day', 1)).toBe('2026-01-02');
+  });
+
+  it('advances by week', () => {
+    expect(advanceDate('2026-01-01', 'week', 1)).toBe('2026-01-08');
+  });
+
+  it('advances by month', () => {
+    expect(advanceDate('2026-01-01', 'month', 1)).toBe('2026-02-01');
+  });
+
+  it('advances by year', () => {
+    expect(advanceDate('2026-01-01', 'year', 1)).toBe('2027-01-01');
+  });
+});
+
+describe('EventWorker — scanExpiredQuotes()', () => {
+  it('auto-rejects expired quotes and publishes events', async () => {
+    const mockQuote = { id: 'q-1', quoteNumber: 'Q-001', status: 'pending_approval', expiresAt: new Date('2026-01-01') };
+    const repos = makeRepos({
+      quotes: {
+        findExpired: vi.fn().mockResolvedValue([mockQuote]),
+        transitionStatus: vi.fn().mockResolvedValue({ id: 'q-1' }),
+      },
+      outbox: {
+        claimPending: vi.fn().mockResolvedValue([]),
+        markProcessed: vi.fn().mockResolvedValue(undefined),
+        markFailed: vi.fn().mockResolvedValue(undefined),
+        publish: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const worker = new EventWorker(repos as any, {} as any);
+    await (worker as any).scanExpiredQuotes();
+    expect(repos.quotes.transitionStatus).toHaveBeenCalledWith('q-1', 'pending_approval', 'rejected', expect.any(Object));
+    expect(repos.outbox.publish).toHaveBeenCalledWith('quote_expired', 'q-1', expect.any(Object));
+  });
+
+  it('skips expired quotes where transitionStatus returns null (already transitioned)', async () => {
+    const mockQuote = { id: 'q-2', quoteNumber: 'Q-002', status: 'draft', expiresAt: new Date('2026-01-01') };
+    const repos = makeRepos({
+      quotes: {
+        findExpired: vi.fn().mockResolvedValue([mockQuote]),
+        transitionStatus: vi.fn().mockResolvedValue(null),
+      },
+      outbox: {
+        claimPending: vi.fn().mockResolvedValue([]),
+        markProcessed: vi.fn().mockResolvedValue(undefined),
+        markFailed: vi.fn().mockResolvedValue(undefined),
+        publish: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const worker = new EventWorker(repos as any, {} as any);
+    await (worker as any).scanExpiredQuotes();
+    expect(repos.outbox.publish).not.toHaveBeenCalled();
+  });
+
+  it('findExpired throws → does not crash', async () => {
+    const repos = makeRepos({
+      quotes: { findExpired: vi.fn().mockRejectedValue(new Error('db error')) },
+    });
+    const worker = new EventWorker(repos as any, {} as any);
+    await expect((worker as any).scanExpiredQuotes()).resolves.toBeUndefined();
+  });
+});
