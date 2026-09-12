@@ -1,4 +1,4 @@
-import { kyselyDb, closeKysely } from './clients/kysely-client.js';
+import { kyselyDb } from './clients/kysely-client.js';
 import { pgPool, closePgPool } from './clients/pg-client.js';
 import { redis, closeRedis } from './clients/redis-client.js';
 import { RepositoryContainer } from './repositories/RepositoryContainer.js';
@@ -27,7 +27,6 @@ export async function initializeDatabaseServices(): Promise<DatabaseServices> {
     kyselyDb: db,
     async close() {
       await Promise.all([
-        closeKysely(),
         closePgPool(),
         closeRedis(),
       ]);
