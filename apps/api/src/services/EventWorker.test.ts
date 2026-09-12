@@ -271,8 +271,8 @@ describe('EventWorker — scanExpiredQuotes()', () => {
     });
     const worker = new EventWorker(repos as any, {} as any);
     await (worker as any).scanExpiredQuotes();
-    expect(repos.quotes.transitionStatus).toHaveBeenCalledWith('q-1', 'pending_approval', 'rejected', expect.any(Object));
-    expect(repos.outbox.publish).toHaveBeenCalledWith('quote_expired', 'q-1', expect.any(Object));
+    expect((repos as any).quotes.transitionStatus).toHaveBeenCalledWith('q-1', 'pending_approval', 'rejected', expect.any(Object));
+    expect((repos as any).outbox.publish).toHaveBeenCalledWith('quote_expired', 'q-1', expect.any(Object));
   });
 
   it('skips expired quotes where transitionStatus returns null (already transitioned)', async () => {
@@ -291,7 +291,7 @@ describe('EventWorker — scanExpiredQuotes()', () => {
     });
     const worker = new EventWorker(repos as any, {} as any);
     await (worker as any).scanExpiredQuotes();
-    expect(repos.outbox.publish).not.toHaveBeenCalled();
+    expect((repos as any).outbox.publish).not.toHaveBeenCalled();
   });
 
   it('findExpired throws → does not crash', async () => {
