@@ -8,9 +8,8 @@ import {
   UnknownRow,
   RootOperationNode,
 } from 'kysely';
-import { Pool } from 'pg';
-import Cursor from 'pg-cursor';
 import { KyselyDatabase } from '../types/kysely-database.js';
+import { pgPool } from './pg-client.js';
 
 type QueryObserver = (kind: string, durationMs: number) => void;
 
@@ -44,19 +43,7 @@ class TimingPlugin implements KyselyPlugin {
   }
 }
 
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  user: process.env.POSTGRES_USER || 'loopnest',
-  password: process.env.POSTGRES_PASSWORD,
-  database: process.env.POSTGRES_DB || 'omni_local',
-});
-
 export const kyselyDb = new Kysely<KyselyDatabase>({
-  dialect: new PostgresDialect({ pool, cursor: Cursor }),
+  dialect: new PostgresDialect({ pool: pgPool }),
   plugins: [new TimingPlugin()],
 });
-
-export async function closeKysely() {
-  await pool.end();
-}

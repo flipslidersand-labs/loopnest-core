@@ -1,5 +1,5 @@
 // Export clients
-export { kyselyDb, closeKysely, setKyselyQueryObserver } from './clients/kysely-client.js';
+export { kyselyDb, setKyselyQueryObserver } from './clients/kysely-client.js';
 export { pgPool, closePgPool } from './clients/pg-client.js';
 export { redis, closeRedis } from './clients/redis-client.js';
 
