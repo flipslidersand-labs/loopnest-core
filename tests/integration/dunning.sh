@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # M15: Dunning management integration tests
 set -euo pipefail
+trap 'echo >&2 "  ERR at line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 source "$(dirname "$0")/lib.sh" 2>/dev/null || true
 
 BASE_URL="${BASE_URL:-http://localhost:3000/api}"
