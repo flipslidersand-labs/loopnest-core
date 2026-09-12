@@ -3,8 +3,9 @@ import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { parsePagination } from '../lib/pagination.js';
+import { WebhookService } from '../services/WebhookService.js';
 
-export function recurringContractRoutes(repos: RepositoryContainer) {
+export function recurringContractRoutes(repos: RepositoryContainer, wh?: WebhookService) {
   const router = Router();
 
   router.get(
@@ -92,6 +93,7 @@ export function recurringContractRoutes(repos: RepositoryContainer) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'pauseUntil must be a valid ISO date');
       }
       const updated = await repos.recurringContracts.pause(req.params.id, reason, pauseUntil ?? null);
+      wh?.deliver(req.user?.orgId, 'contract.paused', { contractId: req.params.id, reason: reason ?? null, pauseUntil: pauseUntil ?? null });
       res.json({ data: updated });
     })
   );
@@ -106,6 +108,7 @@ export function recurringContractRoutes(repos: RepositoryContainer) {
         throw new ApiErrorResponse(409, 'CONFLICT', `Contract is ${contract.status}, cannot resume`);
       }
       const updated = await repos.recurringContracts.resume(req.params.id);
+      wh?.deliver(req.user?.orgId, 'contract.resumed', { contractId: req.params.id });
       res.json({ data: updated });
     })
   );

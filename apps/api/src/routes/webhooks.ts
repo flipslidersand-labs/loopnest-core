@@ -3,8 +3,49 @@ import { WebhookService } from '../services/WebhookService.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 
+export const WEBHOOK_EVENT_TYPES = [
+  'invoice.created',
+  'invoice.paid',
+  'payment.recorded',
+  'payment.reversed',
+  'payment.overdue',
+  'quote.submitted',
+  'quote.approved',
+  'credit_note.issued',
+  'credit_note.applied',
+  'credit_note.refunded',
+  'credit_note.voided',
+  'dunning.action',
+  'contract.paused',
+  'contract.resumed',
+] as const;
+
+export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number];
+
+function validateEvents(events: unknown): string[] {
+  if (!Array.isArray(events) || events.length === 0) {
+    throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'events must be a non-empty array');
+  }
+  const invalid = events.filter(e => !WEBHOOK_EVENT_TYPES.includes(e as WebhookEventType));
+  if (invalid.length > 0) {
+    throw new ApiErrorResponse(
+      400, 'VALIDATION_ERROR',
+      `Invalid event type(s): ${invalid.join(', ')}. Valid types: ${WEBHOOK_EVENT_TYPES.join(', ')}`
+    );
+  }
+  return events as string[];
+}
+
 export function webhookRoutes(webhookService: WebhookService) {
   const router = Router();
+
+  // List valid event types — viewer+
+  router.get(
+    '/event-types',
+    asyncHandler(async (_req: Request, res: Response) => {
+      res.json({ data: WEBHOOK_EVENT_TYPES });
+    })
+  );
 
   // List webhooks for this org — viewer+
   router.get(
@@ -70,16 +111,14 @@ export function webhookRoutes(webhookService: WebhookService) {
     asyncHandler(async (req: Request, res: Response) => {
       const { url, events, secret } = req.body;
       if (!url) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url is required');
-      if (!Array.isArray(events) || events.length === 0) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'events must be a non-empty array');
-      }
+      const validatedEvents = validateEvents(events);
       try { new URL(url); } catch {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
       }
       const webhook = await webhookService.register({
         organizationId: req.user?.orgId,
         url,
-        events,
+        events: validatedEvents,
         secret,
       });
       res.status(201).json({ data: webhook });
@@ -97,7 +136,8 @@ export function webhookRoutes(webhookService: WebhookService) {
           throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
         }
       }
-      const webhook = await webhookService.update(req.params.id, { url, events, secret, isActive }, req.user?.orgId);
+      const validatedEvents = events !== undefined ? validateEvents(events) : undefined;
+      const webhook = await webhookService.update(req.params.id, { url, events: validatedEvents, secret, isActive }, req.user?.orgId);
       if (!webhook) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found');
       res.json({ data: webhook });
     })
