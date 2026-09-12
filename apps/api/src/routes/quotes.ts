@@ -131,14 +131,23 @@ export function quoteRoutes(repos: RepositoryContainer) {
     requireRole('editor', 'admin'),
     requireDraftQuote,
     asyncHandler(async (req: Request, res: Response) => {
-      const { productId, quantity, unitPrice } = req.body;
+      const { productId, quantity, unitPrice, discountPct, discountAmt } = req.body;
       if (!productId || quantity == null || unitPrice == null) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'productId, quantity, and unitPrice are required');
       }
       if (quantity <= 0) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'quantity must be positive');
       if (unitPrice < 0) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'unitPrice must be non-negative');
+      if (discountPct != null && discountAmt != null) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Specify discountPct or discountAmt, not both');
+      }
+      if (discountPct != null && (discountPct < 0 || discountPct > 100)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountPct must be between 0 and 100');
+      }
+      if (discountAmt != null && discountAmt < 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountAmt must be non-negative');
+      }
 
-      const item = await repos.quoteItems.addItem(req.params.id, { productId, quantity, unitPrice });
+      const item = await repos.quoteItems.addItem(req.params.id, { productId, quantity, unitPrice, discountPct: discountPct ?? null, discountAmt: discountAmt ?? null });
       const quote = await repos.quotes.findById(req.params.id);
       res.status(201).json({ data: item, quoteTotals: { subtotalAmount: quote?.subtotalAmount, taxAmount: quote?.taxAmount, totalAmount: quote?.totalAmount } });
     })

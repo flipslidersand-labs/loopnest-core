@@ -147,6 +147,8 @@ export interface QuoteItemTable {
   quantity: number;
   unit_price: number;
   line_total: number;
+  discount_pct: number | null;
+  discount_amt: number | null;
   notes: string | null;
   created_at: Generated<Date>;
 }
@@ -192,6 +194,8 @@ export interface InvoiceItemTable {
   quantity: number;
   unit_price: number;
   line_total: number;
+  discount_pct: number | null;
+  discount_amt: number | null;
   notes: string | null;
 }
 

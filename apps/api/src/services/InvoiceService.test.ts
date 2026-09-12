@@ -31,8 +31,12 @@ function makeRepos(overrides: Record<string, any> = {}) {
         id: 'inv-1',
         createdAt: new Date('2026-01-01'),
       }),
+      addItems: vi.fn().mockResolvedValue(undefined),
       findByQuoteId: vi.fn().mockResolvedValue(null),
       findById: vi.fn().mockResolvedValue(null),
+    },
+    quoteItems: {
+      findByQuote: vi.fn().mockResolvedValue([]),
     },
     outbox: {
       publish: vi.fn().mockResolvedValue(undefined),

@@ -130,7 +130,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
   router.get(
     '/:id',
     asyncHandler(async (req: Request, res: Response) => {
-      const invoice = await repos.invoices.findById(req.params.id);
+      const invoice = await repos.invoices.findWithItems(req.params.id);
       if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
       res.json({ data: invoice });
     })
