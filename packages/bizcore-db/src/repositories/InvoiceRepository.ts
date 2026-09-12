@@ -35,6 +35,8 @@ export interface InvoiceLineItem {
   productSku: string;
   quantity: number;
   unitPrice: number;
+  discountPct: number | null;
+  discountAmt: number | null;
   lineTotal: number;
   notes: string | null;
 }
@@ -253,6 +255,8 @@ export class InvoiceRepository {
         'p.sku as product_sku',
         'ii.quantity',
         'ii.unit_price',
+        'ii.discount_pct',
+        'ii.discount_amt',
         'ii.line_total',
         'ii.notes',
       ])
@@ -267,10 +271,39 @@ export class InvoiceRepository {
         productSku: r.product_sku,
         quantity: Number(r.quantity),
         unitPrice: parseFloat(r.unit_price.toString()),
+        discountPct: r.discount_pct !== null ? parseFloat(r.discount_pct.toString()) : null,
+        discountAmt: r.discount_amt !== null ? parseFloat(r.discount_amt.toString()) : null,
         lineTotal: parseFloat(r.line_total.toString()),
         notes: r.notes ?? null,
       })),
     };
+  }
+
+  async addItems(invoiceId: string, items: Array<{
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    discountPct?: number | null;
+    discountAmt?: number | null;
+    lineTotal: number;
+    notes?: string | null;
+  }>): Promise<void> {
+    if (items.length === 0) return;
+    const { randomUUID } = await import('node:crypto');
+    await this.db
+      .insertInto('finance.invoice_items')
+      .values(items.map(i => ({
+        id: randomUUID(),
+        invoice_id: invoiceId,
+        product_id: i.productId,
+        quantity: i.quantity,
+        unit_price: i.unitPrice,
+        discount_pct: i.discountPct ?? null,
+        discount_amt: i.discountAmt ?? null,
+        line_total: i.lineTotal,
+        notes: i.notes ?? null,
+      })))
+      .execute();
   }
 
   // issued → sent

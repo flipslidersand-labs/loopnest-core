@@ -9,6 +9,8 @@ export interface QuoteItemEntity {
   productId: string;
   quantity: number;
   unitPrice: number;
+  discountPct: number | null;
+  discountAmt: number | null;
   lineTotal: number;
   createdAt: Date;
 }
@@ -17,6 +19,8 @@ export interface QuoteItemInput {
   productId: string;
   quantity: number;
   unitPrice: number;
+  discountPct?: number | null;
+  discountAmt?: number | null;
 }
 
 export class QuoteItemRepository {
@@ -29,9 +33,18 @@ export class QuoteItemRepository {
       productId: r.product_id,
       quantity: r.quantity,
       unitPrice: Number(r.unit_price),
+      discountPct: r.discount_pct !== null && r.discount_pct !== undefined ? Number(r.discount_pct) : null,
+      discountAmt: r.discount_amt !== null && r.discount_amt !== undefined ? Number(r.discount_amt) : null,
       lineTotal: Number(r.line_total),
       createdAt: r.created_at,
     };
+  }
+
+  private calcLineTotal(unitPrice: number, quantity: number, discountPct: number | null | undefined, discountAmt: number | null | undefined): number {
+    const base = unitPrice * quantity;
+    const afterPct = discountPct ? base * (1 - discountPct / 100) : base;
+    const afterAmt = discountAmt ? afterPct - discountAmt : afterPct;
+    return Math.max(0, Math.round(afterAmt * 100) / 100);
   }
 
   async findByQuote(quoteId: string): Promise<QuoteItemEntity[]> {
@@ -45,7 +58,10 @@ export class QuoteItemRepository {
   }
 
   async addItem(quoteId: string, input: QuoteItemInput): Promise<QuoteItemEntity> {
-    const lineTotal = Math.round(input.quantity * input.unitPrice * 100) / 100;
+    if (input.discountPct != null && input.discountAmt != null) {
+      throw new Error('Specify discountPct or discountAmt, not both');
+    }
+    const lineTotal = this.calcLineTotal(input.unitPrice, input.quantity, input.discountPct, input.discountAmt);
     const row = await this.db
       .insertInto('core.quote_items')
       .values({
@@ -54,6 +70,8 @@ export class QuoteItemRepository {
         product_id: input.productId,
         quantity: input.quantity,
         unit_price: input.unitPrice,
+        discount_pct: input.discountPct ?? null,
+        discount_amt: input.discountAmt ?? null,
         line_total: lineTotal,
       })
       .returningAll()
@@ -77,7 +95,9 @@ export class QuoteItemRepository {
 
     const qty = input.quantity ?? current.quantity;
     const price = input.unitPrice !== undefined ? input.unitPrice : Number(current.unit_price);
-    const lineTotal = Math.round(qty * price * 100) / 100;
+    const discountPct = Number(current.discount_pct) || null;
+    const discountAmt = Number(current.discount_amt) || null;
+    const lineTotal = this.calcLineTotal(price, qty, discountPct, discountAmt);
 
     const updated = await this.db
       .updateTable('core.quote_items')

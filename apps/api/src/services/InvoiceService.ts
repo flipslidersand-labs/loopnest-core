@@ -112,6 +112,18 @@ export class InvoiceService {
 
     const invoiceId = invoice.id;
 
+    // Copy quote items to invoice_items, preserving per-item discounts.
+    const quoteItems = await this.repos.quoteItems.findByQuote(quoteId);
+    await this.repos.invoices.addItems(invoiceId, quoteItems.map(qi => ({
+      productId: qi.productId,
+      quantity: qi.quantity,
+      unitPrice: qi.unitPrice,
+      discountPct: qi.discountPct,
+      discountAmt: qi.discountAmt,
+      lineTotal: qi.lineTotal,
+      notes: null,
+    })));
+
     await this.repos.outbox.publish('invoice_created', quoteId, {
       invoiceId,
       invoiceNumber,
