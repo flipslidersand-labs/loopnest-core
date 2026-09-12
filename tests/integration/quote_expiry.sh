@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # M09: Quote expiry integration test
 set -euo pipefail
+trap 'echo >&2 "  ERR at line $LINENO: $BASH_COMMAND (exit $?)"' ERR
 source "$(dirname "$0")/_common.sh" 2>/dev/null || true
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
