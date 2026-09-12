@@ -53,11 +53,14 @@ jobs:
         run: |
           # Add official PostgreSQL apt repo to get v17 (matches the postgres:17-alpine
           # Docker image used in local dev, avoiding behaviour differences with older apt versions).
+          # focal (Ubuntu 20.04) was dropped from pgdg in 2025; map it to jammy.
+          CODENAME=$(lsb_release -cs)
+          [ "$CODENAME" = "focal" ] && CODENAME="jammy"
           sudo apt-get install -y --no-install-recommends curl ca-certificates
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
             | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/postgresql.gpg
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
-            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            https://apt.postgresql.org/pub/repos/apt ${CODENAME}-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
