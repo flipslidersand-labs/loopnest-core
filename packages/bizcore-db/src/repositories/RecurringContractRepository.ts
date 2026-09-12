@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { toDateOnlyStr } from '../utils/date.js';
 
 export type RecurringStatus = 'active' | 'paused' | 'cancelled' | 'completed';
 export type IntervalUnit = 'day' | 'week' | 'month' | 'year';
@@ -223,7 +224,7 @@ export class RecurringContractRepository {
 
   private map(r: any): RecurringContract {
     const toDateStr = (v: any): string =>
-      v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+      v instanceof Date ? toDateOnlyStr(v) : String(v);
 
     return {
       id: r.id,
