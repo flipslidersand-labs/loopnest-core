@@ -51,14 +51,14 @@ R=$(command curl -s -w "\n%{http_code}" \
   -H "Content-Type: application/json" \
   -d "{\"url\":\"$MOCK_URL\",\"events\":[\"invoice.created\",\"unknown.event\"]}")
 check "POST with invalid event → 400" "400" "$(http_code "$R")"
-check "error mentions invalid type" "true" "$(http_body "$R" | jq -r '.message' | grep -qi 'unknown.event' && echo true || echo false)"
+check "error mentions invalid type" "true" "$(http_body "$R" | jq -r '.error.message // .message' | grep -qi 'unknown.event' && echo true || echo false)"
 
 # ── 3. POST /webhooks with valid events ───────────────────────────────────────
 R=$(command curl -s -w "\n%{http_code}" \
   -H "Authorization: Bearer $TOKEN" \
   -X POST "$BASE_URL/webhooks" \
   -H "Content-Type: application/json" \
-  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"contract.paused\",\"contract.resumed\"],\"secret\":\"filter-secret\"}")
+  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"contract.paused\",\"contract.resumed\"],\"secret\":\"filter-secret-abcdef12\"}")
 check "POST with valid events → 201" "201" "$(http_code "$R")"
 WH_ID=$(http_body "$R" | jq -r '.data.id')
 check "webhook id returned" "true" "$([ -n "$WH_ID" ] && [ "$WH_ID" != "null" ] && echo true || echo false)"
