@@ -126,10 +126,6 @@ export class PaymentService {
     }
     const paidOn = input.paidOn ?? new Date().toISOString().slice(0, 10);
 
-    // Captured inside the transaction for post-commit credit adjustment.
-    let paidCustomerId: string | null = null;
-    let creditDecrement: number | null = null;
-
     const result = await this.db.transaction().execute(async (trx) => {
       const inv = await trx
         .selectFrom("finance.invoices")
@@ -213,9 +209,14 @@ export class PaymentService {
           paidTotal,
           paidAt,
         });
-        // Capture for post-commit credit release.
-        paidCustomerId = inv.customer_id;
-        creditDecrement = total;
+        // Credit release is enqueued inside the transaction so it gets the same
+        // at-least-once / retry guarantee as all other side effects. The customer_id
+        // column is always present on finance.invoices (NOT NULL).
+        await this.enqueue(trx, "credit_released", inv.customer_id, {
+          customerId: inv.customer_id,
+          invoiceId,
+          amount: total,
+        });
       }
 
       return {
@@ -229,13 +230,6 @@ export class PaymentService {
         },
       };
     });
-
-    // Release credit_used after the DB transaction commits (fire-and-forget on error).
-    if (paidCustomerId && creditDecrement) {
-      await this.repos.customers.decrementCreditUsed(paidCustomerId, creditDecrement).catch((err) => {
-        console.error('credit decrement failed', { operation: 'decrementCreditUsed', customerId: paidCustomerId, amount: creditDecrement, error: String(err) });
-      });
-    }
 
     return result;
   }
