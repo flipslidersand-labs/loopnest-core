@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
+import { toDateOnlyStr } from '../utils/date.js';
 
 export interface InvoicePage {
   data: InvoiceRecord[];
@@ -328,7 +329,7 @@ export class InvoiceRepository {
       paidAt: r.paid_at ?? null,
       paymentDueDate: r.payment_due_date
         ? (r.payment_due_date instanceof Date
-            ? r.payment_due_date.toISOString().slice(0, 10)
+            ? toDateOnlyStr(r.payment_due_date)
             : String(r.payment_due_date))
         : null,
       createdBy: r.created_by,

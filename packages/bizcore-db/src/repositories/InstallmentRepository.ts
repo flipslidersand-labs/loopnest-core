@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { toDateOnlyStr } from '../utils/date.js';
 
 export type InstallmentStatus = 'pending' | 'paid' | 'cancelled';
 
@@ -132,7 +133,7 @@ export class InstallmentRepository {
       invoiceId: r.invoice_id,
       seq: r.seq,
       dueDate: r.due_date instanceof Date
-        ? r.due_date.toISOString().slice(0, 10)
+        ? toDateOnlyStr(r.due_date)
         : String(r.due_date),
       amount: parseFloat(r.amount.toString()),
       status: r.status as InstallmentStatus,
