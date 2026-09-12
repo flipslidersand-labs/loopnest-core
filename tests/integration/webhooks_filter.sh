@@ -51,7 +51,7 @@ R=$(command curl -s -w "\n%{http_code}" \
   -H "Content-Type: application/json" \
   -d "{\"url\":\"$MOCK_URL\",\"events\":[\"invoice.created\",\"unknown.event\"]}")
 check "POST with invalid event → 400" "400" "$(http_code "$R")"
-check "error mentions invalid type" "true" "$(http_body "$R" | jq -r '.message' | grep -qi 'unknown.event' && echo true || echo false)"
+check "error mentions invalid type" "true" "$(http_body "$R" | jq -r '.error.message // .message' | grep -qi 'unknown.event' && echo true || echo false)"
 
 # ── 3. POST /webhooks with valid events ───────────────────────────────────────
 R=$(command curl -s -w "\n%{http_code}" \

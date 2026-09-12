@@ -26,11 +26,13 @@ function validateEvents(events: unknown): string[] {
   if (!Array.isArray(events) || events.length === 0) {
     throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'events must be a non-empty array');
   }
-  const invalid = events.filter(e => !WEBHOOK_EVENT_TYPES.includes(e as WebhookEventType));
+  // '*' subscribes to all event types
+  if (events.length === 1 && events[0] === '*') return ['*'];
+  const invalid = events.filter(e => e !== '*' && !WEBHOOK_EVENT_TYPES.includes(e as WebhookEventType));
   if (invalid.length > 0) {
     throw new ApiErrorResponse(
       400, 'VALIDATION_ERROR',
-      `Invalid event type(s): ${invalid.join(', ')}. Valid types: ${WEBHOOK_EVENT_TYPES.join(', ')}`
+      `Invalid event type(s): ${invalid.join(', ')}. Valid types: * (all), ${WEBHOOK_EVENT_TYPES.join(', ')}`
     );
   }
   return events as string[];
