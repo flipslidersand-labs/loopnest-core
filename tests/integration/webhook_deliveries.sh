@@ -38,7 +38,7 @@ WH_R=$(command curl -s \
   -H "Authorization: Bearer $TOKEN" \
   -X POST "$BASE_URL/webhooks" \
   -H "Content-Type: application/json" \
-  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"*\"],\"secret\":\"wd-secret\"}")
+  -d "{\"url\":\"$MOCK_URL\",\"events\":[\"*\"],\"secret\":\"wd-secret-abcdef12\"}")
 WH_ID=$(echo "$WH_R" | jq -r '.data.id')
 check "webhook created for delivery log test" "true" \
   "$([ -n "$WH_ID" ] && [ "$WH_ID" != "null" ] && echo true || echo false)"
