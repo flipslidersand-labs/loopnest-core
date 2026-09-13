@@ -113,15 +113,48 @@ describe('PaymentService', () => {
     ).rejects.toMatchObject({ code: 'INVALID_STATUS' });
   });
 
-  it('fire-and-forget credit decrement — does not throw on failure', async () => {
-    repos.customers.decrementCreditUsed = vi.fn().mockRejectedValue(new Error('DB error'));
+  it('full payment enqueues credit_released outbox event inside the transaction', async () => {
+    const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
+    const trx = makeTrx(invoice, repos);
+    const db = { transaction: () => ({ execute: (fn: any) => fn(trx) }) };
+    const svc = new PaymentService(repos as any, db as any);
+
+    await svc.recordPayment('inv-1', { amount: 1000, method: 'bank_transfer' }, 'user-1');
+
+    // credit_released must be enqueued via the transaction (not a direct DB call)
+    const insertedValues = (trx.values as ReturnType<typeof vi.fn>).mock.calls
+      .map(([v]: any[]) => v)
+      .filter((v: any) => v?.event_type === 'credit_released');
+    expect(insertedValues).toHaveLength(1);
+    expect(insertedValues[0]).toMatchObject({
+      event_type: 'credit_released',
+      aggregate_id: 'cust-1',
+    });
+    expect(insertedValues[0].payload.customerId).toBe('cust-1');
+    expect(insertedValues[0].payload.amount).toBe(1000);
+  });
+
+  it('partial payment does NOT enqueue credit_released', async () => {
+    const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
+    const trx = makeTrx(invoice, repos);
+    const db = { transaction: () => ({ execute: (fn: any) => fn(trx) }) };
+    const svc = new PaymentService(repos as any, db as any);
+
+    await svc.recordPayment('inv-1', { amount: 400, method: 'bank_transfer' }, 'user-1');
+
+    const insertedValues = (trx.values as ReturnType<typeof vi.fn>).mock.calls
+      .map(([v]: any[]) => v)
+      .filter((v: any) => v?.event_type === 'credit_released');
+    expect(insertedValues).toHaveLength(0);
+  });
+
+  it('decrementCreditUsed is never called directly from recordPayment', async () => {
     const invoice = makeInvoice({ total_amount: '1000.00', status: 'sent' });
     const db = makeDb(invoice, repos);
     const svc = new PaymentService(repos as any, db as any);
 
-    // Should resolve without throwing even if credit decrement fails
-    await expect(
-      svc.recordPayment('inv-1', { amount: 1000, method: 'bank_transfer' }, 'user-1')
-    ).resolves.toBeDefined();
+    await svc.recordPayment('inv-1', { amount: 1000, method: 'bank_transfer' }, 'user-1');
+
+    expect(repos.customers.decrementCreditUsed).not.toHaveBeenCalled();
   });
 });
