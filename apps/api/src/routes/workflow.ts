@@ -290,6 +290,16 @@ export function workflowRoutes(
   router.get(
     "/approvals/user/:userId",
     asyncHandler(async (req: Request, res: Response) => {
+      if (
+        req.user?.role !== "admin" &&
+        req.params.userId !== req.user?.sub
+      ) {
+        throw new ApiErrorResponse(
+          403,
+          "FORBIDDEN",
+          "You may only view your own pending approvals",
+        );
+      }
       const approvals = await services.approvals.getPendingApprovalsForUser(
         req.params.userId,
       );
