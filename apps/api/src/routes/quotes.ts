@@ -192,16 +192,14 @@ export function quoteRoutes(repos: RepositoryContainer) {
         unitPrice,
       });
       const quote = await repos.quotes.findById(req.params.id);
-      res
-        .status(201)
-        .json({
-          data: item,
-          quoteTotals: {
-            subtotalAmount: quote?.subtotalAmount,
-            taxAmount: quote?.taxAmount,
-            totalAmount: quote?.totalAmount,
-          },
-        });
+      res.status(201).json({
+        data: item,
+        quoteTotals: {
+          subtotalAmount: quote?.subtotalAmount,
+          taxAmount: quote?.taxAmount,
+          totalAmount: quote?.totalAmount,
+        },
+      });
     }),
   );
 
