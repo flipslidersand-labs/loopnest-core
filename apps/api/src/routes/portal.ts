@@ -3,11 +3,14 @@ import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { hashPortalPassword, verifyPortalPassword } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { authenticate, requireCustomer, requireRole } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
 
 const PORTAL_TOKEN_TTL = 30 * 24 * 3600; // 30 days
 // JWT_SECRET is validated at startup in auth.ts — safe to read here after boot.
 const JWT_SECRET = process.env.JWT_SECRET!;
+
+const loginRateLimit = rateLimit({ bucket: 'portal-login', windowSeconds: 60, max: 10 });
 
 export function portalRoutes(repos: RepositoryContainer) {
   const router = Router();
@@ -15,6 +18,7 @@ export function portalRoutes(repos: RepositoryContainer) {
   // POST /api/portal/login — exchange email + password for a portal JWT
   router.post(
     '/login',
+    loginRateLimit,
     asyncHandler(async (req: Request, res: Response) => {
       const { email, password } = req.body;
       if (!email || !password) {
