@@ -23,10 +23,22 @@ export function reportRoutes(reportingService: ReportingService) {
       if (!VALID.has(period)) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'period must be day, week, month, quarter, or year');
       }
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo   = req.query.dateTo   as string | undefined;
+      const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/;
+      if (dateFrom && !ISO_DATE.test(dateFrom)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'dateFrom must be an ISO date (YYYY-MM-DD or ISO 8601)');
+      }
+      if (dateTo && !ISO_DATE.test(dateTo)) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'dateTo must be an ISO date (YYYY-MM-DD or ISO 8601)');
+      }
+      if (dateFrom && dateTo && dateFrom > dateTo) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'dateFrom must be before or equal to dateTo');
+      }
       const revenue = await reportingService.getRevenue(
         period as 'day' | 'week' | 'month' | 'quarter' | 'year',
-        req.query.dateFrom as string | undefined,
-        req.query.dateTo as string | undefined,
+        dateFrom,
+        dateTo,
         req.user?.orgId
       );
       res.json({ data: revenue, period });
