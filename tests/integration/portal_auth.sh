@@ -91,5 +91,25 @@ STATUS=$(command curl -s -o /dev/null -w "%{http_code}" \
   -d "{\"email\":\"nobody@example.com\",\"password\":\"anything\"}")
 check "login with unknown email → 401 (not 404)" "401" "$STATUS"
 
+# ── Test: rate limit — 11th attempt in same window → 429 ─────────────────────
+
+echo "Rate limit: brute-force login (11 attempts)"
+
+# Use a unique IP-like marker via X-Forwarded-For to isolate this test's window.
+RL_IP="10.0.168.$(shuf -i 1-254 -n1)"
+for i in $(seq 1 10); do
+  command curl -s -o /dev/null \
+    -X POST "$BASE_URL/portal/login" \
+    -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: $RL_IP" \
+    -d '{"email":"nobody@example.com","password":"brute"}'
+done
+RL_STATUS=$(command curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "$BASE_URL/portal/login" \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-For: $RL_IP" \
+  -d '{"email":"nobody@example.com","password":"brute"}')
+check "login: 11th attempt in window → 429" "429" "$RL_STATUS"
+
 echo ""
 summary
