@@ -14,7 +14,7 @@ function makeQuote(overrides: Record<string, any> = {}) {
 }
 
 function makeRepos(overrides: Record<string, any> = {}) {
-  return {
+  const base: Record<string, any> = {
     quotes: {
       findWithItems: vi.fn().mockResolvedValue(makeQuote()),
     },
@@ -43,6 +43,9 @@ function makeRepos(overrides: Record<string, any> = {}) {
     },
     ...overrides,
   };
+  // beginTransaction executes callback with the same repos (no real DB in unit tests)
+  base.beginTransaction = vi.fn().mockImplementation((cb: (r: any) => Promise<any>) => cb(base));
+  return base;
 }
 
 function makeEmailNotifications() {
