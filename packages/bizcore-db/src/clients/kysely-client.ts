@@ -8,6 +8,7 @@ import {
   UnknownRow,
   RootOperationNode,
 } from 'kysely';
+import Cursor from 'pg-cursor';
 import { KyselyDatabase } from '../types/kysely-database.js';
 import { pgPool } from './pg-client.js';
 
@@ -44,6 +45,6 @@ class TimingPlugin implements KyselyPlugin {
 }
 
 export const kyselyDb = new Kysely<KyselyDatabase>({
-  dialect: new PostgresDialect({ pool: pgPool }),
+  dialect: new PostgresDialect({ pool: pgPool, cursor: Cursor }),
   plugins: [new TimingPlugin()],
 });
