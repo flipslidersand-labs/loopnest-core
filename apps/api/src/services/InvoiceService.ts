@@ -201,15 +201,10 @@ export class InvoiceService {
   async findByQuoteIds(
     quoteIds: string[],
   ): Promise<Array<{ quoteId: string; invoiceId: string }>> {
-    const results = await Promise.all(
-      quoteIds.map(async (quoteId) => {
-        const invoice = await this.repos.invoices.findByQuoteId(quoteId);
-        return invoice ? { quoteId, invoiceId: invoice.id } : null;
-      }),
-    );
-    return results.filter(
-      (r): r is { quoteId: string; invoiceId: string } => r !== null,
-    );
+    const invoices = await this.repos.invoices.findManyByQuoteId(quoteIds);
+    return invoices
+      .filter((inv) => inv.quoteId !== null)
+      .map((inv) => ({ quoteId: inv.quoteId as string, invoiceId: inv.id }));
   }
 
   /**
