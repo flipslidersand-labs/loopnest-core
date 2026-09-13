@@ -23,6 +23,20 @@ export interface DashboardSummary {
   paidThisMonth: number;
 }
 
+export interface TaxReportRow {
+  month: string;        // YYYY-MM
+  taxRate: number;      // percentage, e.g. 10
+  taxableAmount: number;
+  taxAmount: number;
+  invoiceCount: number;
+}
+
+export interface TaxReport {
+  period: { from: string; to: string };
+  rows: TaxReportRow[];
+  totals: { taxableAmount: number; taxAmount: number };
+}
+
 export interface AccountsReceivableReport {
   asOf: string;
   totalOutstanding: number;
@@ -336,6 +350,54 @@ export class ReportingService {
       invoiceCount: Number.parseInt(r.invoice_count, 10),
       totalRevenue: Math.round(Number.parseFloat(r.total_revenue) * 100) / 100,
     }));
+  }
+
+  async getTaxReport(from: string, to: string, orgId?: string): Promise<TaxReport> {
+    interface TaxRow {
+      month: Date | string;
+      tax_rate_pct: string;
+      taxable_amount: string;
+      tax_amount: string;
+      invoice_count: string;
+    }
+
+    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+
+    const result = await sql<TaxRow>`
+      SELECT
+        to_char(date_trunc('month', i.issue_date), 'YYYY-MM') AS month,
+        ROUND(COALESCE(tr.rate, i.tax_amount / NULLIF(i.subtotal_amount, 0)) * 100)
+          AS tax_rate_pct,
+        COALESCE(SUM(i.subtotal_amount), 0) AS taxable_amount,
+        COALESCE(SUM(i.tax_amount), 0)      AS tax_amount,
+        COUNT(*)                            AS invoice_count
+      FROM finance.invoices i
+      ${joinClause}
+      LEFT JOIN core.tax_rates tr ON tr.id = i.tax_rate_id
+      WHERE i.issue_date >= ${from}::date
+        AND i.issue_date <= ${to}::date
+        AND i.status NOT IN ('draft', 'cancelled')
+        ${orgFilter}
+      GROUP BY 1, 2
+      ORDER BY 1 ASC, 2 ASC
+    `.execute(this.kyselyDb);
+
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const rows: TaxReportRow[] = result.rows.map((r) => ({
+      month:         String(r.month),
+      taxRate:       Number.parseFloat(r.tax_rate_pct) || 0,
+      taxableAmount: round(Number.parseFloat(r.taxable_amount)),
+      taxAmount:     round(Number.parseFloat(r.tax_amount)),
+      invoiceCount:  Number.parseInt(r.invoice_count, 10),
+    }));
+
+    const totals = rows.reduce(
+      (acc, r) => ({ taxableAmount: acc.taxableAmount + r.taxableAmount, taxAmount: acc.taxAmount + r.taxAmount }),
+      { taxableAmount: 0, taxAmount: 0 }
+    );
+
+    return { period: { from, to }, rows, totals: { taxableAmount: round(totals.taxableAmount), taxAmount: round(totals.taxAmount) } };
   }
 
   async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {
