@@ -138,4 +138,24 @@ R=$(acw -X POST "$BASE_URL/workflow/approvals/$RID5/steps/$S5/approve" \
   -H "Content-Type: application/json" -d '{"userId":"zoe"}')
 check "approve step on cancelled request -> 409" "409" "$(http_code "$R")"
 
+# ---------------------------------------------------------------------------
+# IDOR: editor token for userA must not see userB's approval queue.
+# Use command curl to bypass lib.sh AUTH_TOKEN injection.
+# ---------------------------------------------------------------------------
+echo ""
+echo "IDOR: cross-user approvals/user/:userId access"
+
+DIR="$(dirname "$0")"
+EDITOR_TOKEN=$(node "$DIR/gen-token.mjs" user-alice editor 300)
+IDOR_STATUS=$(command curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer $EDITOR_TOKEN" \
+  "$BASE_URL/workflow/approvals/user/user-bob")
+check "editor(alice) cannot view approvals for user-bob → 403" "403" "$IDOR_STATUS"
+
+# Own queue is allowed.
+OWN_STATUS=$(command curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer $EDITOR_TOKEN" \
+  "$BASE_URL/workflow/approvals/user/user-alice")
+check "editor(alice) can view own approval queue → 200" "200" "$OWN_STATUS"
+
 summary
