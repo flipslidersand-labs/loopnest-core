@@ -216,9 +216,10 @@ describe('InvoiceService — findByQuoteIds', () => {
       invoices: {
         nextSequenceValue: vi.fn(),
         create: vi.fn(),
-        findByQuoteId: vi.fn().mockImplementation((qid: string) =>
-          qid === 'q-1' ? { id: 'inv-1' } : null
-        ),
+        findByQuoteId: vi.fn(),
+        findByQuoteIds: vi.fn().mockResolvedValue([
+          { id: 'inv-1', quoteId: 'q-1' },
+        ]),
         findById: vi.fn(),
       },
     });
@@ -232,7 +233,8 @@ describe('InvoiceService — findByQuoteIds', () => {
       invoices: {
         nextSequenceValue: vi.fn(),
         create: vi.fn(),
-        findByQuoteId: vi.fn().mockResolvedValue(null),
+        findByQuoteId: vi.fn(),
+        findByQuoteIds: vi.fn().mockResolvedValue([]),
         findById: vi.fn(),
       },
     });
