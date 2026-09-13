@@ -14,6 +14,10 @@ function makeQuote(overrides: Record<string, any> = {}) {
   };
 }
 
+function makeDb() {
+  return { transaction: () => ({ execute: (fn: any) => fn({}) }) };
+}
+
 function makeRepos(overrides: Record<string, any> = {}) {
   return {
     quotes: {
@@ -31,7 +35,7 @@ function makeRepos(overrides: Record<string, any> = {}) {
 describe('QuoteService — submitForApproval', () => {
   it('transitions draft → pending_approval and publishes event', async () => {
     const repos = makeRepos();
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     const result = await svc.submitForApproval('q-1', 'user-1');
     expect(result.status).toBe('pending_approval');
     expect((repos.outbox.publish as any).mock.calls[0][0]).toBe('quote_submitted');
@@ -45,7 +49,7 @@ describe('QuoteService — submitForApproval', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     await expect(svc.submitForApproval('q-1', 'user-1')).rejects.toThrow(ApiErrorResponse);
   });
 
@@ -57,7 +61,7 @@ describe('QuoteService — submitForApproval', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     await expect(svc.submitForApproval('no-such', 'user-1')).rejects.toThrow(ApiErrorResponse);
   });
 });
@@ -71,7 +75,7 @@ describe('QuoteService — approve', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     const result = await svc.approve('q-1', 'user-1');
     expect(result.status).toBe('approved');
     expect((repos.outbox.publish as any).mock.calls[0][0]).toBe('quote_approved');
@@ -85,7 +89,7 @@ describe('QuoteService — approve', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     await svc.approve('q-1', 'user-1', 'LGTM');
     expect((repos.quotes.transitionStatus as any).mock.calls[0][3]).toEqual({ notes: 'LGTM' });
   });
@@ -100,7 +104,7 @@ describe('QuoteService — reject', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     const result = await svc.reject('q-1', 'user-1', 'price too high');
     expect(result.status).toBe('rejected');
     expect((repos.outbox.publish as any).mock.calls[0][0]).toBe('quote_rejected');
@@ -116,7 +120,7 @@ describe('QuoteService — convertToInvoice', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     const result = await svc.convertToInvoice('q-1', 'user-1');
     expect(result.status).toBe('invoiced');
   });
@@ -131,7 +135,7 @@ describe('QuoteService — getWorkflowStatus', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     const result = await svc.getWorkflowStatus('q-1');
     expect(result.canSubmit).toBe(true);
     expect(result.canApprove).toBe(false);
@@ -146,7 +150,7 @@ describe('QuoteService — getWorkflowStatus', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     const result = await svc.getWorkflowStatus('q-1');
     expect(result.canInvoice).toBe(true);
     expect(result.canSubmit).toBe(false);
@@ -161,7 +165,7 @@ describe('QuoteService — getWorkflowStatus', () => {
         findByStatus: vi.fn(),
       },
     });
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     await expect(svc.getWorkflowStatus('no-such')).rejects.toThrow(ApiErrorResponse);
   });
 });
@@ -169,14 +173,14 @@ describe('QuoteService — getWorkflowStatus', () => {
 describe('QuoteService — list helpers', () => {
   it('getDraftQuotes delegates to findByStatus with limit', async () => {
     const repos = makeRepos();
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     await svc.getDraftQuotes(5);
     expect((repos.quotes.findByStatus as any)).toHaveBeenCalledWith('draft', { take: 5 });
   });
 
   it('getPendingApprovalQuotes uses correct status', async () => {
     const repos = makeRepos();
-    const svc = new QuoteService(repos as any);
+    const svc = new QuoteService(repos as any, makeDb() as any);
     await svc.getPendingApprovalQuotes();
     expect((repos.quotes.findByStatus as any)).toHaveBeenCalledWith('pending_approval', { take: 10 });
   });

@@ -46,7 +46,7 @@ export class ServiceContainer {
     pgPool: PgPool,
     kyselyDb: Kysely<KyselyDatabase>
   ) {
-    this.quotes = new QuoteService(repos);
+    this.quotes = new QuoteService(repos, kyselyDb);
     this.approvals = new ApprovalService(repos, kyselyDb);
     this.emailNotifications = new EmailNotificationService(repos);
     this.invoices = new InvoiceService(repos, this.emailNotifications);

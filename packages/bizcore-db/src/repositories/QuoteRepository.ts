@@ -223,9 +223,10 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     expectedStatus: QuoteEntity['status'],
     newStatus: QuoteEntity['status'],
     extraData?: { notes?: string },
-    organizationId?: string
+    organizationId?: string,
+    db: any = this.db
   ): Promise<QuoteEntity | null> {
-    let q = this.db
+    let q = db
       .updateTable('core.quotes')
       .set({
         status: newStatus,
@@ -239,7 +240,7 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
 
     if (!result || result.numUpdatedRows === 0n) return null;
 
-    const updated = await this.db
+    const updated = await db
       .selectFrom('core.quotes')
       .selectAll()
       .where('id', '=', id)
