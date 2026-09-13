@@ -206,7 +206,7 @@ export class ReportingService {
         FROM finance.invoices i
         ${joinClause}
         WHERE i.status IN ('issued', 'sent')
-          AND i.created_at < NOW() - INTERVAL '30 days'
+          AND COALESCE(i.payment_due_date, i.issue_date::date, i.created_at::date) < CURRENT_DATE
           ${orgFilter}
       `.execute(this.kyselyDb),
     ]);
