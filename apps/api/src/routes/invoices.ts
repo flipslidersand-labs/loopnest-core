@@ -7,6 +7,20 @@ import type { InvoiceService } from '../services/InvoiceService.js';
 
 const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
 
+/**
+ * Writes a chunk to `res` respecting backpressure: if the internal buffer is
+ * over its high-water mark, `res.write()` returns false and we must wait for
+ * the `drain` event before writing more (see Node's Writable stream docs).
+ * Without this, a slow client lets the DB cursor race ahead and the full
+ * result set piles up in the response buffer, defeating the point of
+ * streaming from the DB in the first place.
+ */
+function writeWithBackpressure(res: Response, chunk: string): Promise<void> {
+  const ok = res.write(chunk);
+  if (ok) return Promise.resolve();
+  return new Promise((resolve) => res.once('drain', resolve));
+}
+
 function invoiceToCsvRow(inv: any): string {
   return [
     inv.id,
@@ -75,9 +89,9 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       };
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
-      res.write(CSV_HEADER + '\n');
-      await repos.invoices.streamForExport(filter, (invoice) => {
-        res.write(invoiceToCsvRow(invoice) + '\n');
+      await writeWithBackpressure(res, CSV_HEADER + '\n');
+      await repos.invoices.streamForExport(filter, async (invoice) => {
+        await writeWithBackpressure(res, invoiceToCsvRow(invoice) + '\n');
       });
       res.end();
     })
