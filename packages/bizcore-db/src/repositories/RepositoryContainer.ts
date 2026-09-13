@@ -1,23 +1,23 @@
-import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
-import { OrganizationRepository } from './OrganizationRepository.js';
-import { CustomerRepository } from './CustomerRepository.js';
-import { ProductRepository } from './ProductRepository.js';
-import { QuoteRepository } from './QuoteRepository.js';
-import { QuoteItemRepository } from './QuoteItemRepository.js';
-import { UserRepository } from './UserRepository.js';
-import { InvoiceRepository } from './InvoiceRepository.js';
-import { OutboxRepository } from './OutboxRepository.js';
-import { WebhookRepository } from './WebhookRepository.js';
-import { PaymentRepository } from './PaymentRepository.js';
-import { CreditNoteRepository } from './CreditNoteRepository.js';
-import { TaxRateRepository } from './TaxRateRepository.js';
-import { QuoteTemplateRepository } from './QuoteTemplateRepository.js';
-import { InstallmentRepository } from './InstallmentRepository.js';
-import { RecurringContractRepository } from './RecurringContractRepository.js';
-import { DunningRepository } from './DunningRepository.js';
-import { ExchangeRateRepository } from './ExchangeRateRepository.js';
-import { WebhookDeliveryRepository } from './WebhookDeliveryRepository.js';
+import type { Kysely } from "kysely";
+import type { KyselyDatabase } from "../types/kysely-database.js";
+import { OrganizationRepository } from "./OrganizationRepository.js";
+import { CustomerRepository } from "./CustomerRepository.js";
+import { ProductRepository } from "./ProductRepository.js";
+import { QuoteRepository } from "./QuoteRepository.js";
+import { QuoteItemRepository } from "./QuoteItemRepository.js";
+import { UserRepository } from "./UserRepository.js";
+import { InvoiceRepository } from "./InvoiceRepository.js";
+import { OutboxRepository } from "./OutboxRepository.js";
+import { WebhookRepository } from "./WebhookRepository.js";
+import { PaymentRepository } from "./PaymentRepository.js";
+import { CreditNoteRepository } from "./CreditNoteRepository.js";
+import { TaxRateRepository } from "./TaxRateRepository.js";
+import { QuoteTemplateRepository } from "./QuoteTemplateRepository.js";
+import { InstallmentRepository } from "./InstallmentRepository.js";
+import { RecurringContractRepository } from "./RecurringContractRepository.js";
+import { DunningRepository } from "./DunningRepository.js";
+import { ExchangeRateRepository } from "./ExchangeRateRepository.js";
+import { WebhookDeliveryRepository } from "./WebhookDeliveryRepository.js";
 
 export class RepositoryContainer {
   private readonly organizationRepo: OrganizationRepository;
@@ -60,30 +60,68 @@ export class RepositoryContainer {
     this.webhookDeliveryRepo = new WebhookDeliveryRepository(db);
   }
 
-  get organizations(): OrganizationRepository { return this.organizationRepo; }
-  get customers(): CustomerRepository { return this.customerRepo; }
-  get products(): ProductRepository { return this.productRepo; }
-  get quotes(): QuoteRepository { return this.quoteRepo; }
-  get quoteItems(): QuoteItemRepository { return this.quoteItemRepo; }
-  get users(): UserRepository { return this.userRepo; }
-  get invoices(): InvoiceRepository { return this.invoiceRepo; }
-  get outbox(): OutboxRepository { return this.outboxRepo; }
-  get webhooks(): WebhookRepository { return this.webhookRepo; }
-  get payments(): PaymentRepository { return this.paymentRepo; }
-  get creditNotes(): CreditNoteRepository { return this.creditNoteRepo; }
-  get taxRates(): TaxRateRepository { return this.taxRateRepo; }
-  get quoteTemplates(): QuoteTemplateRepository { return this.quoteTemplateRepo; }
-  get installments(): InstallmentRepository { return this.installmentRepo; }
-  get recurringContracts(): RecurringContractRepository { return this.recurringContractRepo; }
-  get dunning(): DunningRepository { return this.dunningRepo; }
-  get exchangeRates(): ExchangeRateRepository { return this.exchangeRateRepo; }
-  get webhookDeliveries(): WebhookDeliveryRepository { return this.webhookDeliveryRepo; }
+  get organizations(): OrganizationRepository {
+    return this.organizationRepo;
+  }
+  get customers(): CustomerRepository {
+    return this.customerRepo;
+  }
+  get products(): ProductRepository {
+    return this.productRepo;
+  }
+  get quotes(): QuoteRepository {
+    return this.quoteRepo;
+  }
+  get quoteItems(): QuoteItemRepository {
+    return this.quoteItemRepo;
+  }
+  get users(): UserRepository {
+    return this.userRepo;
+  }
+  get invoices(): InvoiceRepository {
+    return this.invoiceRepo;
+  }
+  get outbox(): OutboxRepository {
+    return this.outboxRepo;
+  }
+  get webhooks(): WebhookRepository {
+    return this.webhookRepo;
+  }
+  get payments(): PaymentRepository {
+    return this.paymentRepo;
+  }
+  get creditNotes(): CreditNoteRepository {
+    return this.creditNoteRepo;
+  }
+  get taxRates(): TaxRateRepository {
+    return this.taxRateRepo;
+  }
+  get quoteTemplates(): QuoteTemplateRepository {
+    return this.quoteTemplateRepo;
+  }
+  get installments(): InstallmentRepository {
+    return this.installmentRepo;
+  }
+  get recurringContracts(): RecurringContractRepository {
+    return this.recurringContractRepo;
+  }
+  get dunning(): DunningRepository {
+    return this.dunningRepo;
+  }
+  get exchangeRates(): ExchangeRateRepository {
+    return this.exchangeRateRepo;
+  }
+  get webhookDeliveries(): WebhookDeliveryRepository {
+    return this.webhookDeliveryRepo;
+  }
 
   async beginTransaction<T>(
-    callback: (container: RepositoryContainer) => Promise<T>
+    callback: (container: RepositoryContainer) => Promise<T>,
   ): Promise<T> {
     return this.db.transaction().execute(async (trx) => {
-      const transactionContainer = new RepositoryContainer(trx as Kysely<KyselyDatabase>);
+      const transactionContainer = new RepositoryContainer(
+        trx as Kysely<KyselyDatabase>,
+      );
       return callback(transactionContainer);
     });
   }

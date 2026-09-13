@@ -7,9 +7,9 @@ import {
   QueryResult,
   UnknownRow,
   RootOperationNode,
-} from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
-import { pgPool } from './pg-client.js';
+} from "kysely";
+import { KyselyDatabase } from "../types/kysely-database.js";
+import { pgPool } from "./pg-client.js";
 
 type QueryObserver = (kind: string, durationMs: number) => void;
 
@@ -29,12 +29,12 @@ class TimingPlugin implements KyselyPlugin {
   }
 
   async transformResult(
-    args: PluginTransformResultArgs
+    args: PluginTransformResultArgs,
   ): Promise<QueryResult<UnknownRow>> {
     const start = this.starts.get(args.queryId);
     if (start !== undefined) {
       if (_observer) {
-        const kind = args.result.rows.length > 0 ? 'select' : 'mutation';
+        const kind = args.result.rows.length > 0 ? "select" : "mutation";
         _observer(kind, Date.now() - start);
       }
       this.starts.delete(args.queryId);

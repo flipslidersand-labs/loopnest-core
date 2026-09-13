@@ -1,36 +1,43 @@
-import { Router, Request, Response } from 'express';
-import { WebhookService } from '../services/WebhookService.js';
-import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { Router, Request, Response } from "express";
+import { WebhookService } from "../services/WebhookService.js";
+import { asyncHandler, ApiErrorResponse } from "../middleware/errorHandler.js";
+import { requireRole } from "../middleware/auth.js";
 
 export const WEBHOOK_EVENT_TYPES = [
-  'invoice.created',
-  'invoice.paid',
-  'payment.recorded',
-  'payment.reversed',
-  'payment.overdue',
-  'quote.submitted',
-  'quote.approved',
-  'credit_note.issued',
-  'credit_note.applied',
-  'credit_note.refunded',
-  'credit_note.voided',
-  'dunning.action',
-  'contract.paused',
-  'contract.resumed',
+  "invoice.created",
+  "invoice.paid",
+  "payment.recorded",
+  "payment.reversed",
+  "payment.overdue",
+  "quote.submitted",
+  "quote.approved",
+  "credit_note.issued",
+  "credit_note.applied",
+  "credit_note.refunded",
+  "credit_note.voided",
+  "dunning.action",
+  "contract.paused",
+  "contract.resumed",
 ] as const;
 
-export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number];
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 function validateEvents(events: unknown): string[] {
   if (!Array.isArray(events) || events.length === 0) {
-    throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'events must be a non-empty array');
+    throw new ApiErrorResponse(
+      400,
+      "VALIDATION_ERROR",
+      "events must be a non-empty array",
+    );
   }
-  const invalid = events.filter(e => !WEBHOOK_EVENT_TYPES.includes(e as WebhookEventType));
+  const invalid = events.filter(
+    (e) => !WEBHOOK_EVENT_TYPES.includes(e as WebhookEventType),
+  );
   if (invalid.length > 0) {
     throw new ApiErrorResponse(
-      400, 'VALIDATION_ERROR',
-      `Invalid event type(s): ${invalid.join(', ')}. Valid types: ${WEBHOOK_EVENT_TYPES.join(', ')}`
+      400,
+      "VALIDATION_ERROR",
+      `Invalid event type(s): ${invalid.join(", ")}. Valid types: ${WEBHOOK_EVENT_TYPES.join(", ")}`,
     );
   }
   return events as string[];
@@ -41,79 +48,100 @@ export function webhookRoutes(webhookService: WebhookService) {
 
   // List valid event types — viewer+
   router.get(
-    '/event-types',
+    "/event-types",
     asyncHandler(async (_req: Request, res: Response) => {
       res.json({ data: WEBHOOK_EVENT_TYPES });
-    })
+    }),
   );
 
   // List webhooks for this org — viewer+
   router.get(
-    '/',
+    "/",
     asyncHandler(async (req: Request, res: Response) => {
       const webhooks = await webhookService.list(req.user?.orgId);
       res.json({ data: webhooks, count: webhooks.length });
-    })
+    }),
   );
 
   // List delivery logs — viewer+, with optional filters
   // Must be before /:id to avoid Express matching "deliveries" as a webhook id
   router.get(
-    '/deliveries',
+    "/deliveries",
     asyncHandler(async (req: Request, res: Response) => {
       const { webhookId, status, eventType, limit, offset } = req.query;
-      if (status !== undefined && status !== 'success' && status !== 'failed') {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'status must be "success" or "failed"');
+      if (status !== undefined && status !== "success" && status !== "failed") {
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          'status must be "success" or "failed"',
+        );
       }
       const result = await webhookService.listDeliveries({
         webhookId: webhookId as string | undefined,
-        status:    status as 'success' | 'failed' | undefined,
+        status: status as "success" | "failed" | undefined,
         eventType: eventType as string | undefined,
-        limit:     Math.min(100, Math.max(1, limit  ? parseInt(limit as string,  10) : 20)),
-        offset:    Math.max(0,              offset ? parseInt(offset as string, 10) : 0),
+        limit: Math.min(
+          100,
+          Math.max(1, limit ? parseInt(limit as string, 10) : 20),
+        ),
+        offset: Math.max(0, offset ? parseInt(offset as string, 10) : 0),
       });
       res.json({ data: result.data, total: result.total });
-    })
+    }),
   );
 
   // Retry a delivery — editor+
   // Must be before /:id for same reason
   router.post(
-    '/deliveries/:id/retry',
-    requireRole('editor', 'admin'),
+    "/deliveries/:id/retry",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       try {
-        const record = await webhookService.retry(req.params.id, req.user?.orgId);
+        const record = await webhookService.retry(
+          req.params.id,
+          req.user?.orgId,
+        );
         res.json({ data: record });
       } catch (err: any) {
-        if (err?.code === 'NOT_FOUND') {
-          throw new ApiErrorResponse(404, 'NOT_FOUND', err.message);
+        if (err?.code === "NOT_FOUND") {
+          throw new ApiErrorResponse(404, "NOT_FOUND", err.message);
         }
         throw err;
       }
-    })
+    }),
   );
 
   // Get one — viewer+
   router.get(
-    '/:id',
+    "/:id",
     asyncHandler(async (req: Request, res: Response) => {
-      const webhook = await webhookService.findById(req.params.id, req.user?.orgId);
-      if (!webhook) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found');
+      const webhook = await webhookService.findById(
+        req.params.id,
+        req.user?.orgId,
+      );
+      if (!webhook)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Webhook not found");
       res.json({ data: webhook });
-    })
+    }),
   );
 
   // Register — editor+
   router.post(
-    '/',
-    requireRole('editor', 'admin'),
+    "/",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const { url, events, secret } = req.body;
-      if (!url) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url is required');
+      if (!url)
+        throw new ApiErrorResponse(400, "VALIDATION_ERROR", "url is required");
       const validatedEvents = validateEvents(events);
-      try { new URL(url); } catch {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
+      try {
+        new URL(url);
+      } catch {
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "url must be a valid URL",
+        );
       }
       const webhook = await webhookService.register({
         organizationId: req.user?.orgId,
@@ -122,36 +150,52 @@ export function webhookRoutes(webhookService: WebhookService) {
         secret,
       });
       res.status(201).json({ data: webhook });
-    })
+    }),
   );
 
   // Update — editor+
   router.patch(
-    '/:id',
-    requireRole('editor', 'admin'),
+    "/:id",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const { url, events, secret, isActive } = req.body;
       if (url) {
-        try { new URL(url); } catch {
-          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
+        try {
+          new URL(url);
+        } catch {
+          throw new ApiErrorResponse(
+            400,
+            "VALIDATION_ERROR",
+            "url must be a valid URL",
+          );
         }
       }
-      const validatedEvents = events !== undefined ? validateEvents(events) : undefined;
-      const webhook = await webhookService.update(req.params.id, { url, events: validatedEvents, secret, isActive }, req.user?.orgId);
-      if (!webhook) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found');
+      const validatedEvents =
+        events !== undefined ? validateEvents(events) : undefined;
+      const webhook = await webhookService.update(
+        req.params.id,
+        { url, events: validatedEvents, secret, isActive },
+        req.user?.orgId,
+      );
+      if (!webhook)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Webhook not found");
       res.json({ data: webhook });
-    })
+    }),
   );
 
   // Delete — admin
   router.delete(
-    '/:id',
-    requireRole('admin'),
+    "/:id",
+    requireRole("admin"),
     asyncHandler(async (req: Request, res: Response) => {
-      const deleted = await webhookService.delete(req.params.id, req.user?.orgId);
-      if (!deleted) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Webhook not found');
+      const deleted = await webhookService.delete(
+        req.params.id,
+        req.user?.orgId,
+      );
+      if (!deleted)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Webhook not found");
       res.json({ data: { success: true } });
-    })
+    }),
   );
 
   return router;

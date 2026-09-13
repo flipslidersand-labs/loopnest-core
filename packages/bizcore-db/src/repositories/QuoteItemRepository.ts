@@ -1,7 +1,7 @@
-import type { Kysely } from 'kysely';
-import { sql } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
-import { randomUUID } from 'node:crypto';
+import type { Kysely } from "kysely";
+import { sql } from "kysely";
+import type { KyselyDatabase } from "../types/kysely-database.js";
+import { randomUUID } from "node:crypto";
 
 export interface QuoteItemEntity {
   id: string;
@@ -36,18 +36,21 @@ export class QuoteItemRepository {
 
   async findByQuote(quoteId: string): Promise<QuoteItemEntity[]> {
     const rows = await this.db
-      .selectFrom('core.quote_items')
+      .selectFrom("core.quote_items")
       .selectAll()
-      .where('quote_id', '=', quoteId)
-      .orderBy('created_at', 'asc')
+      .where("quote_id", "=", quoteId)
+      .orderBy("created_at", "asc")
       .execute();
-    return rows.map(r => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
-  async addItem(quoteId: string, input: QuoteItemInput): Promise<QuoteItemEntity> {
+  async addItem(
+    quoteId: string,
+    input: QuoteItemInput,
+  ): Promise<QuoteItemEntity> {
     const lineTotal = Math.round(input.quantity * input.unitPrice * 100) / 100;
     const row = await this.db
-      .insertInto('core.quote_items')
+      .insertInto("core.quote_items")
       .values({
         id: randomUUID(),
         quote_id: quoteId,
@@ -65,28 +68,31 @@ export class QuoteItemRepository {
   async updateItem(
     itemId: string,
     quoteId: string,
-    input: Partial<Pick<QuoteItemInput, 'quantity' | 'unitPrice'>>
+    input: Partial<Pick<QuoteItemInput, "quantity" | "unitPrice">>,
   ): Promise<QuoteItemEntity | null> {
     const current = await this.db
-      .selectFrom('core.quote_items')
+      .selectFrom("core.quote_items")
       .selectAll()
-      .where('id', '=', itemId)
-      .where('quote_id', '=', quoteId)
+      .where("id", "=", itemId)
+      .where("quote_id", "=", quoteId)
       .executeTakeFirst();
     if (!current) return null;
 
     const qty = input.quantity ?? current.quantity;
-    const price = input.unitPrice !== undefined ? input.unitPrice : Number(current.unit_price);
+    const price =
+      input.unitPrice !== undefined
+        ? input.unitPrice
+        : Number(current.unit_price);
     const lineTotal = Math.round(qty * price * 100) / 100;
 
     const updated = await this.db
-      .updateTable('core.quote_items')
+      .updateTable("core.quote_items")
       .set({
         ...(input.quantity !== undefined && { quantity: qty }),
         ...(input.unitPrice !== undefined && { unit_price: price }),
         line_total: lineTotal,
       })
-      .where('id', '=', itemId)
+      .where("id", "=", itemId)
       .returningAll()
       .executeTakeFirstOrThrow();
     await this.recalculate(quoteId);
@@ -95,16 +101,16 @@ export class QuoteItemRepository {
 
   async removeItem(itemId: string, quoteId: string): Promise<boolean> {
     const exists = await this.db
-      .selectFrom('core.quote_items')
-      .select('id')
-      .where('id', '=', itemId)
-      .where('quote_id', '=', quoteId)
+      .selectFrom("core.quote_items")
+      .select("id")
+      .where("id", "=", itemId)
+      .where("quote_id", "=", quoteId)
       .executeTakeFirst();
     if (!exists) return false;
 
     await this.db
-      .deleteFrom('core.quote_items')
-      .where('id', '=', itemId)
+      .deleteFrom("core.quote_items")
+      .where("id", "=", itemId)
       .execute();
     await this.recalculate(quoteId);
     return true;

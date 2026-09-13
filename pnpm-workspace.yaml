@@ -1,4 +1,4 @@
 packages:
-  - 'apps/*'
-  - 'packages/*'
-  - 'infra/migrations'
+  - "apps/*"
+  - "packages/*"
+  - "infra/migrations"

@@ -8,13 +8,13 @@
 
 ## 1. 背景 / 現状のギャップ
 
-| 項目 | 現状 (M12まで) | M13 で解決 |
-|------|----------------|-----------|
-| 入金記録 | `invoices.paid_at` タイムスタンプのみ | 入金トランザクション台帳 `finance.payments` |
-| 部分入金 | 不可（全額 paid か未払いの二択） | 複数入金の積み上げ・残高自動計算 |
-| 売掛残高 | 算出手段なし | invoice 単位 / customer 単位の AR 残高 |
-| 滞留管理 | `payment_due_date` はあるが未活用 | エイジング区分（0-30/31-60/61-90/90+）+ 超過検知 |
-| 督促 | なし | `payment.overdue` Outbox/Webhook イベント |
+| 項目     | 現状 (M12まで)                        | M13 で解決                                       |
+| -------- | ------------------------------------- | ------------------------------------------------ |
+| 入金記録 | `invoices.paid_at` タイムスタンプのみ | 入金トランザクション台帳 `finance.payments`      |
+| 部分入金 | 不可（全額 paid か未払いの二択）      | 複数入金の積み上げ・残高自動計算                 |
+| 売掛残高 | 算出手段なし                          | invoice 単位 / customer 単位の AR 残高           |
+| 滞留管理 | `payment_due_date` はあるが未活用     | エイジング区分（0-30/31-60/61-90/90+）+ 超過検知 |
+| 督促     | なし                                  | `payment.overdue` Outbox/Webhook イベント        |
 
 invoice ステータス遷移は現状 `issued → sent → paid → cancelled`。M13 で **`partially_paid`** を追加し `issued → sent → partially_paid → paid` を許容する（`cancelled` は従来通り任意状態から）。
 
@@ -23,6 +23,7 @@ invoice ステータス遷移は現状 `issued → sent → paid → cancelled`�
 ## 2. スコープ
 
 ### In scope
+
 1. `finance.payments` 台帳（入金トランザクション）
 2. 部分入金 → 残高自動計算 → invoice ステータス自動遷移（`partially_paid` / `paid`）
 3. 入金の取消（reversal、論理）
@@ -32,6 +33,7 @@ invoice ステータス遷移は現状 `issued → sent → paid → cancelled`�
 7. 全操作の Audit ログ記録 + RBAC 保護
 
 ### Out of scope (将来 M14+)
+
 - クレジットノート / 返金（M14 候補）
 - 定期/継続課金（サブスクリプション）
 - 入金の自動マッチング（銀行明細 CSV インポート）
@@ -76,6 +78,7 @@ ALTER TABLE finance.invoices ADD  CONSTRAINT invoices_status_check
 > 既存の Prisma schema は「マスタテーブルのみ」方針（schema.prisma 冒頭コメント参照）なので、`payments` は **raw SQL migration で finance スキーマに追加**し、アクセスは Kysely/pg 経由とする（既存 InvoiceService と同方式）。
 
 **残高は派生値**（テーブルに持たせない）:
+
 ```
 paid_total(invoice)      = Σ payments.amount WHERE status='confirmed'
 outstanding(invoice)     = invoices.total_amount - paid_total
@@ -91,13 +94,13 @@ status:
 
 新規ルート: `apps/api/src/routes/payments.ts`（既存 routes 群と同じ登録方式）
 
-| Method | Path | RBAC | 説明 |
-|--------|------|------|------|
-| `POST` | `/invoices/:invoiceId/payments` | editor+ | 入金記録（部分可）。idempotency-key 対応 |
-| `GET`  | `/invoices/:invoiceId/payments` | viewer+ | 当該 invoice の入金履歴 + 残高サマリ |
-| `POST` | `/payments/:id/reverse` | admin | 入金取消（reversal） |
-| `GET`  | `/payments` | viewer+ | 入金一覧（org スコープ・期間/method フィルタ） |
-| `GET`  | `/reports/accounts-receivable` | viewer+ | AR エイジング（customer 別・区分別残高） |
+| Method | Path                            | RBAC    | 説明                                           |
+| ------ | ------------------------------- | ------- | ---------------------------------------------- |
+| `POST` | `/invoices/:invoiceId/payments` | editor+ | 入金記録（部分可）。idempotency-key 対応       |
+| `GET`  | `/invoices/:invoiceId/payments` | viewer+ | 当該 invoice の入金履歴 + 残高サマリ           |
+| `POST` | `/payments/:id/reverse`         | admin   | 入金取消（reversal）                           |
+| `GET`  | `/payments`                     | viewer+ | 入金一覧（org スコープ・期間/method フィルタ） |
+| `GET`  | `/reports/accounts-receivable`  | viewer+ | AR エイジング（customer 別・区分別残高）       |
 
 すべて既存ミドルウェアを再利用: JWT 認証(M04) / org スコープ(M07) / idempotency-key / rate-limit / 監査ログ(M08)。
 
@@ -108,6 +111,7 @@ status:
 新規 `apps/api/src/services/PaymentService.ts`。InvoiceService と協調。
 
 主要メソッド:
+
 - `recordPayment(invoiceId, dto, ctx)`
   1. invoice を `SELECT ... FOR UPDATE`（行ロックで競合入金を直列化）
   2. `payments` へ INSERT
@@ -126,12 +130,12 @@ status:
 
 新規イベント型を Outbox に追加し、既存 WebhookService 経由で配信:
 
-| イベント | 発火条件 | ペイロード要素 |
-|----------|----------|----------------|
-| `payment.recorded` | 入金記録成功 | invoiceId, paymentId, amount, outstanding |
-| `invoice.paid` | 全額消込で paid 到達 | invoiceId, paidTotal, paidAt |
-| `payment.reversed` | 入金取消 | invoiceId, paymentId, reason |
-| `payment.overdue` | 滞留検知ジョブ | invoiceId, customerId, daysOverdue, outstanding |
+| イベント           | 発火条件             | ペイロード要素                                  |
+| ------------------ | -------------------- | ----------------------------------------------- |
+| `payment.recorded` | 入金記録成功         | invoiceId, paymentId, amount, outstanding       |
+| `invoice.paid`     | 全額消込で paid 到達 | invoiceId, paidTotal, paidAt                    |
+| `payment.reversed` | 入金取消             | invoiceId, paymentId, reason                    |
+| `payment.overdue`  | 滞留検知ジョブ       | invoiceId, customerId, daysOverdue, outstanding |
 
 `payment.overdue` は EventWorker 内のスケジュール走査（`payment_due_date < now() AND status != 'paid'`）で日次生成。既存 mock-accounting-api を配信先テストに流用可能。
 
@@ -140,10 +144,11 @@ status:
 ## 7. レポーティング統合 (M09)
 
 ReportingService に AR エイジング集計を追加:
+
 - customer 別 outstanding 合計
 - 区分別バケット: `current(0-30)` / `31-60` / `61-90` / `90+`
 - 期間指定 `asOf` 日付基準
-既存 `/reports/*` と同じ応答フォーマットに合わせる。
+  既存 `/reports/*` と同じ応答フォーマットに合わせる。
 
 ---
 
@@ -168,16 +173,16 @@ M11/M12 が「63 new integration checks」を追加した方式に倣い、以�
 
 ## 9. 実装タスク分解（projects-config 登録用）
 
-| ID | タスク | 依存 |
-|----|--------|------|
-| lnc-m13-1 | migration 009: `finance.payments` + invoice status 拡張 | — |
-| lnc-m13-2 | PaymentService（記録/取消/残高、TX + 行ロック） | m13-1 |
-| lnc-m13-3 | routes/payments.ts（5 エンドポイント + RBAC） | m13-2 |
-| lnc-m13-4 | Outbox イベント 4 種 + Webhook 配信統合 | m13-2 |
-| lnc-m13-5 | 滞留検知ジョブ（`payment.overdue`） | m13-4 |
-| lnc-m13-6 | ReportingService: AR エイジング + `/reports/accounts-receivable` | m13-2 |
-| lnc-m13-7 | integration suite（+25〜30 checks） | m13-3..6 |
-| lnc-m13-8 | OpenAPI / Swagger 更新（payments スキーマ） | m13-3 |
+| ID        | タスク                                                           | 依存     |
+| --------- | ---------------------------------------------------------------- | -------- |
+| lnc-m13-1 | migration 009: `finance.payments` + invoice status 拡張          | —        |
+| lnc-m13-2 | PaymentService（記録/取消/残高、TX + 行ロック）                  | m13-1    |
+| lnc-m13-3 | routes/payments.ts（5 エンドポイント + RBAC）                    | m13-2    |
+| lnc-m13-4 | Outbox イベント 4 種 + Webhook 配信統合                          | m13-2    |
+| lnc-m13-5 | 滞留検知ジョブ（`payment.overdue`）                              | m13-4    |
+| lnc-m13-6 | ReportingService: AR エイジング + `/reports/accounts-receivable` | m13-2    |
+| lnc-m13-7 | integration suite（+25〜30 checks）                              | m13-3..6 |
+| lnc-m13-8 | OpenAPI / Swagger 更新（payments スキーマ）                      | m13-3    |
 
 ---
 
@@ -191,5 +196,6 @@ M11/M12 が「63 new integration checks」を追加した方式に倣い、以�
 ---
 
 ## 次アクション候補
+
 - 本設計をレビュー後、`lnc-m13-1`（migration 009）から着手
 - projects-config.json に M13 タスク（lnc-m13-1〜8、未完了）を登録

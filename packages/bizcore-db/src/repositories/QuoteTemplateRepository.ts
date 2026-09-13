@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
-import { sql } from 'kysely';
+import { randomUUID } from "crypto";
+import { sql } from "kysely";
 
 export interface TemplateItem {
   productId: string;
@@ -32,23 +32,26 @@ export class QuoteTemplateRepository {
 
   async findAll(organizationId?: string): Promise<QuoteTemplate[]> {
     let q = this.db
-      .selectFrom('core.quote_templates')
+      .selectFrom("core.quote_templates")
       .selectAll()
-      .orderBy('created_at', 'desc');
+      .orderBy("created_at", "desc");
     if (organizationId) {
-      q = q.where('organization_id', '=', organizationId);
+      q = q.where("organization_id", "=", organizationId);
     }
     const rows = await q.execute();
     return rows.map((r: any) => this.map(r));
   }
 
-  async findById(id: string, organizationId?: string): Promise<QuoteTemplate | null> {
+  async findById(
+    id: string,
+    organizationId?: string,
+  ): Promise<QuoteTemplate | null> {
     let q = this.db
-      .selectFrom('core.quote_templates')
+      .selectFrom("core.quote_templates")
       .selectAll()
-      .where('id', '=', id);
+      .where("id", "=", id);
     if (organizationId) {
-      q = q.where('organization_id', '=', organizationId);
+      q = q.where("organization_id", "=", organizationId);
     }
     const row = await q.executeTakeFirst();
     return row ? this.map(row) : null;
@@ -58,7 +61,7 @@ export class QuoteTemplateRepository {
     const id = randomUUID();
     const now = new Date();
     const row = await this.db
-      .insertInto('core.quote_templates')
+      .insertInto("core.quote_templates")
       .values({
         id,
         name: data.name,
@@ -75,8 +78,8 @@ export class QuoteTemplateRepository {
   }
 
   async delete(id: string, organizationId?: string): Promise<boolean> {
-    let q = this.db.deleteFrom('core.quote_templates').where('id', '=', id);
-    if (organizationId) q = q.where('organization_id', '=', organizationId);
+    let q = this.db.deleteFrom("core.quote_templates").where("id", "=", id);
+    if (organizationId) q = q.where("organization_id", "=", organizationId);
     const result = await q.executeTakeFirst();
     return Number(result?.numDeletedRows ?? 0) > 0;
   }
@@ -88,13 +91,13 @@ export class QuoteTemplateRepository {
     `.execute(this.db);
     const seq = Number(result.rows[0].nextval);
     const now = new Date();
-    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    return `QUO-${ym}-${String(seq).padStart(6, '0')}`;
+    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return `QUO-${ym}-${String(seq).padStart(6, "0")}`;
   }
 
   private map(r: any): QuoteTemplate {
     const items: TemplateItem[] =
-      typeof r.items === 'string' ? JSON.parse(r.items) : (r.items ?? []);
+      typeof r.items === "string" ? JSON.parse(r.items) : (r.items ?? []);
     return {
       id: r.id,
       name: r.name,

@@ -28,8 +28,8 @@ Error: 'cursor' is not present in your postgres dialect config. It's required to
 ## 解決策
 
 ```ts
-import { Pool } from 'pg';
-import Cursor from 'pg-cursor';
+import { Pool } from "pg";
+import Cursor from "pg-cursor";
 
 export const kyselyDb = new Kysely<KyselyDatabase>({
   dialect: new PostgresDialect({ pool, cursor: Cursor }),

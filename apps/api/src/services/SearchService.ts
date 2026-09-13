@@ -1,15 +1,15 @@
 export interface SearchResult {
-  type: 'customer' | 'product' | 'quote';
+  type: "customer" | "product" | "quote";
   id: string;
   title: string;
   excerpt: string | null;
   createdAt: Date;
 }
 
-const ALLOWED_TYPES = new Set(['customer', 'product', 'quote']);
+const ALLOWED_TYPES = new Set(["customer", "product", "quote"]);
 
-import { sql, type Kysely, type RawBuilder } from 'kysely';
-import type { KyselyDatabase } from '@loopnest/bizcore-db';
+import { sql, type Kysely, type RawBuilder } from "kysely";
+import type { KyselyDatabase } from "@loopnest/bizcore-db";
 
 interface SearchRow {
   type: string;
@@ -27,15 +27,16 @@ export class SearchService {
     types: string[],
     skip = 0,
     take = 20,
-    orgId?: string
+    orgId?: string,
   ): Promise<{ results: SearchResult[]; total: number }> {
     if (!query || query.trim().length === 0) {
       return { results: [], total: 0 };
     }
 
-    const requestedTypes = types.length > 0
-      ? types.filter(t => ALLOWED_TYPES.has(t))
-      : ['customer', 'product', 'quote'];
+    const requestedTypes =
+      types.length > 0
+        ? types.filter((t) => ALLOWED_TYPES.has(t))
+        : ["customer", "product", "quote"];
 
     if (requestedTypes.length === 0) {
       return { results: [], total: 0 };
@@ -48,7 +49,7 @@ export class SearchService {
 
     const parts: RawBuilder<unknown>[] = [];
 
-    if (requestedTypes.includes('customer')) {
+    if (requestedTypes.includes("customer")) {
       parts.push(sql`
         SELECT 'customer'::text AS type,
                id::text,
@@ -61,7 +62,7 @@ export class SearchService {
       `);
     }
 
-    if (requestedTypes.includes('product')) {
+    if (requestedTypes.includes("product")) {
       parts.push(sql`
         SELECT 'product'::text AS type,
                id::text,
@@ -74,7 +75,7 @@ export class SearchService {
       `);
     }
 
-    if (requestedTypes.includes('quote')) {
+    if (requestedTypes.includes("quote")) {
       parts.push(sql`
         SELECT 'quote'::text AS type,
                id::text,
@@ -104,10 +105,10 @@ export class SearchService {
 
     return {
       results: dataResult.rows.map((r) => ({
-        type:      r.type as SearchResult['type'],
-        id:        r.id,
-        title:     r.title,
-        excerpt:   r.excerpt || null,
+        type: r.type as SearchResult["type"],
+        id: r.id,
+        title: r.title,
+        excerpt: r.excerpt || null,
         createdAt: r.created_at,
       })),
       total: Number.parseInt(countResult.rows[0].count, 10),

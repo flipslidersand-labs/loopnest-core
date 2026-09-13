@@ -14,12 +14,12 @@ must pick one and bridge the gap to others. Maintenance burden compounds.
 
 ### ORM inventory
 
-| ORM | Repositories / Locations | Reason introduced |
-|---|---|---|
-| **Prisma** | Customer, Organization, Product, Quote, QuoteItem, User | First ORM added; auto-generated types from schema |
-| **Kysely** | CreditNote, Payment, Webhook, QuoteTemplate, Invoice, Outbox, Dunning, Installment, ExchangeRate, RecurringContract, TaxRate | Type-safe builder; no codegen; fits JOIN-heavy queries |
-| **Drizzle** | `clients/drizzle-client.ts` (client only) | Evaluated for state machines; never wired to any repository |
-| **raw pg** | AuditService, ReportingService, SearchService, EventWorker (overdue scan), requestMetrics middleware | High-throughput bulk queries; escape hatch for `EXPLAIN`/`COPY` |
+| ORM         | Repositories / Locations                                                                                                     | Reason introduced                                               |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **Prisma**  | Customer, Organization, Product, Quote, QuoteItem, User                                                                      | First ORM added; auto-generated types from schema               |
+| **Kysely**  | CreditNote, Payment, Webhook, QuoteTemplate, Invoice, Outbox, Dunning, Installment, ExchangeRate, RecurringContract, TaxRate | Type-safe builder; no codegen; fits JOIN-heavy queries          |
+| **Drizzle** | `clients/drizzle-client.ts` (client only)                                                                                    | Evaluated for state machines; never wired to any repository     |
+| **raw pg**  | AuditService, ReportingService, SearchService, EventWorker (overdue scan), requestMetrics middleware                         | High-throughput bulk queries; escape hatch for `EXPLAIN`/`COPY` |
 
 ### Notes
 
@@ -34,15 +34,15 @@ must pick one and bridge the gap to others. Maintenance burden compounds.
 
 ### Rationale
 
-| Criterion | Prisma | Kysely | Drizzle |
-|---|---|---|---|
-| Type safety | Generated types (codegen required) | Compile-time from schema interface | Generated types |
-| No codegen | ✗ | ✓ | ✗ |
-| Raw SQL escape hatch | Limited | `sql` tagged template | ✓ |
-| Multi-schema support | Limited (`multiSchema` preview) | ✓ (schema-qualified names) | ✓ |
-| Transaction API | Simple | Composable | Composable |
-| Bundle size | Heavy (query engine binary) | Minimal | Moderate |
-| Already in use | ✓ | ✓ (majority) | Dead code |
+| Criterion            | Prisma                             | Kysely                             | Drizzle         |
+| -------------------- | ---------------------------------- | ---------------------------------- | --------------- |
+| Type safety          | Generated types (codegen required) | Compile-time from schema interface | Generated types |
+| No codegen           | ✗                                  | ✓                                  | ✗               |
+| Raw SQL escape hatch | Limited                            | `sql` tagged template              | ✓               |
+| Multi-schema support | Limited (`multiSchema` preview)    | ✓ (schema-qualified names)         | ✓               |
+| Transaction API      | Simple                             | Composable                         | Composable      |
+| Bundle size          | Heavy (query engine binary)        | Minimal                            | Moderate        |
+| Already in use       | ✓                                  | ✓ (majority)                       | Dead code       |
 
 Kysely requires no separate code-generation step, supports our `core.*` / `finance.*` / `events.*` multi-schema naming natively via `KyselyDatabase`, and already handles the more complex repositories. Eliminating Prisma removes the Prisma engine binary from production images (~50 MB).
 
@@ -74,6 +74,7 @@ Deliverable: `kyselyDb` injected into `EventWorker` and `SearchService`; raw SQL
 Repositories: Customer, Organization, Product, Quote, QuoteItem, User.
 
 Steps:
+
 1. Add table interfaces to `KyselyDatabase` for each master table (core schema).
 2. Rewrite each repository using Kysely builder methods.
 3. Remove Prisma schema validation from CI.
@@ -85,11 +86,11 @@ Full test coverage required before merge; run `tests/integration/` on each PR.
 
 ## Effort summary
 
-| Phase | Effort | Risk | Deliverable |
-|---|---|---|---|
-| 1 — Remove Drizzle | S (< 1 day) | None | Clean dependency tree |
-| 2 — raw pg → Kysely (partial) | M (2–3 days) | Low | Type-safe overdue/search queries |
-| 3 — Prisma → Kysely | L (5–8 days) | Medium | Single ORM, smaller image |
+| Phase                         | Effort       | Risk   | Deliverable                      |
+| ----------------------------- | ------------ | ------ | -------------------------------- |
+| 1 — Remove Drizzle            | S (< 1 day)  | None   | Clean dependency tree            |
+| 2 — raw pg → Kysely (partial) | M (2–3 days) | Low    | Type-safe overdue/search queries |
+| 3 — Prisma → Kysely           | L (5–8 days) | Medium | Single ORM, smaller image        |
 
 ## What stays as raw pg
 

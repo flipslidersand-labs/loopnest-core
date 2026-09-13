@@ -21,13 +21,13 @@ Implement LISTEN/NOTIFY as the primary wake mechanism while keeping a 60-second 
 
 ## Tradeoffs
 
-| Concern | Assessment |
-|---|---|
-| **Extra connection** | +1 pg connection per API pod. Acceptable given pool size. |
-| **Missed NOTIFYs on reconnect** | Handled by fallback poll (≤60 s gap). |
-| **Ordering** | NOTIFY payload carries event ID; `claimPending` still uses `ORDER BY created_at` — ordering unchanged. |
-| **At-least-once delivery** | Unchanged — `claimPending` uses `UPDATE … RETURNING` as the mutex. |
-| **Multi-pod thundering herd** | NOTIFY wakes all pods; `claimPending` ensures only one pod claims each event row. |
+| Concern                         | Assessment                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Extra connection**            | +1 pg connection per API pod. Acceptable given pool size.                                              |
+| **Missed NOTIFYs on reconnect** | Handled by fallback poll (≤60 s gap).                                                                  |
+| **Ordering**                    | NOTIFY payload carries event ID; `claimPending` still uses `ORDER BY created_at` — ordering unchanged. |
+| **At-least-once delivery**      | Unchanged — `claimPending` uses `UPDATE … RETURNING` as the mutex.                                     |
+| **Multi-pod thundering herd**   | NOTIFY wakes all pods; `claimPending` ensures only one pod claims each event row.                      |
 
 ## Expected outcome
 

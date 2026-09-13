@@ -15,6 +15,7 @@
 ## 2. スコープ
 
 ### In scope
+
 - `PdfService` — pdfkit で PDF を生成するサービス層
 - `InvoiceRepository.findWithItems` — 請求書 + 明細 + 商品名を JOIN で取得
 - `GET /api/invoices/:id/pdf` ルート
@@ -23,6 +24,7 @@
 - 統合テスト `pdf_invoice.sh`
 
 ### Out of scope
+
 - PDF 永続化 / S3 保存（オンデマンド生成のみ）
 - カスタムフォント（日本語フォント埋め込みは将来課題）
 - 見積書 PDF（M04b 候補）
@@ -47,11 +49,12 @@ GET /api/invoices/:id/pdf
 
 ## 4. API
 
-| Method | Path | 説明 |
-|--------|------|------|
-| `GET` | `/api/invoices/:id/pdf` | 指定 ID の請求書を PDF でダウンロード |
+| Method | Path                    | 説明                                  |
+| ------ | ----------------------- | ------------------------------------- |
+| `GET`  | `/api/invoices/:id/pdf` | 指定 ID の請求書を PDF でダウンロード |
 
 **Response headers**
+
 ```
 Content-Type: application/pdf
 Content-Disposition: attachment; filename="invoice-<id>.pdf"
@@ -59,6 +62,7 @@ Content-Length: <bytes>
 ```
 
 **Error cases**
+
 - `404 NOT_FOUND` — 指定 ID の請求書が存在しない
 
 ---
@@ -91,10 +95,10 @@ Content-Length: <bytes>
 
 ## 6. 依存ライブラリ
 
-| パッケージ | バージョン | 用途 |
-|---|---|---|
-| `pdfkit` | ^0.19.1 | PDF 生成 |
-| `@types/pdfkit` | ^0.17.6 | TypeScript 型定義 |
+| パッケージ      | バージョン | 用途              |
+| --------------- | ---------- | ----------------- |
+| `pdfkit`        | ^0.19.1    | PDF 生成          |
+| `@types/pdfkit` | ^0.17.6    | TypeScript 型定義 |
 
 ---
 

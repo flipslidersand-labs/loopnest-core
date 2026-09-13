@@ -1,7 +1,8 @@
-import { Generated, Insertable, Selectable, Updateable } from 'kysely';
+import { Generated, Insertable, Selectable, Updateable } from "kysely";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type JsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
+type JsonValue =
+  Record<string, unknown> | unknown[] | string | number | boolean | null;
 
 // ============================================
 // core.quote_requests
@@ -26,8 +27,8 @@ export type QuoteRequestUpdate = Updateable<QuoteRequestTable>;
 // core.exchange_rates
 // ============================================
 export interface ExchangeRateTable {
-  currency_code: string;   // ISO 4217 PK (e.g. 'USD')
-  rate_to_jpy: number;     // 1 unit of this currency = N JPY
+  currency_code: string; // ISO 4217 PK (e.g. 'USD')
+  rate_to_jpy: number; // 1 unit of this currency = N JPY
   effective_date: Date;
   updated_at: Generated<Date>;
 }
@@ -127,8 +128,8 @@ export interface QuoteTable {
   status: string;
   notes: string | null;
   created_by: string;
-  currency: Generated<string>;        // ISO 4217, default 'JPY'
-  exchange_rate: Generated<number>;   // rate to JPY, default 1.0
+  currency: Generated<string>; // ISO 4217, default 'JPY'
+  exchange_rate: Generated<number>; // rate to JPY, default 1.0
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -171,8 +172,8 @@ export interface InvoiceTable {
   payment_due_date: Date;
   status: string;
   paid_at: Date | null;
-  currency: Generated<string>;        // ISO 4217, default 'JPY'
-  exchange_rate: Generated<number>;   // rate to JPY, default 1.0
+  currency: Generated<string>; // ISO 4217, default 'JPY'
+  exchange_rate: Generated<number>; // rate to JPY, default 1.0
   metadata: JsonValue | null; // JSONB
   created_by: string;
   created_at: Generated<Date>;
@@ -247,7 +248,7 @@ export interface WebhookDeliveryTable {
   webhook_id: string;
   event_type: string;
   payload: JsonValue; // JSONB
-  status: 'success' | 'failed';
+  status: "success" | "failed";
   http_status: number | null;
   error_message: string | null;
   delivered_at: Generated<Date>;
@@ -303,7 +304,7 @@ export interface CreditNoteTable {
   amount: number;
   reason: string;
   cn_type: string; // 'return' | 'pricing_error' | 'goodwill' | 'adjustment'
-  status: string;  // 'issued' | 'partially_applied' | 'fully_applied' | 'refunded' | 'void'
+  status: string; // 'issued' | 'partially_applied' | 'fully_applied' | 'refunded' | 'void'
   applied_amount: number;
   refunded_amount: number;
   issued_at: Generated<Date>;
@@ -370,23 +371,23 @@ export type ApprovalStepUpdate = Updateable<ApprovalStepTable>;
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
-  'core.exchange_rates': ExchangeRateTable;
-  'core.quote_requests': QuoteRequestTable;
-  'core.organizations': OrganizationTable;
-  'core.customers': CustomerTable;
-  'core.products': ProductTable;
-  'core.users': UserTable;
-  'core.quotes': QuoteTable;
-  'core.quote_items': QuoteItemTable;
-  'finance.invoices': InvoiceTable;
-  'finance.invoice_items': InvoiceItemTable;
-  'finance.accounting_exports': AccountingExportTable;
-  'finance.payments': PaymentTable;
-  'finance.credit_notes': CreditNoteTable;
-  'finance.credit_note_applications': CreditNoteApplicationTable;
-  'events.outbox_events': OutboxEventTable;
-  'events.webhooks': WebhookTable;
-  'events.webhook_deliveries': WebhookDeliveryTable;
-  'workflow.approval_requests': ApprovalRequestTable;
-  'workflow.approval_steps': ApprovalStepTable;
+  "core.exchange_rates": ExchangeRateTable;
+  "core.quote_requests": QuoteRequestTable;
+  "core.organizations": OrganizationTable;
+  "core.customers": CustomerTable;
+  "core.products": ProductTable;
+  "core.users": UserTable;
+  "core.quotes": QuoteTable;
+  "core.quote_items": QuoteItemTable;
+  "finance.invoices": InvoiceTable;
+  "finance.invoice_items": InvoiceItemTable;
+  "finance.accounting_exports": AccountingExportTable;
+  "finance.payments": PaymentTable;
+  "finance.credit_notes": CreditNoteTable;
+  "finance.credit_note_applications": CreditNoteApplicationTable;
+  "events.outbox_events": OutboxEventTable;
+  "events.webhooks": WebhookTable;
+  "events.webhook_deliveries": WebhookDeliveryTable;
+  "workflow.approval_requests": ApprovalRequestTable;
+  "workflow.approval_steps": ApprovalStepTable;
 }

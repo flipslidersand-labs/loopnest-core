@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
-import { logger } from '../lib/logger.js';
-import type { PgPool } from '../lib/pg-pool-types.js';
+import { v4 as uuidv4 } from "uuid";
+import { logger } from "../lib/logger.js";
+import type { PgPool } from "../lib/pg-pool-types.js";
 
 export interface AuditLogEntry {
   actorId: string;
@@ -75,10 +75,10 @@ export class AuditService {
           entry.resourceId,
           JSON.stringify(entry.metadata ?? {}),
           correlationId,
-        ]
+        ],
       );
     } catch (error) {
-      logger.error({ err: error }, 'audit log write failed');
+      logger.error({ err: error }, "audit log write failed");
       throw error;
     }
   }
@@ -96,7 +96,7 @@ export class AuditService {
     const sql = `
       SELECT id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at
       FROM audit.audit_logs
-      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+      ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
       ORDER BY created_at DESC
       LIMIT $${limitParam} OFFSET $${offsetParam}
     `;
@@ -108,24 +108,29 @@ export class AuditService {
     const { conditions, params } = this.buildLogConditions(filter);
     const sql = `
       SELECT COUNT(*) FROM audit.audit_logs
-      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+      ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
     `;
     const result = await this.pgPool.query(sql, params);
     return Number.parseInt(result.rows[0].count as string, 10);
   }
 
-  async getResourceHistory(resourceType: string, resourceId: string): Promise<AuditLogRecord[]> {
+  async getResourceHistory(
+    resourceType: string,
+    resourceId: string,
+  ): Promise<AuditLogRecord[]> {
     const result = await this.pgPool.query(
       `SELECT id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at
        FROM audit.audit_logs
        WHERE resource_type = $1 AND resource_id = $2
        ORDER BY created_at ASC`,
-      [resourceType, resourceId]
+      [resourceType, resourceId],
     );
     return result.rows.map(this.mapLogRow);
   }
 
-  async queryRequestLogs(filter: RequestLogFilter = {}): Promise<RequestLogRecord[]> {
+  async queryRequestLogs(
+    filter: RequestLogFilter = {},
+  ): Promise<RequestLogRecord[]> {
     const { conditions, params } = this.buildRequestConditions(filter);
     const skip = filter.skip ?? 0;
     const take = filter.take ?? 20;
@@ -136,7 +141,7 @@ export class AuditService {
     const sql = `
       SELECT id, method, path, status_code, duration_ms, correlation_id, actor_id, created_at
       FROM audit.request_logs
-      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+      ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
       ORDER BY created_at DESC
       LIMIT $${limitParam} OFFSET $${offsetParam}
     `;
@@ -148,7 +153,7 @@ export class AuditService {
     const { conditions, params } = this.buildRequestConditions(filter);
     const sql = `
       SELECT COUNT(*) FROM audit.request_logs
-      ${conditions.length ? 'WHERE ' + conditions.join(' AND ') : ''}
+      ${conditions.length ? "WHERE " + conditions.join(" AND ") : ""}
     `;
     const result = await this.pgPool.query(sql, params);
     return Number.parseInt(result.rows[0].count as string, 10);
@@ -157,85 +162,249 @@ export class AuditService {
   // ── Convenience log helpers ─────────────────────────────────────────────────
 
   async logQuoteSubmitted(quoteId: string, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'QUOTE_SUBMITTED', resourceType: 'quote', resourceId: quoteId, metadata: { status: 'pending_approval' } });
+    await this.log({
+      actorId: userId,
+      action: "QUOTE_SUBMITTED",
+      resourceType: "quote",
+      resourceId: quoteId,
+      metadata: { status: "pending_approval" },
+    });
   }
 
   async logQuoteApproved(quoteId: string, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'QUOTE_APPROVED', resourceType: 'quote', resourceId: quoteId, metadata: { status: 'approved' } });
+    await this.log({
+      actorId: userId,
+      action: "QUOTE_APPROVED",
+      resourceType: "quote",
+      resourceId: quoteId,
+      metadata: { status: "approved" },
+    });
   }
 
-  async logQuoteRejected(quoteId: string, userId: string, reason: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'QUOTE_REJECTED', resourceType: 'quote', resourceId: quoteId, metadata: { status: 'rejected', reason } });
+  async logQuoteRejected(
+    quoteId: string,
+    userId: string,
+    reason: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "QUOTE_REJECTED",
+      resourceType: "quote",
+      resourceId: quoteId,
+      metadata: { status: "rejected", reason },
+    });
   }
 
-  async logInvoiceCreated(invoiceId: string, quoteId: string, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'INVOICE_CREATED', resourceType: 'invoice', resourceId: invoiceId, metadata: { sourceQuote: quoteId } });
+  async logInvoiceCreated(
+    invoiceId: string,
+    quoteId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "INVOICE_CREATED",
+      resourceType: "invoice",
+      resourceId: invoiceId,
+      metadata: { sourceQuote: quoteId },
+    });
   }
 
-  async logResourceCreated(resourceType: string, resourceId: string, userId: string, metadata?: Record<string, unknown>): Promise<void> {
-    await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_CREATED`, resourceType, resourceId, metadata });
+  async logResourceCreated(
+    resourceType: string,
+    resourceId: string,
+    userId: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: `${resourceType.toUpperCase()}_CREATED`,
+      resourceType,
+      resourceId,
+      metadata,
+    });
   }
 
-  async logResourceUpdated(resourceType: string, resourceId: string, userId: string, changes: Record<string, unknown>): Promise<void> {
-    await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_UPDATED`, resourceType, resourceId, metadata: { changes } });
+  async logResourceUpdated(
+    resourceType: string,
+    resourceId: string,
+    userId: string,
+    changes: Record<string, unknown>,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: `${resourceType.toUpperCase()}_UPDATED`,
+      resourceType,
+      resourceId,
+      metadata: { changes },
+    });
   }
 
-  async logResourceDeleted(resourceType: string, resourceId: string, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: `${resourceType.toUpperCase()}_DELETED`, resourceType, resourceId });
+  async logResourceDeleted(
+    resourceType: string,
+    resourceId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: `${resourceType.toUpperCase()}_DELETED`,
+      resourceType,
+      resourceId,
+    });
   }
 
-  async logInvoiceMarkedPaid(invoiceId: string, userId: string, paidAt: Date): Promise<void> {
-    await this.log({ actorId: userId, action: 'INVOICE_MARKED_PAID', resourceType: 'invoice', resourceId: invoiceId, metadata: { paidAt: paidAt.toISOString() } });
+  async logInvoiceMarkedPaid(
+    invoiceId: string,
+    userId: string,
+    paidAt: Date,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "INVOICE_MARKED_PAID",
+      resourceType: "invoice",
+      resourceId: invoiceId,
+      metadata: { paidAt: paidAt.toISOString() },
+    });
   }
 
   async logInvoiceCancelled(invoiceId: string, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'INVOICE_CANCELLED', resourceType: 'invoice', resourceId: invoiceId });
+    await this.log({
+      actorId: userId,
+      action: "INVOICE_CANCELLED",
+      resourceType: "invoice",
+      resourceId: invoiceId,
+    });
   }
 
-  async logPaymentRecorded(paymentId: string, invoiceId: string, amount: number, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'PAYMENT_RECORDED', resourceType: 'payment', resourceId: paymentId, metadata: { invoiceId, amount } });
+  async logPaymentRecorded(
+    paymentId: string,
+    invoiceId: string,
+    amount: number,
+    userId: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "PAYMENT_RECORDED",
+      resourceType: "payment",
+      resourceId: paymentId,
+      metadata: { invoiceId, amount },
+    });
   }
 
-  async logPaymentReversed(paymentId: string, invoiceId: string, reason: string, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'PAYMENT_REVERSED', resourceType: 'payment', resourceId: paymentId, metadata: { invoiceId, reason } });
+  async logPaymentReversed(
+    paymentId: string,
+    invoiceId: string,
+    reason: string,
+    userId: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "PAYMENT_REVERSED",
+      resourceType: "payment",
+      resourceId: paymentId,
+      metadata: { invoiceId, reason },
+    });
   }
 
-  async logCreditNoteIssued(creditNoteId: string, invoiceId: string | null, amount: number, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'CREDIT_NOTE_ISSUED', resourceType: 'credit_note', resourceId: creditNoteId, metadata: { invoiceId, amount } });
+  async logCreditNoteIssued(
+    creditNoteId: string,
+    invoiceId: string | null,
+    amount: number,
+    userId: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "CREDIT_NOTE_ISSUED",
+      resourceType: "credit_note",
+      resourceId: creditNoteId,
+      metadata: { invoiceId, amount },
+    });
   }
 
-  async logCreditNoteApplied(creditNoteId: string, targetInvoiceId: string, amount: number, userId: string): Promise<void> {
-    await this.log({ actorId: userId, action: 'CREDIT_NOTE_APPLIED', resourceType: 'credit_note', resourceId: creditNoteId, metadata: { targetInvoiceId, amount } });
+  async logCreditNoteApplied(
+    creditNoteId: string,
+    targetInvoiceId: string,
+    amount: number,
+    userId: string,
+  ): Promise<void> {
+    await this.log({
+      actorId: userId,
+      action: "CREDIT_NOTE_APPLIED",
+      resourceType: "credit_note",
+      resourceId: creditNoteId,
+      metadata: { targetInvoiceId, amount },
+    });
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
 
-  private buildLogConditions(f: AuditLogFilter): { conditions: string[]; params: unknown[] } {
+  private buildLogConditions(f: AuditLogFilter): {
+    conditions: string[];
+    params: unknown[];
+  } {
     const conditions: string[] = [];
     const params: unknown[] = [];
     const p = () => `$${params.length}`;
 
-    if (f.actorId)       { params.push(f.actorId);       conditions.push(`actor_id = ${p()}`); }
-    if (f.resourceType)  { params.push(f.resourceType);  conditions.push(`resource_type = ${p()}`); }
-    if (f.resourceId)    { params.push(f.resourceId);    conditions.push(`resource_id = ${p()}`); }
-    if (f.action)        { params.push(f.action);        conditions.push(`action = ${p()}`); }
-    if (f.dateFrom)      { params.push(f.dateFrom);      conditions.push(`created_at >= ${p()}`); }
-    if (f.dateTo)        { params.push(f.dateTo);        conditions.push(`created_at <= ${p()}`); }
+    if (f.actorId) {
+      params.push(f.actorId);
+      conditions.push(`actor_id = ${p()}`);
+    }
+    if (f.resourceType) {
+      params.push(f.resourceType);
+      conditions.push(`resource_type = ${p()}`);
+    }
+    if (f.resourceId) {
+      params.push(f.resourceId);
+      conditions.push(`resource_id = ${p()}`);
+    }
+    if (f.action) {
+      params.push(f.action);
+      conditions.push(`action = ${p()}`);
+    }
+    if (f.dateFrom) {
+      params.push(f.dateFrom);
+      conditions.push(`created_at >= ${p()}`);
+    }
+    if (f.dateTo) {
+      params.push(f.dateTo);
+      conditions.push(`created_at <= ${p()}`);
+    }
 
     return { conditions, params };
   }
 
-  private buildRequestConditions(f: RequestLogFilter): { conditions: string[]; params: unknown[] } {
+  private buildRequestConditions(f: RequestLogFilter): {
+    conditions: string[];
+    params: unknown[];
+  } {
     const conditions: string[] = [];
     const params: unknown[] = [];
     const p = () => `$${params.length}`;
 
-    if (f.actorId)    { params.push(f.actorId);    conditions.push(`actor_id = ${p()}`); }
-    if (f.statusCode) { params.push(f.statusCode); conditions.push(`status_code = ${p()}`); }
-    if (f.method)     { params.push(f.method.toUpperCase()); conditions.push(`method = ${p()}`); }
-    if (f.path)       { params.push(f.path + '%'); conditions.push(`path LIKE ${p()}`); }
-    if (f.dateFrom)   { params.push(f.dateFrom);   conditions.push(`created_at >= ${p()}`); }
-    if (f.dateTo)     { params.push(f.dateTo);     conditions.push(`created_at <= ${p()}`); }
+    if (f.actorId) {
+      params.push(f.actorId);
+      conditions.push(`actor_id = ${p()}`);
+    }
+    if (f.statusCode) {
+      params.push(f.statusCode);
+      conditions.push(`status_code = ${p()}`);
+    }
+    if (f.method) {
+      params.push(f.method.toUpperCase());
+      conditions.push(`method = ${p()}`);
+    }
+    if (f.path) {
+      params.push(f.path + "%");
+      conditions.push(`path LIKE ${p()}`);
+    }
+    if (f.dateFrom) {
+      params.push(f.dateFrom);
+      conditions.push(`created_at >= ${p()}`);
+    }
+    if (f.dateTo) {
+      params.push(f.dateTo);
+      conditions.push(`created_at <= ${p()}`);
+    }
 
     return { conditions, params };
   }

@@ -8,15 +8,23 @@ import { WebhookService } from "./WebhookService.js";
 import { EmailNotificationService } from "./EmailNotificationService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
 
-const NOTIFY_CHANNEL = 'loopnest_outbox';
+const NOTIFY_CHANNEL = "loopnest_outbox";
 
 function advanceDate(from: string, unit: string, value: number): string {
-  const d = new Date(from + 'T00:00:00Z');
+  const d = new Date(from + "T00:00:00Z");
   switch (unit) {
-    case 'day':   d.setUTCDate(d.getUTCDate() + value); break;
-    case 'week':  d.setUTCDate(d.getUTCDate() + value * 7); break;
-    case 'month': d.setUTCMonth(d.getUTCMonth() + value); break;
-    case 'year':  d.setUTCFullYear(d.getUTCFullYear() + value); break;
+    case "day":
+      d.setUTCDate(d.getUTCDate() + value);
+      break;
+    case "week":
+      d.setUTCDate(d.getUTCDate() + value * 7);
+      break;
+    case "month":
+      d.setUTCMonth(d.getUTCMonth() + value);
+      break;
+    case "year":
+      d.setUTCFullYear(d.getUTCFullYear() + value);
+      break;
   }
   return d.toISOString().slice(0, 10);
 }
@@ -63,7 +71,9 @@ export class EventWorker {
     this.stopped = false;
     // Keep original poll interval unchanged — it drives retries for failed events.
     // LISTEN/NOTIFY supplements it: new inserts wake processBatch() immediately.
-    logger.info(`🔄 EventWorker started (LISTEN/NOTIFY + ${intervalMs}ms poll)`);
+    logger.info(
+      `🔄 EventWorker started (LISTEN/NOTIFY + ${intervalMs}ms poll)`,
+    );
     this.timer = setInterval(() => this.processBatch(), intervalMs);
     // Drain any events accumulated while the worker was offline.
     void this.processBatch();
@@ -122,18 +132,18 @@ export class EventWorker {
       this.dunningTimer = null;
     }
     void this.stopListening();
-    logger.info('EventWorker stopped');
+    logger.info("EventWorker stopped");
   }
 
   private async startListening(): Promise<void> {
     if (this.stopped) return;
 
     const client = new PgClient({
-      host: process.env.POSTGRES_HOST || 'localhost',
-      port: parseInt(process.env.POSTGRES_PORT || '5432'),
-      user: process.env.POSTGRES_USER || 'loopnest',
-      password: process.env.POSTGRES_PASSWORD || 'loopnest_dev_password',
-      database: process.env.POSTGRES_DB || 'omni_local',
+      host: process.env.POSTGRES_HOST || "localhost",
+      port: parseInt(process.env.POSTGRES_PORT || "5432"),
+      user: process.env.POSTGRES_USER || "loopnest",
+      password: process.env.POSTGRES_PASSWORD || "loopnest_dev_password",
+      database: process.env.POSTGRES_DB || "omni_local",
     });
 
     try {
@@ -141,12 +151,15 @@ export class EventWorker {
       await client.query(`LISTEN ${NOTIFY_CHANNEL}`);
       this.listenClient = client;
 
-      client.on('notification', () => {
+      client.on("notification", () => {
         void this.processBatch();
       });
 
-      client.on('error', (err: Error) => {
-        logger.error({ err }, `[EventWorker] LISTEN client error, reconnecting in 5s`);
+      client.on("error", (err: Error) => {
+        logger.error(
+          { err },
+          `[EventWorker] LISTEN client error, reconnecting in 5s`,
+        );
         void this.stopListening();
         if (this.stopped) return;
         this.reconnectTimer = setTimeout(() => {
@@ -157,7 +170,10 @@ export class EventWorker {
 
       logger.info(`👂 EventWorker LISTEN on channel '${NOTIFY_CHANNEL}'`);
     } catch (err) {
-      logger.error({ err }, '[EventWorker] Failed to connect LISTEN client, retrying in 5s');
+      logger.error(
+        { err },
+        "[EventWorker] Failed to connect LISTEN client, retrying in 5s",
+      );
       await client.end().catch(() => undefined);
       if (this.stopped) return;
       this.reconnectTimer = setTimeout(() => {
@@ -189,18 +205,23 @@ export class EventWorker {
       for (const event of events) {
         try {
           if (event.createdAt) {
-            outboxEventLagMs.observe(Date.now() - new Date(event.createdAt).getTime());
+            outboxEventLagMs.observe(
+              Date.now() - new Date(event.createdAt).getTime(),
+            );
           }
           await this.dispatch(event);
           await this.repos.outbox.markProcessed(event.id);
         } catch (error) {
-          logger.error({ eventId: event.id, err: error }, 'failed to dispatch event');
+          logger.error(
+            { eventId: event.id, err: error },
+            "failed to dispatch event",
+          );
           // Re-queues for retry, or dead-letters after maxRetries.
           await this.repos.outbox.markFailed(event.id, this.maxRetries);
         }
       }
     } catch (error) {
-      logger.error({ err: error }, 'EventWorker batch processing error');
+      logger.error({ err: error }, "EventWorker batch processing error");
     } finally {
       this.isProcessing = false;
     }
@@ -238,7 +259,9 @@ export class EventWorker {
         logger.info(`📋 Credit note issued: ${aggregateId}`);
         break;
       case "credit_note_applied":
-        logger.info(`credit_note applied to invoice ${payload?.targetInvoiceId}`);
+        logger.info(
+          `credit_note applied to invoice ${payload?.targetInvoiceId}`,
+        );
         break;
       case "credit_note_refunded":
         logger.info(`💸 Credit note refunded: ${aggregateId}`);
@@ -250,10 +273,14 @@ export class EventWorker {
         logger.info(`⏰ Quote expired: ${aggregateId}`);
         break;
       case "recurring_invoice_created":
-        logger.info(`🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`);
+        logger.info(
+          `🔁 Recurring invoice created for contract ${aggregateId}: ${payload?.invoiceNumber}`,
+        );
         break;
       case "dunning_action":
-        logger.info(`📬 Dunning action '${payload?.action}' for invoice ${aggregateId} (${payload?.daysOverdue}d overdue)`);
+        logger.info(
+          `📬 Dunning action '${payload?.action}' for invoice ${aggregateId} (${payload?.daysOverdue}d overdue)`,
+        );
         break;
       default:
         logger.warn(`Unknown event type: ${eventType}`);
@@ -287,14 +314,17 @@ export class EventWorker {
         try {
           if (await this.billContract(contract.id, today)) billed++;
         } catch (err) {
-          logger.error({ contractId: contract.id, err }, 'failed to bill contract');
+          logger.error(
+            { contractId: contract.id, err },
+            "failed to bill contract",
+          );
         }
       }
       if (billed > 0) {
         logger.info(`🔁 Recurring scan billed ${billed} contract(s)`);
       }
     } catch (error) {
-      logger.error({ err: error }, 'recurring scan error');
+      logger.error({ err: error }, "recurring scan error");
     } finally {
       this.isScanningRecurring = false;
     }
@@ -309,46 +339,69 @@ export class EventWorker {
    * `findDue` ran) is skipped here rather than double-billed.
    * Returns false if the contract was skipped (already claimed/billed).
    */
-  private async billContract(contractId: string, today: string): Promise<boolean> {
+  private async billContract(
+    contractId: string,
+    today: string,
+  ): Promise<boolean> {
     return this.kyselyDb.transaction().execute(async (trx) => {
-      const contract = await this.repos.recurringContracts.lockDue(contractId, today, trx);
+      const contract = await this.repos.recurringContracts.lockDue(
+        contractId,
+        today,
+        trx,
+      );
       if (!contract) return false;
 
       const seq = await this.repos.invoices.nextSequenceValue();
-      const yyyymm = today.slice(0, 7).replace('-', '');
-      const invoiceNumber = `REC-${yyyymm}-${String(seq).padStart(6, '0')}`;
+      const yyyymm = today.slice(0, 7).replace("-", "");
+      const invoiceNumber = `REC-${yyyymm}-${String(seq).padStart(6, "0")}`;
 
       const subtotal = Math.round(contract.amount * 100) / 100;
       const taxAmount = Math.round(subtotal * contract.taxRate * 100) / 100;
       const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
-      const invoice = await this.repos.invoices.create({
-        quoteId: null,
-        contractId: contract.id,
-        invoiceNumber,
-        customerId: contract.customerId,
-        subtotal,
-        taxAmount,
-        totalAmount,
-        createdBy: 'recurring-worker',
-      }, trx);
+      const invoice = await this.repos.invoices.create(
+        {
+          quoteId: null,
+          contractId: contract.id,
+          invoiceNumber,
+          customerId: contract.customerId,
+          subtotal,
+          taxAmount,
+          totalAmount,
+          createdBy: "recurring-worker",
+        },
+        trx,
+      );
 
       // Advance next_billing_at by one interval, still inside the same
       // transaction/lock so a concurrent lockDue() only ever sees either the
       // pre-billing or post-billing state, never a gap where both fire.
-      const next = advanceDate(contract.nextBillingAt, contract.intervalUnit, contract.intervalValue);
-      await this.repos.recurringContracts.advanceNextBilling(contract.id, next, trx);
+      const next = advanceDate(
+        contract.nextBillingAt,
+        contract.intervalUnit,
+        contract.intervalValue,
+      );
+      await this.repos.recurringContracts.advanceNextBilling(
+        contract.id,
+        next,
+        trx,
+      );
 
       // Publish outbox event for observability / downstream hooks.
-      await this.repos.outbox.publish('recurring_invoice_created', contract.id, {
-        contractId: contract.id,
-        invoiceId: invoice.id,
-        invoiceNumber,
-        customerId: contract.customerId,
-        totalAmount,
-        billingDate: today,
-        nextBillingAt: next,
-      }, trx);
+      await this.repos.outbox.publish(
+        "recurring_invoice_created",
+        contract.id,
+        {
+          contractId: contract.id,
+          invoiceId: invoice.id,
+          invoiceNumber,
+          customerId: contract.customerId,
+          totalAmount,
+          billingDate: today,
+          nextBillingAt: next,
+        },
+        trx,
+      );
 
       return true;
     });
@@ -431,21 +484,27 @@ export class EventWorker {
           // instance already flagged this invoice today between our
           // NOT EXISTS check and this INSERT. Skip the webhook/email below
           // too, since they're only meant to fire once per invoice per day.
-          if (err?.code === '23505') continue;
+          if (err?.code === "23505") continue;
           throw err;
         }
         if (this.webhooks && row.organization_id) {
           this.webhooks
             .deliver(row.organization_id, "payment.overdue", payload)
             .catch((err) =>
-              logger.error({ invoiceId: row.id, err }, 'overdue webhook delivery failed'),
+              logger.error(
+                { invoiceId: row.id, err },
+                "overdue webhook delivery failed",
+              ),
             );
         }
         if (this.emailNotifications) {
           this.emailNotifications
             .sendOverdueAlert(row.id, Number(row.days_overdue))
             .catch((err) =>
-              logger.error({ invoiceId: row.id, err }, 'overdue email notification failed'),
+              logger.error(
+                { invoiceId: row.id, err },
+                "overdue email notification failed",
+              ),
             );
         }
       }
@@ -454,7 +513,7 @@ export class EventWorker {
         logger.info(`⏰ Overdue scan flagged ${rows.length} invoice(s)`);
       }
     } catch (error) {
-      logger.error({ err: error }, 'overdue scan error');
+      logger.error({ err: error }, "overdue scan error");
     } finally {
       this.isScanningOverdue = false;
     }
@@ -498,7 +557,12 @@ export class EventWorker {
     }
 
     const responseBody = await response.json().catch((err) => {
-      console.error('response JSON parse failed', { operation: 'response.json', invoiceId: payload.invoiceId, statusCode: response.status, error: String(err) });
+      console.error("response JSON parse failed", {
+        operation: "response.json",
+        invoiceId: payload.invoiceId,
+        statusCode: response.status,
+        error: String(err),
+      });
       return null;
     });
 
@@ -532,22 +596,28 @@ export class EventWorker {
   ): Promise<void> {
     try {
       await this.kyselyDb
-        .insertInto('finance.accounting_exports')
+        .insertInto("finance.accounting_exports")
         .values({
           id: randomUUID(),
           invoice_id: invoiceId,
           exported_at: new Date(),
           status,
-          request_payload: JSON.stringify(requestPayload) as unknown as Record<string, unknown>,
+          request_payload: JSON.stringify(requestPayload) as unknown as Record<
+            string,
+            unknown
+          >,
           response_payload: responsePayload
-            ? JSON.stringify(responsePayload) as unknown as Record<string, unknown>
+            ? (JSON.stringify(responsePayload) as unknown as Record<
+                string,
+                unknown
+              >)
             : null,
           error_message: errorMessage,
         })
         .execute();
     } catch (err) {
       // Recording the export must not mask the dispatch result; just log.
-      logger.error({ err }, 'failed to record accounting_export');
+      logger.error({ err }, "failed to record accounting_export");
     }
   }
 
@@ -566,26 +636,30 @@ export class EventWorker {
           const result = await this.repos.quotes.transitionStatus(
             quote.id,
             quote.status,
-            'rejected',
-            { notes: `Auto-rejected: quote expired at ${quote.expiresAt?.toISOString()}` },
+            "rejected",
+            {
+              notes: `Auto-rejected: quote expired at ${quote.expiresAt?.toISOString()}`,
+            },
           );
           if (result) {
-            await this.repos.outbox.publish('quote_expired', quote.id, {
+            await this.repos.outbox.publish("quote_expired", quote.id, {
               quoteId: quote.id,
               quoteNumber: quote.quoteNumber,
               expiredAt: quote.expiresAt?.toISOString(),
             });
-            logger.info(`⏰ Quote expired and auto-rejected: ${quote.quoteNumber}`);
+            logger.info(
+              `⏰ Quote expired and auto-rejected: ${quote.quoteNumber}`,
+            );
           }
         } catch (err) {
-          logger.error({ quoteId: quote.id, err }, 'failed to expire quote');
+          logger.error({ quoteId: quote.id, err }, "failed to expire quote");
         }
       }
       if (expired.length > 0) {
         logger.info(`⏰ Expiry scan: auto-rejected ${expired.length} quote(s)`);
       }
     } catch (error) {
-      logger.error({ err: error }, 'quote expiry scan error');
+      logger.error({ err: error }, "quote expiry scan error");
     } finally {
       this.isScanningExpiry = false;
     }
@@ -635,18 +709,28 @@ export class EventWorker {
       let fired = 0;
       for (const row of rows) {
         const outstanding =
-          Math.round((Number(row.total_amount) - Number(row.paid_total) - Number(row.credit_applied)) * 100) / 100;
+          Math.round(
+            (Number(row.total_amount) -
+              Number(row.paid_total) -
+              Number(row.credit_applied)) *
+              100,
+          ) / 100;
         if (outstanding <= 0) continue;
 
         const daysOverdue = Number(row.days_overdue);
-        const pending = await this.repos.dunning.findPendingRules(row.id, daysOverdue);
+        const pending = await this.repos.dunning.findPendingRules(
+          row.id,
+          daysOverdue,
+        );
 
         for (const rule of pending) {
           try {
             await this.repos.dunning.recordLog(row.id, rule, daysOverdue);
 
-            const message = (rule.messageTemplate ?? '')
-              .replace('{{invoice_number}}', row.invoice_number);
+            const message = (rule.messageTemplate ?? "").replace(
+              "{{invoice_number}}",
+              row.invoice_number,
+            );
 
             const payload = {
               invoiceId: row.id,
@@ -660,26 +744,32 @@ export class EventWorker {
               message,
             };
 
-            await this.repos.outbox.publish('dunning_action', row.id, payload);
+            await this.repos.outbox.publish("dunning_action", row.id, payload);
 
             if (this.webhooks && row.organization_id) {
               this.webhooks
-                .deliver(row.organization_id, 'dunning.action', payload)
+                .deliver(row.organization_id, "dunning.action", payload)
                 .catch((err: any) =>
-                  logger.error({ invoiceId: row.id, err: err?.message }, '[DUNNING_WEBHOOK_ERROR]'),
+                  logger.error(
+                    { invoiceId: row.id, err: err?.message },
+                    "[DUNNING_WEBHOOK_ERROR]",
+                  ),
                 );
             }
             fired++;
           } catch (err: any) {
-            if (err?.code === '23505') continue; // unique constraint — already logged
-            logger.error({ ruleId: rule.id, invoiceId: row.id, err: String(err) }, '[DUNNING] Failed rule');
+            if (err?.code === "23505") continue; // unique constraint — already logged
+            logger.error(
+              { ruleId: rule.id, invoiceId: row.id, err: String(err) },
+              "[DUNNING] Failed rule",
+            );
           }
         }
       }
 
       if (fired > 0) logger.info(`📬 Dunning scan fired ${fired} action(s)`);
     } catch (error) {
-      logger.error({ err: String(error) }, '❌ Error in dunning scan');
+      logger.error({ err: String(error) }, "❌ Error in dunning scan");
     } finally {
       this.isScanningDunning = false;
     }

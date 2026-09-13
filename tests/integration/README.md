@@ -11,6 +11,7 @@ tests/integration/run-all.sh
 ```
 
 The runner will:
+
 1. Start the `loopnest-postgres` / `loopnest-redis` containers if stopped and
    wait for them to report healthy.
 2. Build `bizcore-db` and `api` (skip with `SKIP_BUILD=1`).
@@ -25,13 +26,13 @@ SKIP_BUILD=1 tests/integration/run-all.sh rate_limit
 
 ## Suites
 
-| Suite | What it covers |
-|-------|----------------|
-| `e2e_workflow` | Happy path CREATE → SUBMIT → APPROVE → INVOICE |
-| `error_scenarios` | Invalid states (409), missing resources (404), constraint/validation (400) |
-| `concurrency` | Atomic state machine under simultaneous requests (no double-transition) |
-| `idempotency` | `Idempotency-Key` replay, body-conflict (422), in-flight (409), fail-open |
-| `rate_limit` | Sliding-window limiter (60/min workflow bucket), `RateLimit-*` + `Retry-After` headers |
+| Suite             | What it covers                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `e2e_workflow`    | Happy path CREATE → SUBMIT → APPROVE → INVOICE                                         |
+| `error_scenarios` | Invalid states (409), missing resources (404), constraint/validation (400)             |
+| `concurrency`     | Atomic state machine under simultaneous requests (no double-transition)                |
+| `idempotency`     | `Idempotency-Key` replay, body-conflict (422), in-flight (409), fail-open              |
+| `rate_limit`      | Sliding-window limiter (60/min workflow bucket), `RateLimit-*` + `Retry-After` headers |
 
 ## Requirements
 

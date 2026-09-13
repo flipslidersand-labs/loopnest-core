@@ -1,17 +1,17 @@
-import { Request, Response, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
-import { redis } from '@loopnest/bizcore-db';
-import { ApiErrorResponse } from './errorHandler.js';
-import { logger } from '../lib/logger.js';
-import { withRedisTimeout } from './redisTimeout.js';
+import { Request, Response, NextFunction } from "express";
+import { createHash } from "node:crypto";
+import { redis } from "@loopnest/bizcore-db";
+import { ApiErrorResponse } from "./errorHandler.js";
+import { logger } from "../lib/logger.js";
+import { withRedisTimeout } from "./redisTimeout.js";
 
-const IDEMPOTENCY_HEADER = 'idempotency-key';
-const KEY_PREFIX = 'idempotency:';
+const IDEMPOTENCY_HEADER = "idempotency-key";
+const KEY_PREFIX = "idempotency:";
 const TTL_SECONDS = 24 * 60 * 60;
 const IN_FLIGHT_TTL_SECONDS = 60;
 
 interface CachedResponse {
-  status: 'completed' | 'processing';
+  status: "completed" | "processing";
   fingerprint: string;
   statusCode?: number;
   body?: unknown;
@@ -23,7 +23,7 @@ const computeFingerprint = (req: Request): string => {
     path: req.originalUrl,
     body: req.body ?? null,
   });
-  return createHash('sha256').update(payload).digest('hex');
+  return createHash("sha256").update(payload).digest("hex");
 };
 
 /**
@@ -41,7 +41,7 @@ const computeFingerprint = (req: Request): string => {
 export const idempotencyMiddleware = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const rawKey = req.header(IDEMPOTENCY_HEADER);
   if (!rawKey) {
@@ -60,16 +60,16 @@ export const idempotencyMiddleware = (
         if (cached.fingerprint !== fingerprint) {
           throw new ApiErrorResponse(
             422,
-            'IDEMPOTENCY_KEY_CONFLICT',
-            'Idempotency key was reused with a different request body'
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "Idempotency key was reused with a different request body",
           );
         }
 
-        if (cached.status === 'processing') {
+        if (cached.status === "processing") {
           throw new ApiErrorResponse(
             409,
-            'IDEMPOTENCY_IN_FLIGHT',
-            'A previous request with this idempotency key is still in progress'
+            "IDEMPOTENCY_IN_FLIGHT",
+            "A previous request with this idempotency key is still in progress",
           );
         }
 
@@ -77,16 +77,22 @@ export const idempotencyMiddleware = (
         return;
       }
 
-      const placeholder: CachedResponse = { status: 'processing', fingerprint };
+      const placeholder: CachedResponse = { status: "processing", fingerprint };
       const acquired = await withRedisTimeout(
-        redis.set(key, JSON.stringify(placeholder), 'EX', IN_FLIGHT_TTL_SECONDS, 'NX')
+        redis.set(
+          key,
+          JSON.stringify(placeholder),
+          "EX",
+          IN_FLIGHT_TTL_SECONDS,
+          "NX",
+        ),
       );
 
-      if (acquired !== 'OK') {
+      if (acquired !== "OK") {
         throw new ApiErrorResponse(
           409,
-          'IDEMPOTENCY_IN_FLIGHT',
-          'A previous request with this idempotency key is still in progress'
+          "IDEMPOTENCY_IN_FLIGHT",
+          "A previous request with this idempotency key is still in progress",
         );
       }
 
@@ -94,16 +100,22 @@ export const idempotencyMiddleware = (
       res.json = (body: unknown) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           const completed: CachedResponse = {
-            status: 'completed',
+            status: "completed",
             fingerprint,
             statusCode: res.statusCode,
             body,
           };
           redis
-            .set(key, JSON.stringify(completed), 'EX', TTL_SECONDS)
-            .catch((err: unknown) => logger.error({ err, key }, 'idempotency cache write failed'));
+            .set(key, JSON.stringify(completed), "EX", TTL_SECONDS)
+            .catch((err: unknown) =>
+              logger.error({ err, key }, "idempotency cache write failed"),
+            );
         } else {
-          redis.del(key).catch((err: unknown) => logger.error({ err, key }, 'idempotency cache delete failed'));
+          redis
+            .del(key)
+            .catch((err: unknown) =>
+              logger.error({ err, key }, "idempotency cache delete failed"),
+            );
         }
         return originalJson(body);
       };
@@ -118,7 +130,7 @@ export const idempotencyMiddleware = (
       }
       // Any other failure (Redis down/timeout, JSON parse) fails open: process
       // the request without idempotency protection rather than blocking it.
-      logger.error({ err }, 'idempotency check failed, proceeding without it');
+      logger.error({ err }, "idempotency check failed, proceeding without it");
       next();
     });
 };

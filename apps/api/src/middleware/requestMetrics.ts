@@ -1,11 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
-import { randomUUID } from 'node:crypto';
+import { Request, Response, NextFunction } from "express";
+import { randomUUID } from "node:crypto";
 import {
   httpRequestsTotal,
   httpRequestDurationMs,
   httpRequestsInFlight,
-} from '../observability/metrics.js';
-import { logger } from '../lib/logger.js';
+} from "../observability/metrics.js";
+import { logger } from "../lib/logger.js";
 
 const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -16,8 +16,8 @@ const LONG_NUM_RE = /\/\d+(?=\/|$)/g;
  * so the metrics label space stays bounded regardless of traffic.
  */
 export const normalizeRoute = (req: Request): string => {
-  const base = `${req.baseUrl}${req.path}` || req.path || '/';
-  return base.replace(UUID_RE, ':id').replace(LONG_NUM_RE, '/:id');
+  const base = `${req.baseUrl}${req.path}` || req.path || "/";
+  return base.replace(UUID_RE, ":id").replace(LONG_NUM_RE, "/:id");
 };
 
 interface RequestLoggerOptions {
@@ -41,17 +41,16 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const start = process.hrtime.bigint();
     const correlationId =
-      (req.header('x-correlation-id') as string) || randomUUID();
-    res.setHeader('X-Correlation-Id', correlationId);
+      (req.header("x-correlation-id") as string) || randomUUID();
+    res.setHeader("X-Correlation-Id", correlationId);
     (req as Request & { correlationId?: string }).correlationId = correlationId;
 
     httpRequestsInFlight.inc();
 
-    res.on('finish', () => {
+    res.on("finish", () => {
       httpRequestsInFlight.dec();
 
-      const durationMs =
-        Number(process.hrtime.bigint() - start) / 1_000_000;
+      const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
       const route = normalizeRoute(req);
       const status = String(res.statusCode);
       const labels = { method: req.method, route, status };
@@ -60,23 +59,28 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
       httpRequestDurationMs.observe(durationMs, { method: req.method, route });
 
       const line = {
-        level: res.statusCode >= 500 ? 'error' : 'info',
-        msg: 'http_request',
+        level: res.statusCode >= 500 ? "error" : "info",
+        msg: "http_request",
         method: req.method,
         route,
         status: res.statusCode,
         duration_ms: Math.round(durationMs * 100) / 100,
         correlation_id: correlationId,
       };
-      logger[line.level as 'info' | 'error'](
-        { method: line.method, route: line.route, status: line.status, duration_ms: line.duration_ms, correlation_id: line.correlation_id },
-        'http_request'
+      logger[line.level as "info" | "error"](
+        {
+          method: line.method,
+          route: line.route,
+          status: line.status,
+          duration_ms: line.duration_ms,
+          correlation_id: line.correlation_id,
+        },
+        "http_request",
       );
 
       if (Math.random() < sampleRate) {
         const actorId =
-          (req.body && typeof req.body === 'object' && req.body.userId) ||
-          null;
+          (req.body && typeof req.body === "object" && req.body.userId) || null;
         pgPool
           .query(
             `INSERT INTO audit.request_logs
@@ -90,9 +94,9 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
               Math.round(durationMs),
               correlationId,
               actorId,
-            ]
+            ],
           )
-          .catch((err) => logger.error({ err }, 'request_logs insert failed'));
+          .catch((err) => logger.error({ err }, "request_logs insert failed"));
       }
     });
 
