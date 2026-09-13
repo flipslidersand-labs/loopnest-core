@@ -69,46 +69,39 @@ export class WebhookDeliveryRepository {
     const limit  = filter.limit  ?? 20;
     const offset = filter.offset ?? 0;
 
-    const DELIVERY_COLS = COLS.map(
-      (c) => `events.webhook_deliveries.${c}` as any,
-    );
-
-    let q = this.db
-      .selectFrom("events.webhook_deliveries")
-      .innerJoin(
-        "events.webhooks",
-        "events.webhooks.id",
-        "events.webhook_deliveries.webhook_id",
-      )
-      .select(DELIVERY_COLS);
-    if (filter.webhookId)
-      q = q.where("events.webhook_deliveries.webhook_id", "=", filter.webhookId);
-    if (filter.organizationId)
-      q = q.where("events.webhooks.organization_id", "=", filter.organizationId);
-    if (filter.status)
-      q = q.where("events.webhook_deliveries.status", "=", filter.status);
-    if (filter.eventType)
-      q = q.where("events.webhook_deliveries.event_type", "=", filter.eventType);
+    let q = this.db.selectFrom("events.webhook_deliveries").select(COLS);
+    if (filter.webhookId) q = q.where("webhook_id", "=", filter.webhookId);
+    if (filter.status) q = q.where("status", "=", filter.status);
+    if (filter.eventType) q = q.where("event_type", "=", filter.eventType);
+    if (filter.organizationId) {
+      // Restrict to deliveries whose webhook belongs to this org
+      const orgId = filter.organizationId;
+      q = q.where("webhook_id", "in", (eb) =>
+        (eb as any)
+          .selectFrom("events.webhooks")
+          .select("id")
+          .where("organization_id", "=", orgId),
+      );
+    }
 
     let cq = this.db
       .selectFrom("events.webhook_deliveries")
-      .innerJoin(
-        "events.webhooks",
-        "events.webhooks.id",
-        "events.webhook_deliveries.webhook_id",
-      )
       .select((eb) => eb.fn.countAll<string>().as("cnt"));
-    if (filter.webhookId)
-      cq = cq.where("events.webhook_deliveries.webhook_id", "=", filter.webhookId);
-    if (filter.organizationId)
-      cq = cq.where("events.webhooks.organization_id", "=", filter.organizationId);
-    if (filter.status)
-      cq = cq.where("events.webhook_deliveries.status", "=", filter.status);
-    if (filter.eventType)
-      cq = cq.where("events.webhook_deliveries.event_type", "=", filter.eventType);
+    if (filter.webhookId) cq = cq.where("webhook_id", "=", filter.webhookId);
+    if (filter.status) cq = cq.where("status", "=", filter.status);
+    if (filter.eventType) cq = cq.where("event_type", "=", filter.eventType);
+    if (filter.organizationId) {
+      const orgId = filter.organizationId;
+      cq = cq.where("webhook_id", "in", (eb) =>
+        (eb as any)
+          .selectFrom("events.webhooks")
+          .select("id")
+          .where("organization_id", "=", orgId),
+      );
+    }
 
     const [rows, countRow] = await Promise.all([
-      q.orderBy("events.webhook_deliveries.delivered_at", "desc").limit(limit).offset(offset).execute(),
+      q.orderBy("delivered_at", "desc").limit(limit).offset(offset).execute(),
       cq.executeTakeFirst(),
     ]);
 
