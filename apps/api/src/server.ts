@@ -213,6 +213,14 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     logger.info({ port: PORT }, 'API server started');
   });
 
+  // Surface listen-time failures (e.g. EADDRINUSE, invalid PORT) through the
+  // logger before exiting, instead of letting them throw as an uncaught
+  // exception with a raw stack trace.
+  server.on('error', (err: Error) => {
+    logger.fatal({ err }, 'server listen error');
+    process.exit(1);
+  });
+
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, shutting down`);
@@ -228,4 +236,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+}).catch((err: unknown) => {
+  logger.fatal({ err }, 'failed to start API server');
+  process.exit(1);
 });
