@@ -477,9 +477,7 @@ export class CreditNoteService {
     });
   }
 
-  async getCreditNote(
-    creditNoteId: string,
-  ): Promise<{
+  async getCreditNote(creditNoteId: string): Promise<{
     creditNote: CreditNoteRecord;
     balance: CreditNoteBalance;
     applications: CreditNoteApplicationRecord[];
