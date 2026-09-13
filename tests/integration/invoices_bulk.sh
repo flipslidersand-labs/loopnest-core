@@ -90,10 +90,10 @@ CSV_FILTERED=$(curl -s "$BASE_URL/invoices/export?status=cancelled")
 check "export: filtered CSV has header" "true" "$(echo "$CSV_FILTERED" | head -1 | grep -q 'id,number,customer_id' && echo true || echo false)"
 check "export: cancelled row present" "true" "$(echo "$CSV_FILTERED" | grep -q 'cancelled' && echo true || echo false)"
 
-# RBAC: viewer role must be denied
+# RBAC: viewer role must be denied (use command curl to bypass lib.sh AUTH_TOKEN injection)
 DIR="$(dirname "$0")"
 VIEWER_TOKEN=$(node "$DIR/gen-token.mjs" bulk-viewer viewer 300)
-VIEWER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+VIEWER_STATUS=$(command curl -s -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer $VIEWER_TOKEN" "$BASE_URL/invoices/export")
 check "export: viewer role → 403" "403" "$VIEWER_STATUS"
 
