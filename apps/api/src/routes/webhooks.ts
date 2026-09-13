@@ -42,13 +42,17 @@ function validateWebhookUrl(raw: string): void {
       "url must use http or https scheme",
     );
   }
-  const host = parsed.hostname;
-  if (PRIVATE_IP_RE.test(host)) {
-    throw new ApiErrorResponse(
-      400,
-      "VALIDATION_ERROR",
-      "url must not point to a private or loopback address",
-    );
+  // ALLOW_PRIVATE_WEBHOOK_URLS=1 disables the SSRF check in integration tests
+  // where the mock webhook receiver runs on localhost. Never set in production.
+  if (process.env.ALLOW_PRIVATE_WEBHOOK_URLS !== "1") {
+    const host = parsed.hostname;
+    if (PRIVATE_IP_RE.test(host)) {
+      throw new ApiErrorResponse(
+        400,
+        "VALIDATION_ERROR",
+        "url must not point to a private or loopback address",
+      );
+    }
   }
 }
 
