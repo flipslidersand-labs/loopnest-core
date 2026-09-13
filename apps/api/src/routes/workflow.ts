@@ -1,26 +1,34 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import { ServiceContainer } from '../services/index.js';
-import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
-import { RepositoryContainer } from '@loopnest/bizcore-db';
-import { parseLimit } from '../lib/pagination.js';
+import { Router, Request, Response, NextFunction } from "express";
+import { ServiceContainer } from "../services/index.js";
+import { asyncHandler, ApiErrorResponse } from "../middleware/errorHandler.js";
+import { requireRole } from "../middleware/auth.js";
+import { RepositoryContainer } from "@loopnest/bizcore-db";
+import { parseLimit } from "../lib/pagination.js";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const validateQuoteId = (id: string): void => {
-  if (!UUID_RE.test(id)) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+  if (!UUID_RE.test(id))
+    throw new ApiErrorResponse(404, "NOT_FOUND", "Quote not found");
 };
 
-export function workflowRoutes(services: ServiceContainer, repos: RepositoryContainer) {
+export function workflowRoutes(
+  services: ServiceContainer,
+  repos: RepositoryContainer,
+) {
   // Webhook delivery is fire-and-forget; errors are swallowed inside the service.
   const wh = services.webhooks;
   const router = Router();
 
   // Guard: if the caller has an orgId, the quote must belong to that org.
-  const assertOrgOwnsQuote = async (quoteId: string, orgId?: string): Promise<void> => {
+  const assertOrgOwnsQuote = async (
+    quoteId: string,
+    orgId?: string,
+  ): Promise<void> => {
     if (!orgId) return;
     const q = await repos.quotes.findById(quoteId, orgId);
-    if (!q) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
+    if (!q) throw new ApiErrorResponse(404, "NOT_FOUND", "Quote not found");
   };
 
   /**
@@ -32,10 +40,14 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
    */
   const resolveActor = (req: Request): string => {
     const bodyUserId = req.body?.userId as string | undefined;
-    const jwtSub = req.user?.sub ?? 'system';
+    const jwtSub = req.user?.sub ?? "system";
     if (!bodyUserId || bodyUserId === jwtSub) return jwtSub;
-    if (req.user?.role !== 'admin') {
-      throw new ApiErrorResponse(403, 'FORBIDDEN', 'Cannot act as another user');
+    if (req.user?.role !== "admin") {
+      throw new ApiErrorResponse(
+        403,
+        "FORBIDDEN",
+        "Cannot act as another user",
+      );
     }
     return bodyUserId; // admin delegation
   };
@@ -43,52 +55,76 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
   // ── Quote state machine ──────────────────────────────────────────────────
 
   router.post(
-    '/quotes/:id/submit',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/submit",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const actorId = resolveActor(req);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await services.quotes.submitForApproval(req.params.id, actorId);
+      const quote = await services.quotes.submitForApproval(
+        req.params.id,
+        actorId,
+      );
       await services.audit.logQuoteSubmitted(req.params.id, actorId);
-      wh.deliver(req.user?.orgId, 'quote.submitted', { quoteId: req.params.id, userId: actorId, status: 'pending_approval' });
-      res.json({ data: quote, message: 'Quote submitted for approval' });
-    })
+      wh.deliver(req.user?.orgId, "quote.submitted", {
+        quoteId: req.params.id,
+        userId: actorId,
+        status: "pending_approval",
+      });
+      res.json({ data: quote, message: "Quote submitted for approval" });
+    }),
   );
 
   router.post(
-    '/quotes/:id/approve',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/approve",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const actorId = resolveActor(req);
       const { notes } = req.body;
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await services.quotes.approve(req.params.id, actorId, notes);
+      const quote = await services.quotes.approve(
+        req.params.id,
+        actorId,
+        notes,
+      );
       await services.audit.logQuoteApproved(req.params.id, actorId);
-      wh.deliver(req.user?.orgId, 'quote.approved', { quoteId: req.params.id, userId: actorId, status: 'approved' });
-      res.json({ data: quote, message: 'Quote approved' });
-    })
+      wh.deliver(req.user?.orgId, "quote.approved", {
+        quoteId: req.params.id,
+        userId: actorId,
+        status: "approved",
+      });
+      res.json({ data: quote, message: "Quote approved" });
+    }),
   );
 
   router.post(
-    '/quotes/:id/reject',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/reject",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const actorId = resolveActor(req);
       const { reason } = req.body;
-      if (!reason) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
+      if (!reason)
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "reason is required",
+        );
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await services.quotes.reject(req.params.id, actorId, reason);
+      const quote = await services.quotes.reject(
+        req.params.id,
+        actorId,
+        reason,
+      );
       await services.audit.logQuoteRejected(req.params.id, actorId, reason);
-      res.json({ data: quote, message: 'Quote rejected' });
-    })
+      res.json({ data: quote, message: "Quote rejected" });
+    }),
   );
 
   router.post(
-    '/quotes/:id/invoice',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/invoice",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const actorId = resolveActor(req);
@@ -96,216 +132,297 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       // Pre-check credit limit before the atomic status transition so a rejection
       // does not strand the quote in 'invoiced' status with no actual invoice.
       await services.invoices.assertCreditAllows(req.params.id);
-      const quote = await services.quotes.convertToInvoice(req.params.id, actorId);
-      const invoiceResult = await services.invoices.createFromQuote(req.params.id, actorId);
-      await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, actorId);
-      wh.deliver(req.user?.orgId, 'invoice.created', { invoiceId: invoiceResult.invoiceId, quoteId: req.params.id, totalAmount: invoiceResult.totalAmount });
-      res.json({ data: { quote, invoice: invoiceResult }, message: 'Invoice created from approved quote' });
-    })
+      const quote = await services.quotes.convertToInvoice(
+        req.params.id,
+        actorId,
+      );
+      const invoiceResult = await services.invoices.createFromQuote(
+        req.params.id,
+        actorId,
+      );
+      await services.audit.logInvoiceCreated(
+        invoiceResult.invoiceId,
+        req.params.id,
+        actorId,
+      );
+      wh.deliver(req.user?.orgId, "invoice.created", {
+        invoiceId: invoiceResult.invoiceId,
+        quoteId: req.params.id,
+        totalAmount: invoiceResult.totalAmount,
+      });
+      res.json({
+        data: { quote, invoice: invoiceResult },
+        message: "Invoice created from approved quote",
+      });
+    }),
   );
 
   router.get(
-    '/quotes/:id/status',
+    "/quotes/:id/status",
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const status = await services.quotes.getWorkflowStatus(req.params.id);
       res.json({ data: status });
-    })
+    }),
   );
 
   router.get(
-    '/quotes/stage/draft',
+    "/quotes/stage/draft",
     asyncHandler(async (req: Request, res: Response) => {
       const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getDraftQuotes(limit);
-      res.json({ data: quotes, stage: 'draft' });
-    })
+      res.json({ data: quotes, stage: "draft" });
+    }),
   );
 
   router.get(
-    '/quotes/stage/pending-approval',
+    "/quotes/stage/pending-approval",
     asyncHandler(async (req: Request, res: Response) => {
       const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getPendingApprovalQuotes(limit);
-      res.json({ data: quotes, stage: 'pending_approval' });
-    })
+      res.json({ data: quotes, stage: "pending_approval" });
+    }),
   );
 
   router.get(
-    '/quotes/stage/approved',
+    "/quotes/stage/approved",
     asyncHandler(async (req: Request, res: Response) => {
       const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getApprovedQuotes(limit);
-      res.json({ data: quotes, stage: 'approved' });
-    })
+      res.json({ data: quotes, stage: "approved" });
+    }),
   );
 
   router.get(
-    '/quotes/stage/invoiced',
+    "/quotes/stage/invoiced",
     asyncHandler(async (req: Request, res: Response) => {
       const limit = parseLimit(req.query, { default: 10 });
       const quotes = await services.quotes.getInvoicedQuotes(limit);
-      res.json({ data: quotes, stage: 'invoiced' });
-    })
+      res.json({ data: quotes, stage: "invoiced" });
+    }),
   );
 
   // ── Approval workflow ────────────────────────────────────────────────────
 
   router.post(
-    '/approvals',
-    requireRole('editor', 'admin'),
+    "/approvals",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const { quoteId, approverUserIds } = req.body;
       if (!quoteId || !approverUserIds || !Array.isArray(approverUserIds)) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'quoteId and approverUserIds (array) are required');
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "quoteId and approverUserIds (array) are required",
+        );
       }
-      const approval = await services.approvals.createApprovalRequest(quoteId, approverUserIds);
-      res.status(201).json({ data: approval, message: 'Approval request created' });
-    })
+      const approval = await services.approvals.createApprovalRequest(
+        quoteId,
+        approverUserIds,
+      );
+      res
+        .status(201)
+        .json({ data: approval, message: "Approval request created" });
+    }),
   );
 
   router.post(
-    '/approvals/:requestId/steps/:stepId/approve',
-    requireRole('editor', 'admin'),
+    "/approvals/:requestId/steps/:stepId/approve",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const actorId = resolveActor(req);
       const { notes } = req.body;
-      const step = await services.approvals.approveStep(req.params.requestId, req.params.stepId, actorId, notes);
-      res.json({ data: step, message: 'Approval step approved' });
-    })
+      const step = await services.approvals.approveStep(
+        req.params.requestId,
+        req.params.stepId,
+        actorId,
+        notes,
+      );
+      res.json({ data: step, message: "Approval step approved" });
+    }),
   );
 
   router.post(
-    '/approvals/:requestId/steps/:stepId/reject',
-    requireRole('editor', 'admin'),
+    "/approvals/:requestId/steps/:stepId/reject",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const actorId = resolveActor(req);
       const { reason } = req.body;
-      if (!reason) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'reason is required');
-      const step = await services.approvals.rejectStep(req.params.requestId, req.params.stepId, actorId, reason);
-      res.json({ data: step, message: 'Approval step rejected' });
-    })
+      if (!reason)
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "reason is required",
+        );
+      const step = await services.approvals.rejectStep(
+        req.params.requestId,
+        req.params.stepId,
+        actorId,
+        reason,
+      );
+      res.json({ data: step, message: "Approval step rejected" });
+    }),
   );
 
   router.post(
-    '/approvals/:requestId/cancel',
-    requireRole('editor', 'admin'),
+    "/approvals/:requestId/cancel",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const actorId = resolveActor(req);
-      await services.approvals.cancelApprovalRequest(req.params.requestId, actorId);
-      res.json({ message: 'Approval request cancelled' });
-    })
+      await services.approvals.cancelApprovalRequest(
+        req.params.requestId,
+        actorId,
+      );
+      res.json({ message: "Approval request cancelled" });
+    }),
   );
 
   router.get(
-    '/approvals/quote/:quoteId/status',
+    "/approvals/quote/:quoteId/status",
     asyncHandler(async (req: Request, res: Response) => {
-      const status = await services.approvals.getApprovalStatus(req.params.quoteId);
+      const status = await services.approvals.getApprovalStatus(
+        req.params.quoteId,
+      );
       res.json({ data: status });
-    })
+    }),
   );
 
   router.get(
-    '/approvals/user/:userId',
+    "/approvals/user/:userId",
     asyncHandler(async (req: Request, res: Response) => {
-      const approvals = await services.approvals.getPendingApprovalsForUser(req.params.userId);
+      const approvals = await services.approvals.getPendingApprovalsForUser(
+        req.params.userId,
+      );
       res.json({ data: approvals, count: approvals.length });
-    })
+    }),
   );
 
   // ── Invoice lifecycle ────────────────────────────────────────────────────
 
-  const requireInvoice = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
-    const inv = await repos.invoices.findById(req.params.id);
-    if (!inv) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
-    next();
-  });
+  const requireInvoice = asyncHandler(
+    async (req: Request, _res: Response, next: NextFunction) => {
+      const inv = await repos.invoices.findById(req.params.id);
+      if (!inv)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
+      next();
+    },
+  );
 
   // issued → sent
   router.post(
-    '/invoices/:id/send',
-    requireRole('editor', 'admin'),
+    "/invoices/:id/send",
+    requireRole("editor", "admin"),
     requireInvoice,
     asyncHandler(async (req: Request, res: Response) => {
       const invoice = await repos.invoices.markSent(req.params.id);
       if (!invoice) {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice must be in issued status to mark as sent');
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Invoice must be in issued status to mark as sent",
+        );
       }
-      res.json({ data: invoice, message: 'Invoice marked as sent' });
-    })
+      res.json({ data: invoice, message: "Invoice marked as sent" });
+    }),
   );
 
   // issued | sent → paid
   router.post(
-    '/invoices/:id/mark-paid',
-    requireRole('editor', 'admin'),
+    "/invoices/:id/mark-paid",
+    requireRole("editor", "admin"),
     requireInvoice,
     asyncHandler(async (req: Request, res: Response) => {
       const paidAt = req.body.paidAt ? new Date(req.body.paidAt) : new Date();
       const invoice = await repos.invoices.markPaid(req.params.id, paidAt);
       if (!invoice) {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice must be issued or sent to mark as paid');
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Invoice must be issued or sent to mark as paid",
+        );
       }
-      await services.audit.logInvoiceMarkedPaid(req.params.id, req.user?.sub ?? 'system', paidAt);
-      res.json({ data: invoice, message: 'Invoice marked as paid' });
-    })
+      await services.audit.logInvoiceMarkedPaid(
+        req.params.id,
+        req.user?.sub ?? "system",
+        paidAt,
+      );
+      res.json({ data: invoice, message: "Invoice marked as paid" });
+    }),
   );
 
   // ── Discount management ─────────────────────────────────────────────────
 
   // Apply (or update) a discount on a quote (draft/pending_approval only).
   router.post(
-    '/quotes/:id/discount',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/discount",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const { discountType, discountValue } = req.body;
-      if (!discountType || !['percentage', 'fixed'].includes(discountType)) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountType must be "percentage" or "fixed"');
+      if (!discountType || !["percentage", "fixed"].includes(discountType)) {
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          'discountType must be "percentage" or "fixed"',
+        );
       }
       const value = Number(discountValue);
       if (!Number.isFinite(value) || value < 0) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'discountValue must be a non-negative number');
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "discountValue must be a non-negative number",
+        );
       }
-      if (discountType === 'percentage' && value > 100) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'Percentage discount cannot exceed 100');
+      if (discountType === "percentage" && value > 100) {
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "Percentage discount cannot exceed 100",
+        );
       }
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
-      const quote = await repos.quotes.applyDiscount(req.params.id, discountType, value);
-      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-      res.json({ data: quote, message: 'Discount applied' });
-    })
+      const quote = await repos.quotes.applyDiscount(
+        req.params.id,
+        discountType,
+        value,
+      );
+      if (!quote)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Quote not found");
+      res.json({ data: quote, message: "Discount applied" });
+    }),
   );
 
   // Remove discount from a quote.
   router.delete(
-    '/quotes/:id/discount',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/discount",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await repos.quotes.clearDiscount(req.params.id);
-      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-      res.json({ data: quote, message: 'Discount removed' });
-    })
+      if (!quote)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Quote not found");
+      res.json({ data: quote, message: "Discount removed" });
+    }),
   );
 
   // ── Quote expiry ─────────────────────────────────────────────────────────
 
   // List quotes expiring within N days (default 7). Useful for dashboard warnings.
   router.get(
-    '/quotes/expiring-soon',
+    "/quotes/expiring-soon",
     asyncHandler(async (req: Request, res: Response) => {
       const days = Math.min(Number(req.query.days) || 7, 90);
       const quotes = await repos.quotes.findExpiringSoon(days, req.user?.orgId);
       res.json({ data: quotes, meta: { days, count: quotes.length } });
-    })
+    }),
   );
 
   // Set (or clear) the expiry date on a quote. Only editor/admin; any status allowed.
   router.patch(
-    '/quotes/:id/expiry',
-    requireRole('editor', 'admin'),
+    "/quotes/:id/expiry",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       validateQuoteId(req.params.id);
       const { expiresAt } = req.body;
@@ -313,32 +430,53 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (expiresAt !== null && expiresAt !== undefined) {
         date = new Date(expiresAt);
         if (isNaN(date.getTime())) {
-          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'expiresAt must be a valid ISO 8601 date string or null');
+          throw new ApiErrorResponse(
+            400,
+            "VALIDATION_ERROR",
+            "expiresAt must be a valid ISO 8601 date string or null",
+          );
         }
         if (date <= new Date()) {
-          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'expiresAt must be a future date');
+          throw new ApiErrorResponse(
+            400,
+            "VALIDATION_ERROR",
+            "expiresAt must be a future date",
+          );
         }
       }
       await assertOrgOwnsQuote(req.params.id, req.user?.orgId);
       const quote = await repos.quotes.setExpiry(req.params.id, date);
-      if (!quote) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
-      res.json({ data: quote, message: date ? `Expiry set to ${date.toISOString()}` : 'Expiry cleared' });
-    })
+      if (!quote)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Quote not found");
+      res.json({
+        data: quote,
+        message: date
+          ? `Expiry set to ${date.toISOString()}`
+          : "Expiry cleared",
+      });
+    }),
   );
 
   // issued | sent → cancelled (admin only)
   router.post(
-    '/invoices/:id/cancel',
-    requireRole('admin'),
+    "/invoices/:id/cancel",
+    requireRole("admin"),
     requireInvoice,
     asyncHandler(async (req: Request, res: Response) => {
       const invoice = await repos.invoices.cancelInvoice(req.params.id);
       if (!invoice) {
-        throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Only issued or sent invoices can be cancelled');
+        throw new ApiErrorResponse(
+          409,
+          "INVALID_STATUS",
+          "Only issued or sent invoices can be cancelled",
+        );
       }
-      await services.audit.logInvoiceCancelled(req.params.id, req.user?.sub ?? 'system');
-      res.json({ data: invoice, message: 'Invoice cancelled' });
-    })
+      await services.audit.logInvoiceCancelled(
+        req.params.id,
+        req.user?.sub ?? "system",
+      );
+      res.json({ data: invoice, message: "Invoice cancelled" });
+    }),
   );
 
   // ── Quote template apply ─────────────────────────────────────────────────
@@ -349,27 +487,40 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
    * Returns the new quote with all items populated.
    */
   router.post(
-    '/quote-templates/:id/apply',
-    requireRole('editor', 'admin'),
+    "/quote-templates/:id/apply",
+    requireRole("editor", "admin"),
     asyncHandler(async (req: Request, res: Response) => {
       const { customerId, notes } = req.body;
       if (!customerId || !UUID_RE.test(customerId)) {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'customerId (UUID) is required');
+        throw new ApiErrorResponse(
+          400,
+          "VALIDATION_ERROR",
+          "customerId (UUID) is required",
+        );
       }
 
-      const template = await repos.quoteTemplates.findById(req.params.id, req.user?.orgId);
-      if (!template) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Template not found');
+      const template = await repos.quoteTemplates.findById(
+        req.params.id,
+        req.user?.orgId,
+      );
+      if (!template)
+        throw new ApiErrorResponse(404, "NOT_FOUND", "Template not found");
       if (template.items.length === 0) {
-        throw new ApiErrorResponse(422, 'EMPTY_TEMPLATE', 'Template has no items');
+        throw new ApiErrorResponse(
+          422,
+          "EMPTY_TEMPLATE",
+          "Template has no items",
+        );
       }
 
       const quoteNumber = await repos.quoteTemplates.nextQuoteNumber();
-      const userId = req.user?.sub ?? 'system';
+      const userId = req.user?.sub ?? "system";
 
       // Compute subtotal from template items.
       const subtotal = template.items.reduce(
-        (sum, item) => sum + Math.round(item.quantity * item.unitPrice * 100) / 100,
-        0
+        (sum, item) =>
+          sum + Math.round(item.quantity * item.unitPrice * 100) / 100,
+        0,
       );
       const taxAmount = Math.round(subtotal * 0.1 * 100) / 100;
       const totalAmount = subtotal + taxAmount;
@@ -382,7 +533,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
         subtotalAmount: subtotal,
         taxAmount,
         totalAmount,
-        status: 'draft',
+        status: "draft",
         notes: notes ?? `Generated from template: ${template.name}`,
         organizationId: req.user?.orgId,
         createdBy: userId,
@@ -403,7 +554,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
         data: { ...quote, items: createdItems },
         message: `Quote ${quoteNumber} created from template "${template.name}"`,
       });
-    })
+    }),
   );
 
   return router;

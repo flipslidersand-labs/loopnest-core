@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { logger } from '../lib/logger.js';
+import { Request, Response, NextFunction } from "express";
+import { logger } from "../lib/logger.js";
 
 export interface ApiError extends Error {
   statusCode?: number;
@@ -10,10 +10,10 @@ export class ApiErrorResponse extends Error {
   constructor(
     public statusCode: number,
     public code: string,
-    message: string
+    message: string,
   ) {
     super(message);
-    this.name = 'ApiErrorResponse';
+    this.name = "ApiErrorResponse";
   }
 }
 
@@ -21,9 +21,9 @@ export const errorHandler = (
   err: ApiError & { name?: string },
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
-  logger.error({ err }, 'request error');
+  logger.error({ err }, "request error");
 
   if (err instanceof ApiErrorResponse) {
     return res.status(err.statusCode).json({
@@ -37,7 +37,7 @@ export const errorHandler = (
   if (err.statusCode) {
     return res.status(err.statusCode).json({
       error: {
-        code: err.code || 'INTERNAL_ERROR',
+        code: err.code || "INTERNAL_ERROR",
         message: err.message,
       },
     });
@@ -47,45 +47,85 @@ export const errorHandler = (
   const pgCode = (err as any)?.code as string | undefined;
   if (pgCode?.length === 5) {
     switch (pgCode) {
-      case '23503': // foreign_key_violation
-        return res.status(400).json({ error: { code: 'INVALID_REFERENCE', message: 'Referenced resource does not exist' } });
-      case '23505': // unique_violation
-        return res.status(409).json({ error: { code: 'DUPLICATE_ENTRY', message: 'A record with this value already exists' } });
-      case '22P02': // invalid_text_representation (e.g. invalid UUID format)
-        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } });
+      case "23503": // foreign_key_violation
+        return res
+          .status(400)
+          .json({
+            error: {
+              code: "INVALID_REFERENCE",
+              message: "Referenced resource does not exist",
+            },
+          });
+      case "23505": // unique_violation
+        return res
+          .status(409)
+          .json({
+            error: {
+              code: "DUPLICATE_ENTRY",
+              message: "A record with this value already exists",
+            },
+          });
+      case "22P02": // invalid_text_representation (e.g. invalid UUID format)
+        return res
+          .status(400)
+          .json({
+            error: { code: "VALIDATION_ERROR", message: "Invalid ID format" },
+          });
     }
   }
 
   // Prisma known request errors (kept for any remaining Prisma usage paths)
-  if (err?.name === 'PrismaClientKnownRequestError') {
+  if (err?.name === "PrismaClientKnownRequestError") {
     switch (err.code) {
-      case 'P2025':
-        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Record not found' } });
-      case 'P2002':
-        return res.status(409).json({ error: { code: 'DUPLICATE_ENTRY', message: 'A record with this value already exists' } });
-      case 'P2003':
-        return res.status(400).json({ error: { code: 'INVALID_REFERENCE', message: 'Referenced resource does not exist' } });
-      case 'P2022':
-      case 'P2016':
-      case 'P2018':
-      case 'P2014':
-        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
-      case 'P2023':
-        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } });
+      case "P2025":
+        return res
+          .status(404)
+          .json({ error: { code: "NOT_FOUND", message: "Record not found" } });
+      case "P2002":
+        return res
+          .status(409)
+          .json({
+            error: {
+              code: "DUPLICATE_ENTRY",
+              message: "A record with this value already exists",
+            },
+          });
+      case "P2003":
+        return res
+          .status(400)
+          .json({
+            error: {
+              code: "INVALID_REFERENCE",
+              message: "Referenced resource does not exist",
+            },
+          });
+      case "P2022":
+      case "P2016":
+      case "P2018":
+      case "P2014":
+        return res
+          .status(400)
+          .json({ error: { code: "VALIDATION_ERROR", message: err.message } });
+      case "P2023":
+        return res
+          .status(400)
+          .json({
+            error: { code: "VALIDATION_ERROR", message: "Invalid ID format" },
+          });
     }
   }
 
   // Default error
   res.status(500).json({
     error: {
-      code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
+      code: "INTERNAL_ERROR",
+      message: "An unexpected error occurred",
     },
   });
 };
 
 export const asyncHandler = (
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
 ) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);

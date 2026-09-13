@@ -18,8 +18,8 @@ export interface InvoiceAgingStats {
 
 export interface DashboardSummary {
   totalCustomers: number;
-  activeQuotes: number;       // draft + pending_approval
-  outstandingAmount: number;  // issued + sent invoices
+  activeQuotes: number; // draft + pending_approval
+  outstandingAmount: number; // issued + sent invoices
   paidThisMonth: number;
 }
 
@@ -28,18 +28,18 @@ export interface AccountsReceivableReport {
   totalOutstanding: number;
   buckets: {
     current: number; // 0–30 days past due
-    '31-60': number;
-    '61-90': number;
-    '90+': number;
+    "31-60": number;
+    "61-90": number;
+    "90+": number;
   };
   byCustomer: Array<{ customerId: string; outstanding: number }>;
 }
 
 export interface MonthlySummary {
   month: string; // YYYY-MM
-  grossRevenue: number;     // subtotal (excl. tax) from invoices issued this month
-  taxAmount: number;        // tax from invoices issued this month
-  totalBilled: number;      // grossRevenue + taxAmount
+  grossRevenue: number; // subtotal (excl. tax) from invoices issued this month
+  taxAmount: number; // tax from invoices issued this month
+  totalBilled: number; // grossRevenue + taxAmount
   paymentsReceived: number; // confirmed payments with paid_on in this month
   outstandingBalance: number; // open invoices as of month-end
   invoiceCount: number;
@@ -47,7 +47,7 @@ export interface MonthlySummary {
 }
 
 export interface CashFlowPeriod {
-  date: string;         // ISO date YYYY-MM-DD
+  date: string; // ISO date YYYY-MM-DD
   paymentsReceived: number;
   paymentCount: number;
 }
@@ -59,16 +59,18 @@ export interface RevenueByCustomer {
   totalRevenue: number; // sum of total_amount on paid invoices
 }
 
-import { sql, type Kysely } from 'kysely';
-import type { KyselyDatabase } from '@loopnest/bizcore-db';
+import { sql, type Kysely } from "kysely";
+import type { KyselyDatabase } from "@loopnest/bizcore-db";
 
 export class ReportingService {
   constructor(private readonly kyselyDb: Kysely<KyselyDatabase>) {}
 
   async getSummary(orgId?: string): Promise<DashboardSummary> {
     const orgQuoteFilter = orgId ? sql`AND organization_id = ${orgId}` : sql``;
-    const orgJoin       = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
-    const orgInvFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+    const orgJoin = orgId
+      ? sql`JOIN core.quotes q ON q.id = i.quote_id`
+      : sql``;
+    const orgInvFilter = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
     const [custR, activeR, outstandingR, paidR] = await Promise.all([
       sql<{ count: string }>`
@@ -101,31 +103,37 @@ export class ReportingService {
     ]);
 
     return {
-      totalCustomers:    Number.parseInt(custR.rows[0].count, 10),
-      activeQuotes:      Number.parseInt(activeR.rows[0].count, 10),
+      totalCustomers: Number.parseInt(custR.rows[0].count, 10),
+      activeQuotes: Number.parseInt(activeR.rows[0].count, 10),
       outstandingAmount: Number.parseFloat(outstandingR.rows[0].total),
-      paidThisMonth:     Number.parseFloat(paidR.rows[0].total),
+      paidThisMonth: Number.parseFloat(paidR.rows[0].total),
     };
   }
 
   async getRevenue(
-    period: 'day' | 'week' | 'month' | 'quarter' | 'year' = 'month',
+    period: "day" | "week" | "month" | "quarter" | "year" = "month",
     dateFrom?: string,
     dateTo?: string,
-    orgId?: string
+    orgId?: string,
   ): Promise<RevenuePeriod[]> {
-    const VALID_PERIODS = new Set(['day', 'week', 'month', 'quarter', 'year']);
-    const safePeriod = VALID_PERIODS.has(period) ? period : 'month';
+    const VALID_PERIODS = new Set(["day", "week", "month", "quarter", "year"]);
+    const safePeriod = VALID_PERIODS.has(period) ? period : "month";
 
     const conditions: ReturnType<typeof sql>[] = [sql`i.status = 'paid'`];
     if (dateFrom) conditions.push(sql`i.paid_at >= ${dateFrom}::timestamptz`);
-    if (dateTo)   conditions.push(sql`i.paid_at <= ${dateTo}::timestamptz`);
-    if (orgId)    conditions.push(sql`q.organization_id = ${orgId}`);
+    if (dateTo) conditions.push(sql`i.paid_at <= ${dateTo}::timestamptz`);
+    if (orgId) conditions.push(sql`q.organization_id = ${orgId}`);
 
-    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
+    const joinClause = orgId
+      ? sql`JOIN core.quotes q ON q.id = i.quote_id`
+      : sql``;
     const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
-    interface RevenueRow { period: Date | string; invoice_count: string; revenue: string; }
+    interface RevenueRow {
+      period: Date | string;
+      invoice_count: string;
+      revenue: string;
+    }
     const result = await sql<RevenueRow>`
       SELECT
         date_trunc(${safePeriod}, i.paid_at) AS period,
@@ -139,16 +147,20 @@ export class ReportingService {
     `.execute(this.kyselyDb);
 
     return result.rows.map((r) => ({
-      period:       r.period instanceof Date ? r.period.toISOString() : String(r.period),
+      period:
+        r.period instanceof Date ? r.period.toISOString() : String(r.period),
       invoiceCount: Number.parseInt(r.invoice_count, 10),
-      revenue:      Number.parseFloat(r.revenue),
+      revenue: Number.parseFloat(r.revenue),
     }));
   }
 
   async getQuotePipeline(orgId?: string): Promise<QuotePipelineStats> {
     const orgFilter = orgId ? sql`WHERE organization_id = ${orgId}` : sql``;
 
-    interface PipelineRow { status: string; count: string; }
+    interface PipelineRow {
+      status: string;
+      count: string;
+    }
     const result = await sql<PipelineRow>`
       SELECT status, COUNT(*) AS count
       FROM core.quotes
@@ -163,20 +175,33 @@ export class ReportingService {
       total += byStatus[row.status];
     }
 
-    const submitted = (byStatus.pending_approval ?? 0) + (byStatus.approved ?? 0)
-                    + (byStatus.rejected ?? 0) + (byStatus.invoiced ?? 0);
+    const submitted =
+      (byStatus.pending_approval ?? 0) +
+      (byStatus.approved ?? 0) +
+      (byStatus.rejected ?? 0) +
+      (byStatus.invoiced ?? 0);
     const converted = (byStatus.approved ?? 0) + (byStatus.invoiced ?? 0);
-    const conversionRate = submitted > 0 ? Math.round((converted / submitted) * 10000) / 100 : 0;
+    const conversionRate =
+      submitted > 0 ? Math.round((converted / submitted) * 10000) / 100 : 0;
 
     return { byStatus, total, conversionRate };
   }
 
   async getInvoiceAging(orgId?: string): Promise<InvoiceAgingStats> {
-    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
-    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+    const joinClause = orgId
+      ? sql`JOIN core.quotes q ON q.id = i.quote_id`
+      : sql``;
+    const orgFilter = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
-    interface AgingRow { status: string; count: string; total_amount: string; }
-    interface OverdueRow { count: string; total_amount: string; }
+    interface AgingRow {
+      status: string;
+      count: string;
+      total_amount: string;
+    }
+    interface OverdueRow {
+      count: string;
+      total_amount: string;
+    }
 
     const [statusR, overdueR] = await Promise.all([
       sql<AgingRow>`
@@ -200,22 +225,27 @@ export class ReportingService {
     const byStatus: Record<string, { count: number; totalAmount: number }> = {};
     for (const row of statusR.rows) {
       byStatus[row.status] = {
-        count:       Number.parseInt(row.count, 10),
+        count: Number.parseInt(row.count, 10),
         totalAmount: Number.parseFloat(row.total_amount),
       };
     }
 
     return {
       byStatus,
-      overdueCount:  Number.parseInt(overdueR.rows[0].count, 10),
+      overdueCount: Number.parseInt(overdueR.rows[0].count, 10),
       overdueAmount: Number.parseFloat(overdueR.rows[0].total_amount),
     };
   }
 
-  async getMonthlySummary(month: string, orgId?: string): Promise<MonthlySummary> {
+  async getMonthlySummary(
+    month: string,
+    orgId?: string,
+  ): Promise<MonthlySummary> {
     const monthStart = `${month}-01`;
-    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
-    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+    const joinClause = orgId
+      ? sql`JOIN core.quotes q ON q.id = i.quote_id`
+      : sql``;
+    const orgFilter = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
     interface InvoiceMonthRow {
       gross_revenue: string;
@@ -242,11 +272,15 @@ export class ReportingService {
         FROM finance.payments p
         WHERE p.status = 'confirmed'
           AND date_trunc('month', p.paid_on) = ${monthStart}::date
-          ${orgId ? sql`AND EXISTS (
+          ${
+            orgId
+              ? sql`AND EXISTS (
             SELECT 1 FROM finance.invoices i
             JOIN core.quotes q ON q.id = i.quote_id
             WHERE i.id = p.invoice_id AND q.organization_id = ${orgId}
-          )` : sql``}
+          )`
+              : sql``
+          }
       `.execute(this.kyselyDb),
 
       sql<{ total: string }>`
@@ -262,21 +296,29 @@ export class ReportingService {
     const round = (n: number): number => Math.round(n * 100) / 100;
     const r = invoiceR.rows[0];
     const grossRevenue = round(Number.parseFloat(r.gross_revenue));
-    const taxAmount    = round(Number.parseFloat(r.tax_amount));
+    const taxAmount = round(Number.parseFloat(r.tax_amount));
     return {
       month,
       grossRevenue,
       taxAmount,
-      totalBilled:        round(grossRevenue + taxAmount),
-      paymentsReceived:   round(Number.parseFloat(paymentR.rows[0].total)),
+      totalBilled: round(grossRevenue + taxAmount),
+      paymentsReceived: round(Number.parseFloat(paymentR.rows[0].total)),
       outstandingBalance: round(Number.parseFloat(outstandingR.rows[0].total)),
       invoiceCount: Number.parseInt(r.invoice_count, 10),
-      paidCount:    Number.parseInt(r.paid_count, 10),
+      paidCount: Number.parseInt(r.paid_count, 10),
     };
   }
 
-  async getCashFlow(from: string, to: string, orgId?: string): Promise<CashFlowPeriod[]> {
-    interface CashFlowRow { date: Date | string; total: string; count: string; }
+  async getCashFlow(
+    from: string,
+    to: string,
+    orgId?: string,
+  ): Promise<CashFlowPeriod[]> {
+    interface CashFlowRow {
+      date: Date | string;
+      total: string;
+      count: string;
+    }
     const result = await sql<CashFlowRow>`
       SELECT
         p.paid_on::date AS date,
@@ -286,26 +328,38 @@ export class ReportingService {
       WHERE p.status = 'confirmed'
         AND p.paid_on >= ${from}::date
         AND p.paid_on <= ${to}::date
-        ${orgId ? sql`AND EXISTS (
+        ${
+          orgId
+            ? sql`AND EXISTS (
           SELECT 1 FROM finance.invoices i
           JOIN core.quotes q ON q.id = i.quote_id
           WHERE i.id = p.invoice_id AND q.organization_id = ${orgId}
-        )` : sql``}
+        )`
+            : sql``
+        }
       GROUP BY 1
       ORDER BY 1 ASC
     `.execute(this.kyselyDb);
 
     return result.rows.map((r) => ({
-      date:             r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date),
+      date:
+        r.date instanceof Date
+          ? r.date.toISOString().slice(0, 10)
+          : String(r.date),
       paymentsReceived: Math.round(Number.parseFloat(r.total) * 100) / 100,
-      paymentCount:     Number.parseInt(r.count, 10),
+      paymentCount: Number.parseInt(r.count, 10),
     }));
   }
 
-  async getRevenueByCustomer(month: string, orgId?: string): Promise<RevenueByCustomer[]> {
+  async getRevenueByCustomer(
+    month: string,
+    orgId?: string,
+  ): Promise<RevenueByCustomer[]> {
     const monthStart = `${month}-01`;
-    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
-    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+    const joinClause = orgId
+      ? sql`JOIN core.quotes q ON q.id = i.quote_id`
+      : sql``;
+    const orgFilter = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
     interface RevByCustomerRow {
       customer_id: string;
@@ -331,19 +385,28 @@ export class ReportingService {
     `.execute(this.kyselyDb);
 
     return result.rows.map((r) => ({
-      customerId:   r.customer_id,
+      customerId: r.customer_id,
       customerName: r.customer_name,
       invoiceCount: Number.parseInt(r.invoice_count, 10),
       totalRevenue: Math.round(Number.parseFloat(r.total_revenue) * 100) / 100,
     }));
   }
 
-  async getAccountsReceivable(orgId?: string, asOf?: string): Promise<AccountsReceivableReport> {
-    const asOfExpr   = asOf ? sql`${asOf}::date` : sql`CURRENT_DATE`;
-    const joinClause = orgId ? sql`JOIN core.quotes q ON q.id = i.quote_id` : sql``;
-    const orgFilter  = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
+  async getAccountsReceivable(
+    orgId?: string,
+    asOf?: string,
+  ): Promise<AccountsReceivableReport> {
+    const asOfExpr = asOf ? sql`${asOf}::date` : sql`CURRENT_DATE`;
+    const joinClause = orgId
+      ? sql`JOIN core.quotes q ON q.id = i.quote_id`
+      : sql``;
+    const orgFilter = orgId ? sql`AND q.organization_id = ${orgId}` : sql``;
 
-    interface ARRow { customer_id: string; outstanding: string; days_overdue: string; }
+    interface ARRow {
+      customer_id: string;
+      outstanding: string;
+      days_overdue: string;
+    }
     const result = await sql<ARRow>`
       SELECT i.customer_id,
              (i.total_amount - COALESCE(p.paid, 0) - COALESCE(cn.applied, 0)) AS outstanding,
@@ -384,7 +447,10 @@ export class ReportingService {
       else buckets.c90 += outstanding;
 
       totalOutstanding += outstanding;
-      byCustomer.set(row.customer_id, (byCustomer.get(row.customer_id) ?? 0) + outstanding);
+      byCustomer.set(
+        row.customer_id,
+        (byCustomer.get(row.customer_id) ?? 0) + outstanding,
+      );
     }
 
     return {
@@ -392,12 +458,15 @@ export class ReportingService {
       totalOutstanding: round(totalOutstanding),
       buckets: {
         current: round(buckets.current),
-        '31-60': round(buckets.c31),
-        '61-90': round(buckets.c61),
-        '90+': round(buckets.c90),
+        "31-60": round(buckets.c31),
+        "61-90": round(buckets.c61),
+        "90+": round(buckets.c90),
       },
       byCustomer: [...byCustomer.entries()]
-        .map(([customerId, outstanding]) => ({ customerId, outstanding: round(outstanding) }))
+        .map(([customerId, outstanding]) => ({
+          customerId,
+          outstanding: round(outstanding),
+        }))
         .sort((a, b) => b.outstanding - a.outstanding),
     };
   }

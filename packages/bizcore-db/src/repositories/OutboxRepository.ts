@@ -1,11 +1,11 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
 export interface OutboxEvent {
   id: string;
   eventType: string;
   aggregateId: string;
   payload: Record<string, any>;
-  status: 'pending' | 'processed' | 'failed';
+  status: "pending" | "processed" | "failed";
   createdAt: Date;
   processedAt: Date | null;
   retryCount: number;
@@ -18,17 +18,17 @@ export class OutboxRepository {
     eventType: string,
     aggregateId: string,
     payload: Record<string, any>,
-    db: any = this.db
+    db: any = this.db,
   ): Promise<void> {
     const id = randomUUID();
     await db
-      .insertInto('events.outbox_events')
+      .insertInto("events.outbox_events")
       .values({
         id,
         event_type: eventType,
         aggregate_id: aggregateId,
         payload,
-        status: 'pending',
+        status: "pending",
         created_at: new Date(),
       })
       .execute();
@@ -45,7 +45,7 @@ export class OutboxRepository {
    * an external, non-idempotent accounting API) the same event.
    */
   async claimPending(limit: number = 50): Promise<OutboxEvent[]> {
-    const { sql } = await import('kysely');
+    const { sql } = await import("kysely");
     const result = await sql<any>`
       UPDATE events.outbox_events
       SET status = 'processing'
@@ -83,9 +83,9 @@ export class OutboxRepository {
 
   async markProcessed(id: string): Promise<void> {
     await this.db
-      .updateTable('events.outbox_events')
-      .set({ status: 'processed', processed_at: new Date() })
-      .where((eb: any) => eb('id', '=', id))
+      .updateTable("events.outbox_events")
+      .set({ status: "processed", processed_at: new Date() })
+      .where((eb: any) => eb("id", "=", id))
       .execute();
   }
 
@@ -99,7 +99,7 @@ export class OutboxRepository {
    * retry_count.
    */
   async markFailed(id: string, maxRetries: number = 5): Promise<void> {
-    const { sql } = await import('kysely');
+    const { sql } = await import("kysely");
     await sql`
       UPDATE events.outbox_events
       SET retry_count = retry_count + 1,

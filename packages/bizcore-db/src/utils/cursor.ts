@@ -10,13 +10,15 @@ export interface CursorPayload {
 }
 
 export function encodeCursor(payload: CursorPayload): string {
-  return Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return Buffer.from(JSON.stringify(payload)).toString("base64url");
 }
 
 export function decodeCursor(cursor: string): CursorPayload | null {
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (typeof parsed.createdAt === 'string' && typeof parsed.id === 'string') {
+    const parsed = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    );
+    if (typeof parsed.createdAt === "string" && typeof parsed.id === "string") {
       return parsed as CursorPayload;
     }
     return null;
@@ -25,9 +27,15 @@ export function decodeCursor(cursor: string): CursorPayload | null {
   }
 }
 
-export function makeCursor(row: { createdAt: Date | string; id: string }): string {
+export function makeCursor(row: {
+  createdAt: Date | string;
+  id: string;
+}): string {
   return encodeCursor({
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    createdAt:
+      row.createdAt instanceof Date
+        ? row.createdAt.toISOString()
+        : row.createdAt,
     id: row.id,
   });
 }

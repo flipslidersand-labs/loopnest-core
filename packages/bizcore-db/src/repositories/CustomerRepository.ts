@@ -1,26 +1,34 @@
-import type { Kysely } from 'kysely';
-import { sql } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
-import { randomUUID, scrypt, timingSafeEqual, randomBytes } from 'node:crypto';
-import { promisify } from 'node:util';
-import { decodeCursor, makeCursor } from '../utils/cursor.js';
+import type { Kysely } from "kysely";
+import { sql } from "kysely";
+import type { KyselyDatabase } from "../types/kysely-database.js";
+import {
+  BaseRepository,
+  FindOptions,
+  CreateInput,
+  UpdateInput,
+} from "./BaseRepository.js";
+import { randomUUID, scrypt, timingSafeEqual, randomBytes } from "node:crypto";
+import { promisify } from "node:util";
+import { decodeCursor, makeCursor } from "../utils/cursor.js";
 
 const scryptAsync = promisify(scrypt);
 const SCRYPT_KEYLEN = 64;
 
 export async function hashPortalPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  const key = await scryptAsync(password, salt, SCRYPT_KEYLEN) as Buffer;
-  return `${salt}:${key.toString('hex')}`;
+  const salt = randomBytes(16).toString("hex");
+  const key = (await scryptAsync(password, salt, SCRYPT_KEYLEN)) as Buffer;
+  return `${salt}:${key.toString("hex")}`;
 }
 
-export async function verifyPortalPassword(password: string, hash: string): Promise<boolean> {
+export async function verifyPortalPassword(
+  password: string,
+  hash: string,
+): Promise<boolean> {
   try {
-    const [salt, storedKey] = hash.split(':');
+    const [salt, storedKey] = hash.split(":");
     if (!salt || !storedKey) return false;
-    const key = await scryptAsync(password, salt, SCRYPT_KEYLEN) as Buffer;
-    return timingSafeEqual(Buffer.from(storedKey, 'hex'), key);
+    const key = (await scryptAsync(password, salt, SCRYPT_KEYLEN)) as Buffer;
+    return timingSafeEqual(Buffer.from(storedKey, "hex"), key);
   } catch {
     return false;
   }
@@ -62,64 +70,80 @@ export class CustomerRepository extends BaseRepository<Customer> {
     super();
   }
 
-  async findById(id: string, organizationId?: string): Promise<Customer | null> {
+  async findById(
+    id: string,
+    organizationId?: string,
+  ): Promise<Customer | null> {
     let q = this.db
-      .selectFrom('core.customers')
+      .selectFrom("core.customers")
       .selectAll()
-      .where('id', '=', id);
-    if (organizationId) q = q.where('organization_id', '=', organizationId);
+      .where("id", "=", id);
+    if (organizationId) q = q.where("organization_id", "=", organizationId);
     const row = await q.executeTakeFirst();
     return row ? this.map(row) : null;
   }
 
   async findAll(options?: CustomerFilter): Promise<Customer[]> {
     if (options?.skip !== undefined) {
-      process.stderr.write('[CustomerRepository] skip/take is deprecated; use findPage() instead\n');
+      process.stderr.write(
+        "[CustomerRepository] skip/take is deprecated; use findPage() instead\n",
+      );
     }
-    let q = this.db.selectFrom('core.customers').selectAll()
-      .orderBy('created_at', 'desc')
-      .orderBy('id', 'asc');
-    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    let q = this.db
+      .selectFrom("core.customers")
+      .selectAll()
+      .orderBy("created_at", "desc")
+      .orderBy("id", "asc");
+    if (options?.organizationId)
+      q = q.where("organization_id", "=", options.organizationId);
     if (options?.skip) q = q.offset(options.skip);
     if (options?.take) q = q.limit(options.take);
     const rows = await q.execute();
-    return rows.map(r => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async findPage(options?: CustomerFilter): Promise<CustomerPage> {
     const limit = Math.min(options?.take ?? 20, 100);
-    let q = this.db.selectFrom('core.customers').selectAll()
-      .orderBy('created_at', 'desc')
-      .orderBy('id', 'asc')
+    let q = this.db
+      .selectFrom("core.customers")
+      .selectAll()
+      .orderBy("created_at", "desc")
+      .orderBy("id", "asc")
       .limit(limit + 1);
-    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+    if (options?.organizationId)
+      q = q.where("organization_id", "=", options.organizationId);
     if (options?.cursor) {
       const c = decodeCursor(options.cursor);
       if (c) {
         const ts = new Date(c.createdAt);
-        q = q.where((eb: any) => eb.or([
-          eb('created_at', '<', ts),
-          eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
-        ]));
+        q = q.where((eb: any) =>
+          eb.or([
+            eb("created_at", "<", ts),
+            eb.and([eb("created_at", "=", ts), eb("id", ">", c.id)]),
+          ]),
+        );
       }
     }
     const rows = await q.execute();
     const hasMore = rows.length > limit;
-    const data = rows.slice(0, limit).map(r => this.map(r));
+    const data = rows.slice(0, limit).map((r) => this.map(r));
     const nextCursor = hasMore ? makeCursor(data[data.length - 1]) : null;
     return { data, pagination: { limit, nextCursor } };
   }
 
-  async findOne(where: Partial<Customer>, options?: FindOptions): Promise<Customer | null> {
-    let q = this.db.selectFrom('core.customers').selectAll();
-    if (where.name) q = q.where('name', '=', where.name);
+  async findOne(
+    where: Partial<Customer>,
+    options?: FindOptions,
+  ): Promise<Customer | null> {
+    let q = this.db.selectFrom("core.customers").selectAll();
+    if (where.name) q = q.where("name", "=", where.name);
     const row = await q.executeTakeFirst();
     return row ? this.map(row) : null;
   }
 
   async create(data: CreateInput<Customer>): Promise<Customer> {
     const row = await this.db
-      .insertInto('core.customers')
+      .insertInto("core.customers")
       .values({
         id: randomUUID(),
         name: data.name,
@@ -135,62 +159,69 @@ export class CustomerRepository extends BaseRepository<Customer> {
 
   async update(id: string, data: UpdateInput<Customer>): Promise<Customer> {
     const row = await this.db
-      .updateTable('core.customers')
+      .updateTable("core.customers")
       .set({
         ...(data.name !== undefined && { name: data.name }),
         ...(data.address !== undefined && { address: data.address }),
         ...(data.phone !== undefined && { phone: data.phone }),
       })
-      .where('id', '=', id)
+      .where("id", "=", id)
       .returningAll()
       .executeTakeFirstOrThrow();
     return this.map(row);
   }
 
   async delete(id: string): Promise<boolean> {
-    await this.db
-      .deleteFrom('core.customers')
-      .where('id', '=', id)
-      .execute();
+    await this.db.deleteFrom("core.customers").where("id", "=", id).execute();
     return true;
   }
 
   async count(where?: { organizationId?: string }): Promise<number> {
     let q = this.db
-      .selectFrom('core.customers')
-      .select(({ fn }) => fn.countAll<string>().as('count'));
-    if (where?.organizationId) q = q.where('organization_id', '=', where.organizationId);
+      .selectFrom("core.customers")
+      .select(({ fn }) => fn.countAll<string>().as("count"));
+    if (where?.organizationId)
+      q = q.where("organization_id", "=", where.organizationId);
     const result = await q.executeTakeFirst();
     return Number(result?.count ?? 0);
   }
 
-  async setCreditLimit(id: string, creditLimit: number | null): Promise<Customer | null> {
+  async setCreditLimit(
+    id: string,
+    creditLimit: number | null,
+  ): Promise<Customer | null> {
     const row = await this.db
-      .updateTable('core.customers')
+      .updateTable("core.customers")
       .set({ credit_limit: creditLimit })
-      .where('id', '=', id)
+      .where("id", "=", id)
       .returningAll()
       .executeTakeFirst()
       .catch(() => undefined);
     return row ? this.map(row) : null;
   }
 
-  async incrementCreditUsed(id: string, amount: number): Promise<Customer | null> {
+  async incrementCreditUsed(
+    id: string,
+    amount: number,
+  ): Promise<Customer | null> {
     const row = await this.db
-      .updateTable('core.customers')
+      .updateTable("core.customers")
       .set({ credit_used: sql`credit_used + ${amount}` })
-      .where('id', '=', id)
+      .where("id", "=", id)
       .returningAll()
       .executeTakeFirst()
       .catch(() => undefined);
     return row ? this.map(row) : null;
   }
 
-  async decrementCreditUsed(id: string, amount: number): Promise<Customer | null> {
+  async decrementCreditUsed(
+    id: string,
+    amount: number,
+  ): Promise<Customer | null> {
     const row = await this.db
-      .updateTable('core.customers')
+      .updateTable("core.customers")
       .set({ credit_used: sql`GREATEST(0, credit_used - ${amount})` })
-      .where('id', '=', id)
+      .where("id", "=", id)
       .returningAll()
       .executeTakeFirst()
       .catch(() => undefined);
@@ -199,9 +230,9 @@ export class CustomerRepository extends BaseRepository<Customer> {
 
   async getCreditStatus(id: string): Promise<CreditStatus | null> {
     const row = await this.db
-      .selectFrom('core.customers')
+      .selectFrom("core.customers")
       .selectAll()
-      .where('id', '=', id)
+      .where("id", "=", id)
       .executeTakeFirst();
     if (!row) return null;
     const limit = row.credit_limit !== null ? Number(row.credit_limit) : null;
@@ -218,9 +249,9 @@ export class CustomerRepository extends BaseRepository<Customer> {
 
   async findByEmail(email: string): Promise<Customer | null> {
     const row = await this.db
-      .selectFrom('core.customers')
+      .selectFrom("core.customers")
       .selectAll()
-      .where('contact_email', '=', email)
+      .where("contact_email", "=", email)
       .executeTakeFirst();
     return row ? this.map(row) : null;
   }
@@ -228,18 +259,18 @@ export class CustomerRepository extends BaseRepository<Customer> {
   /** Returns the raw portal_password_hash for verification — never exposed via map(). */
   async getPortalPasswordHash(id: string): Promise<string | null> {
     const row = await this.db
-      .selectFrom('core.customers')
-      .select('portal_password_hash')
-      .where('id', '=', id)
+      .selectFrom("core.customers")
+      .select("portal_password_hash")
+      .where("id", "=", id)
       .executeTakeFirst();
     return (row as any)?.portal_password_hash ?? null;
   }
 
   async setPortalPasswordHash(id: string, hash: string): Promise<boolean> {
     const result = await this.db
-      .updateTable('core.customers')
+      .updateTable("core.customers")
       .set({ portal_password_hash: hash } as any)
-      .where('id', '=', id)
+      .where("id", "=", id)
       .executeTakeFirst();
     return (result?.numUpdatedRows ?? 0n) > 0n;
   }

@@ -1,31 +1,50 @@
-export { QuoteService, type QuoteWorkflowAction } from './QuoteService.js';
-export { ApprovalService, type ApprovalRequest, type ApprovalStep } from './ApprovalService.js';
-export { InvoiceService, type InvoiceCreationResult, type BulkCreateItem, type BulkCreateResult, type BulkStatusResult } from './InvoiceService.js';
-export { AuditService, type AuditLogEntry } from './AuditService.js';
-export { ReportingService } from './ReportingService.js';
-export { WebhookService } from './WebhookService.js';
-export { SearchService } from './SearchService.js';
-export { PaymentService, type RecordPaymentInput, type InvoiceBalance } from './PaymentService.js';
-export { CreditNoteService, type IssueCreditNoteInput, type ApplyCreditNoteInput, type CreditNoteBalance } from './CreditNoteService.js';
-export { EventWorker } from './EventWorker.js';
-export { PdfService } from './PdfService.js';
+export { QuoteService, type QuoteWorkflowAction } from "./QuoteService.js";
+export {
+  ApprovalService,
+  type ApprovalRequest,
+  type ApprovalStep,
+} from "./ApprovalService.js";
+export {
+  InvoiceService,
+  type InvoiceCreationResult,
+  type BulkCreateItem,
+  type BulkCreateResult,
+  type BulkStatusResult,
+} from "./InvoiceService.js";
+export { AuditService, type AuditLogEntry } from "./AuditService.js";
+export { ReportingService } from "./ReportingService.js";
+export { WebhookService } from "./WebhookService.js";
+export { SearchService } from "./SearchService.js";
+export {
+  PaymentService,
+  type RecordPaymentInput,
+  type InvoiceBalance,
+} from "./PaymentService.js";
+export {
+  CreditNoteService,
+  type IssueCreditNoteInput,
+  type ApplyCreditNoteInput,
+  type CreditNoteBalance,
+} from "./CreditNoteService.js";
+export { EventWorker } from "./EventWorker.js";
+export { PdfService } from "./PdfService.js";
 
-import { RepositoryContainer } from '@loopnest/bizcore-db';
-import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '@loopnest/bizcore-db';
-import type { PgPool } from '../lib/pg-pool-types.js';
-import { QuoteService } from './QuoteService.js';
-import { ApprovalService } from './ApprovalService.js';
-import { InvoiceService } from './InvoiceService.js';
-import { AuditService } from './AuditService.js';
-import { ReportingService } from './ReportingService.js';
-import { WebhookService } from './WebhookService.js';
-import { SearchService } from './SearchService.js';
-import { PaymentService } from './PaymentService.js';
-import { CreditNoteService } from './CreditNoteService.js';
-import { EventWorker } from './EventWorker.js';
-import { PdfService } from './PdfService.js';
-import { EmailNotificationService } from './EmailNotificationService.js';
+import { RepositoryContainer } from "@loopnest/bizcore-db";
+import type { Kysely } from "kysely";
+import type { KyselyDatabase } from "@loopnest/bizcore-db";
+import type { PgPool } from "../lib/pg-pool-types.js";
+import { QuoteService } from "./QuoteService.js";
+import { ApprovalService } from "./ApprovalService.js";
+import { InvoiceService } from "./InvoiceService.js";
+import { AuditService } from "./AuditService.js";
+import { ReportingService } from "./ReportingService.js";
+import { WebhookService } from "./WebhookService.js";
+import { SearchService } from "./SearchService.js";
+import { PaymentService } from "./PaymentService.js";
+import { CreditNoteService } from "./CreditNoteService.js";
+import { EventWorker } from "./EventWorker.js";
+import { PdfService } from "./PdfService.js";
+import { EmailNotificationService } from "./EmailNotificationService.js";
 
 export class ServiceContainer {
   readonly quotes: QuoteService;
@@ -44,7 +63,7 @@ export class ServiceContainer {
   constructor(
     repos: RepositoryContainer,
     pgPool: PgPool,
-    kyselyDb: Kysely<KyselyDatabase>
+    kyselyDb: Kysely<KyselyDatabase>,
   ) {
     this.quotes = new QuoteService(repos);
     this.approvals = new ApprovalService(repos, kyselyDb);
@@ -56,7 +75,12 @@ export class ServiceContainer {
     this.search = new SearchService(kyselyDb);
     this.payments = new PaymentService(repos, kyselyDb);
     this.creditNotes = new CreditNoteService(repos, kyselyDb);
-    this.eventWorker = new EventWorker(repos, kyselyDb, this.webhooks, this.emailNotifications);
+    this.eventWorker = new EventWorker(
+      repos,
+      kyselyDb,
+      this.webhooks,
+      this.emailNotifications,
+    );
     this.pdf = new PdfService(repos);
   }
 

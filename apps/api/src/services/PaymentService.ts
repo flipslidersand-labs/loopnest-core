@@ -80,7 +80,10 @@ export class PaymentService {
    * (M07 scoped core tables only), so the org is inherited from the originating
    * quote. Used to stamp payments and enforce tenant isolation.
    */
-  private async resolveInvoiceOrg(trx: Kysely<KyselyDatabase>, inv: { organization_id?: string | null; quote_id?: string | null }): Promise<string | null> {
+  private async resolveInvoiceOrg(
+    trx: Kysely<KyselyDatabase>,
+    inv: { organization_id?: string | null; quote_id?: string | null },
+  ): Promise<string | null> {
     if (inv.organization_id) return inv.organization_id;
     if (!inv.quote_id) return null;
     const q = await trx
@@ -232,9 +235,16 @@ export class PaymentService {
 
     // Release credit_used after the DB transaction commits (fire-and-forget on error).
     if (paidCustomerId && creditDecrement) {
-      await this.repos.customers.decrementCreditUsed(paidCustomerId, creditDecrement).catch((err) => {
-        console.error('credit decrement failed', { operation: 'decrementCreditUsed', customerId: paidCustomerId, amount: creditDecrement, error: String(err) });
-      });
+      await this.repos.customers
+        .decrementCreditUsed(paidCustomerId, creditDecrement)
+        .catch((err) => {
+          console.error("credit decrement failed", {
+            operation: "decrementCreditUsed",
+            customerId: paidCustomerId,
+            amount: creditDecrement,
+            error: String(err),
+          });
+        });
     }
 
     return result;

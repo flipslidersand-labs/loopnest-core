@@ -13,43 +13,43 @@ A personal OS for building business systems. Constructs an integrated business p
 
 ### Milestones
 
-| # | Description | Status |
-| --- | --- | --- |
-| M01 | BtoB Quote-to-Billing (synchronous) | ✅ Done |
-| M02 | Outbox async (reliability & idempotency) | ✅ Done |
-| M03 | Error / Performance / Data Generator | ✅ Done |
-| M04 | PDF Invoice generation (`GET /invoices/:id/pdf`) | ✅ Done |
-| M05 | PDF Quote generation (`GET /quotes/:id/pdf`) | ✅ Done |
-| M06 | Tax-rate master (`/api/tax-rates` CRUD, DB lookup on invoice issue) | ✅ Done |
-| M07 | Discount management (discount on quotes, carried over to invoices) | ✅ Done |
+| #   | Description                                                                    | Status  |
+| --- | ------------------------------------------------------------------------------ | ------- |
+| M01 | BtoB Quote-to-Billing (synchronous)                                            | ✅ Done |
+| M02 | Outbox async (reliability & idempotency)                                       | ✅ Done |
+| M03 | Error / Performance / Data Generator                                           | ✅ Done |
+| M04 | PDF Invoice generation (`GET /invoices/:id/pdf`)                               | ✅ Done |
+| M05 | PDF Quote generation (`GET /quotes/:id/pdf`)                                   | ✅ Done |
+| M06 | Tax-rate master (`/api/tax-rates` CRUD, DB lookup on invoice issue)            | ✅ Done |
+| M07 | Discount management (discount on quotes, carried over to invoices)             | ✅ Done |
 | M08 | Customer credit limit (`credit_limit` / `credit_used`, invoice-issue blocking) | ✅ Done |
-| M09 | Quote expiry (`expires_at`, auto-reject on expiry, expiring-soon list) | ✅ Done |
-| M10 | Quote templates (CRUD + quote generation from template) | ✅ Done |
-| M11 | Invoice Installments (installment payment schedule) | ✅ Done |
-| M12 | Recurring Billing (periodic billing / subscription) | ✅ Done |
-| M13 | Payments & Accounts Receivable (payment matching, AR aging) | ✅ Done |
-| M14 | Credit Notes & Refunds | ✅ Done |
-| M15 | Dunning Management (automated overdue action scheduler + dunning logs) | ✅ Done |
-| M16 | Multi-currency support (exchange_rates table, currency on invoices/quotes) | ✅ Done |
-| M17 | E2E Financial Reporting (monthly P&L, cash flow, AR aging dashboard) | ✅ Done |
-| M18 | Webhook delivery log + manual retry endpoint | ✅ Done |
-| M19 | Customer self-service portal (auth + invoice/quote read API) | ✅ Done |
-| M20 | Observability — DB query histogram, Outbox lag, OTel trace propagation | ✅ Done |
-| M21 | Email notifications (invoice issued + overdue alert, dry-run safe) | ✅ Done |
+| M09 | Quote expiry (`expires_at`, auto-reject on expiry, expiring-soon list)         | ✅ Done |
+| M10 | Quote templates (CRUD + quote generation from template)                        | ✅ Done |
+| M11 | Invoice Installments (installment payment schedule)                            | ✅ Done |
+| M12 | Recurring Billing (periodic billing / subscription)                            | ✅ Done |
+| M13 | Payments & Accounts Receivable (payment matching, AR aging)                    | ✅ Done |
+| M14 | Credit Notes & Refunds                                                         | ✅ Done |
+| M15 | Dunning Management (automated overdue action scheduler + dunning logs)         | ✅ Done |
+| M16 | Multi-currency support (exchange_rates table, currency on invoices/quotes)     | ✅ Done |
+| M17 | E2E Financial Reporting (monthly P&L, cash flow, AR aging dashboard)           | ✅ Done |
+| M18 | Webhook delivery log + manual retry endpoint                                   | ✅ Done |
+| M19 | Customer self-service portal (auth + invoice/quote read API)                   | ✅ Done |
+| M20 | Observability — DB query histogram, Outbox lag, OTel trace propagation         | ✅ Done |
+| M21 | Email notifications (invoice issued + overdue alert, dry-run safe)             | ✅ Done |
 
 ### Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Runtime | Node.js 24 / TypeScript |
-| Framework | Express |
-| Database | PostgreSQL 17 (Kysely + Prisma) |
-| Cache / Queue | Redis / Valkey |
-| Observability | OpenTelemetry + Prometheus metrics |
-| PDF | pdfkit |
-| Email | nodemailer (EMAIL_ENABLED=false dry-run) |
-| Infrastructure | Docker Compose |
-| Monorepo | pnpm workspaces + Turborepo |
+| Layer          | Technology                               |
+| -------------- | ---------------------------------------- |
+| Runtime        | Node.js 24 / TypeScript                  |
+| Framework      | Express                                  |
+| Database       | PostgreSQL 17 (Kysely + Prisma)          |
+| Cache / Queue  | Redis / Valkey                           |
+| Observability  | OpenTelemetry + Prometheus metrics       |
+| PDF            | pdfkit                                   |
+| Email          | nodemailer (EMAIL_ENABLED=false dry-run) |
+| Infrastructure | Docker Compose                           |
+| Monorepo       | pnpm workspaces + Turborepo              |
 
 ### Directory Structure
 
@@ -111,17 +111,17 @@ bash tests/integration/credit_notes.sh
 
 ### Key API Endpoints
 
-| Method | Path | Description |
-| --- | --- | --- |
-| POST | `/api/workflow/quotes/:id/submit` | Submit quote |
-| POST | `/api/workflow/quotes/:id/approve` | Approve quote |
-| POST | `/api/workflow/quotes/:id/invoice` | Issue invoice |
-| POST | `/api/invoices/:id/payments` | Record payment |
-| POST | `/api/invoices/:id/credit-notes` | Issue credit note |
-| POST | `/api/credit-notes/:id/apply` | Apply credit note |
-| GET | `/api/reports/ar-aging` | AR aging report |
-| GET | `/health` | Health check |
-| GET | `/docs` | Swagger UI |
+| Method | Path                               | Description       |
+| ------ | ---------------------------------- | ----------------- |
+| POST   | `/api/workflow/quotes/:id/submit`  | Submit quote      |
+| POST   | `/api/workflow/quotes/:id/approve` | Approve quote     |
+| POST   | `/api/workflow/quotes/:id/invoice` | Issue invoice     |
+| POST   | `/api/invoices/:id/payments`       | Record payment    |
+| POST   | `/api/invoices/:id/credit-notes`   | Issue credit note |
+| POST   | `/api/credit-notes/:id/apply`      | Apply credit note |
+| GET    | `/api/reports/ar-aging`            | AR aging report   |
+| GET    | `/health`                          | Health check      |
+| GET    | `/docs`                            | Swagger UI        |
 
 For a complete list of API error codes with HTTP status and recommended client actions, see **[docs/error-codes.md](docs/error-codes.md)**.
 
@@ -133,43 +133,43 @@ For a complete list of API error codes with HTTP status and recommended client a
 
 ### マイルストーン
 
-| # | 内容 | 状態 |
-| --- | --- | --- |
-| M01 | BtoB Quote-to-Billing（見積〜請求 同期版） | ✅ 完了 |
-| M02 | Outbox 非同期化（信頼性・冪等性） | ✅ 完了 |
-| M03 | Error / Performance / Data Generator | ✅ 完了 |
-| M04 | PDF 請求書生成（`GET /invoices/:id/pdf`） | ✅ 完了 |
-| M05 | PDF 見積書生成（`GET /quotes/:id/pdf`） | ✅ 完了 |
-| M06 | 税率マスタ（`/api/tax-rates` CRUD・請求書発行時 DB 参照） | ✅ 完了 |
-| M07 | 割引管理（見積書への discount 適用・請求書引継ぎ） | ✅ 完了 |
-| M08 | 顧客クレジット枠（credit_limit / credit_used・請求書発行ブロック） | ✅ 完了 |
-| M09 | 見積有効期限（expires_at・期限切れ自動リジェクト・期限迫る一覧） | ✅ 完了 |
-| M10 | 見積テンプレート（CRUD + テンプレートから見積書生成） | ✅ 完了 |
-| M11 | Invoice Installments（分割払いスケジュール） | ✅ 完了 |
-| M12 | Recurring Billing（定期請求・サブスクリプション） | ✅ 完了 |
-| M13 | Payments & Accounts Receivable（入金消込・AR エイジング） | ✅ 完了 |
-| M14 | Credit Notes & Refunds（クレジットノート・返金） | ✅ 完了 |
-| M15 | Dunning Management（督促管理・自動リマインダー） | ✅ 完了 |
+| #   | 内容                                                                         | 状態    |
+| --- | ---------------------------------------------------------------------------- | ------- |
+| M01 | BtoB Quote-to-Billing（見積〜請求 同期版）                                   | ✅ 完了 |
+| M02 | Outbox 非同期化（信頼性・冪等性）                                            | ✅ 完了 |
+| M03 | Error / Performance / Data Generator                                         | ✅ 完了 |
+| M04 | PDF 請求書生成（`GET /invoices/:id/pdf`）                                    | ✅ 完了 |
+| M05 | PDF 見積書生成（`GET /quotes/:id/pdf`）                                      | ✅ 完了 |
+| M06 | 税率マスタ（`/api/tax-rates` CRUD・請求書発行時 DB 参照）                    | ✅ 完了 |
+| M07 | 割引管理（見積書への discount 適用・請求書引継ぎ）                           | ✅ 完了 |
+| M08 | 顧客クレジット枠（credit_limit / credit_used・請求書発行ブロック）           | ✅ 完了 |
+| M09 | 見積有効期限（expires_at・期限切れ自動リジェクト・期限迫る一覧）             | ✅ 完了 |
+| M10 | 見積テンプレート（CRUD + テンプレートから見積書生成）                        | ✅ 完了 |
+| M11 | Invoice Installments（分割払いスケジュール）                                 | ✅ 完了 |
+| M12 | Recurring Billing（定期請求・サブスクリプション）                            | ✅ 完了 |
+| M13 | Payments & Accounts Receivable（入金消込・AR エイジング）                    | ✅ 完了 |
+| M14 | Credit Notes & Refunds（クレジットノート・返金）                             | ✅ 完了 |
+| M15 | Dunning Management（督促管理・自動リマインダー）                             | ✅ 完了 |
 | M16 | 多通貨対応（exchange_rates テーブル・請求書/見積書への currency フィールド） | ✅ 完了 |
-| M17 | E2E 財務レポート（月次 P&L・キャッシュフロー・AR エイジングダッシュボード） | ✅ 完了 |
-| M18 | Webhook 配信ログ + 手動リトライエンドポイント | ✅ 完了 |
-| M19 | 顧客セルフサービスポータル（認証 + 請求書/見積書閲覧 API） | ✅ 完了 |
-| M20 | オブザーバビリティ（DB クエリヒストグラム・Outbox ラグ・OTel トレース伝播） | ✅ 完了 |
-| M21 | メール通知（請求書発行・支払遅延アラート、ドライラン対応） | ✅ 完了 |
+| M17 | E2E 財務レポート（月次 P&L・キャッシュフロー・AR エイジングダッシュボード）  | ✅ 完了 |
+| M18 | Webhook 配信ログ + 手動リトライエンドポイント                                | ✅ 完了 |
+| M19 | 顧客セルフサービスポータル（認証 + 請求書/見積書閲覧 API）                   | ✅ 完了 |
+| M20 | オブザーバビリティ（DB クエリヒストグラム・Outbox ラグ・OTel トレース伝播）  | ✅ 完了 |
+| M21 | メール通知（請求書発行・支払遅延アラート、ドライラン対応）                   | ✅ 完了 |
 
 ### 技術スタック
 
-| レイヤー | 技術 |
-| --- | --- |
-| Runtime | Node.js 24 / TypeScript |
-| Framework | Express |
-| DB | PostgreSQL 17（Kysely + Prisma 併用） |
-| Cache / Queue | Redis / Valkey |
-| オブザーバビリティ | OpenTelemetry + Prometheus メトリクス |
-| PDF | pdfkit |
-| メール | nodemailer（EMAIL_ENABLED=false ドライラン） |
-| Infra | Docker Compose |
-| Monorepo | pnpm workspaces + Turborepo |
+| レイヤー           | 技術                                         |
+| ------------------ | -------------------------------------------- |
+| Runtime            | Node.js 24 / TypeScript                      |
+| Framework          | Express                                      |
+| DB                 | PostgreSQL 17（Kysely + Prisma 併用）        |
+| Cache / Queue      | Redis / Valkey                               |
+| オブザーバビリティ | OpenTelemetry + Prometheus メトリクス        |
+| PDF                | pdfkit                                       |
+| メール             | nodemailer（EMAIL_ENABLED=false ドライラン） |
+| Infra              | Docker Compose                               |
+| Monorepo           | pnpm workspaces + Turborepo                  |
 
 ### ディレクトリ構成
 
@@ -227,16 +227,16 @@ bash tests/integration/credit_notes.sh
 
 ### 主要 API エンドポイント
 
-| メソッド | パス | 説明 |
-| --- | --- | --- |
-| POST | `/api/workflow/quotes/:id/submit` | 見積提出 |
-| POST | `/api/workflow/quotes/:id/approve` | 見積承認 |
-| POST | `/api/workflow/quotes/:id/invoice` | 請求書発行 |
-| POST | `/api/invoices/:id/payments` | 入金記録 |
-| POST | `/api/invoices/:id/credit-notes` | クレジットノート発行 |
-| POST | `/api/credit-notes/:id/apply` | クレジットノート適用 |
-| GET | `/api/reports/ar-aging` | AR エイジングレポート |
-| GET | `/health` | ヘルスチェック |
-| GET | `/docs` | Swagger UI |
+| メソッド | パス                               | 説明                  |
+| -------- | ---------------------------------- | --------------------- |
+| POST     | `/api/workflow/quotes/:id/submit`  | 見積提出              |
+| POST     | `/api/workflow/quotes/:id/approve` | 見積承認              |
+| POST     | `/api/workflow/quotes/:id/invoice` | 請求書発行            |
+| POST     | `/api/invoices/:id/payments`       | 入金記録              |
+| POST     | `/api/invoices/:id/credit-notes`   | クレジットノート発行  |
+| POST     | `/api/credit-notes/:id/apply`      | クレジットノート適用  |
+| GET      | `/api/reports/ar-aging`            | AR エイジングレポート |
+| GET      | `/health`                          | ヘルスチェック        |
+| GET      | `/docs`                            | Swagger UI            |
 
 API エラーコードの一覧（HTTP ステータス・推奨アクション付き）は **[docs/error-codes.md](docs/error-codes.md)** を参照してください。

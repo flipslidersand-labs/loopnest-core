@@ -36,7 +36,9 @@ async function loadInvoiceOrg(
   const invoice = await repos.invoices.findById(invoiceId);
   if (!invoice)
     throw new ApiErrorResponse(404, "NOT_FOUND", "Invoice not found");
-  const quote = invoice.quoteId ? await repos.quotes.findById(invoice.quoteId) : null;
+  const quote = invoice.quoteId
+    ? await repos.quotes.findById(invoice.quoteId)
+    : null;
   return quote?.organizationId ?? null;
 }
 
@@ -88,7 +90,12 @@ export function invoiceCreditNoteRoutes(
         req.user!.sub,
       );
 
-      await audit.logCreditNoteIssued(result.creditNote.id, invoiceId, amount, req.user!.sub);
+      await audit.logCreditNoteIssued(
+        result.creditNote.id,
+        invoiceId,
+        amount,
+        req.user!.sub,
+      );
       webhooks.deliver(req.user?.orgId, "credit_note.issued", {
         creditNoteId: result.creditNote.id,
         creditNumber: result.creditNote.creditNumber,
@@ -187,7 +194,9 @@ export function creditNoteRoutes(
           "NOT_FOUND",
           "Target invoice not found",
         );
-      const targetQuote = targetInvoice.quoteId ? await repos.quotes.findById(targetInvoice.quoteId) : null;
+      const targetQuote = targetInvoice.quoteId
+        ? await repos.quotes.findById(targetInvoice.quoteId)
+        : null;
       assertOrgAccess(req, targetQuote?.organizationId ?? null);
 
       const result = await creditNotes.applyCreditNote(
@@ -196,7 +205,12 @@ export function creditNoteRoutes(
         req.user!.sub,
       );
 
-      await audit.logCreditNoteApplied(id, targetInvoiceId, amount, req.user!.sub);
+      await audit.logCreditNoteApplied(
+        id,
+        targetInvoiceId,
+        amount,
+        req.user!.sub,
+      );
       webhooks.deliver(req.user?.orgId, "credit_note.applied", {
         creditNoteId: id,
         targetInvoiceId,

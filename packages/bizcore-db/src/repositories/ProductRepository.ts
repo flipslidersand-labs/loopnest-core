@@ -1,7 +1,12 @@
-import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
-import { randomUUID } from 'node:crypto';
+import type { Kysely } from "kysely";
+import type { KyselyDatabase } from "../types/kysely-database.js";
+import {
+  BaseRepository,
+  FindOptions,
+  CreateInput,
+  UpdateInput,
+} from "./BaseRepository.js";
+import { randomUUID } from "node:crypto";
 
 export interface Product {
   id: string;
@@ -25,57 +30,68 @@ export class ProductRepository extends BaseRepository<Product> {
 
   async findById(id: string, organizationId?: string): Promise<Product | null> {
     let q = this.db
-      .selectFrom('core.products')
+      .selectFrom("core.products")
       .selectAll()
-      .where('id', '=', id);
-    if (organizationId) q = q.where('organization_id', '=', organizationId);
+      .where("id", "=", id);
+    if (organizationId) q = q.where("organization_id", "=", organizationId);
     const row = await q.executeTakeFirst();
     return row ? this.map(row) : null;
   }
 
   async findBySku(sku: string): Promise<Product | null> {
     const row = await this.db
-      .selectFrom('core.products')
+      .selectFrom("core.products")
       .selectAll()
-      .where('sku', '=', sku)
+      .where("sku", "=", sku)
       .executeTakeFirst();
     return row ? this.map(row) : null;
   }
 
   async findAll(options?: ProductFilter): Promise<Product[]> {
-    let q = this.db.selectFrom('core.products').selectAll().orderBy('name', 'asc');
-    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
-    if (options?.category) q = q.where('category', '=', options.category);
+    let q = this.db
+      .selectFrom("core.products")
+      .selectAll()
+      .orderBy("name", "asc");
+    if (options?.organizationId)
+      q = q.where("organization_id", "=", options.organizationId);
+    if (options?.category) q = q.where("category", "=", options.category);
     if (options?.skip) q = q.offset(options.skip);
     if (options?.take) q = q.limit(options.take);
     const rows = await q.execute();
-    return rows.map(r => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
-  async findOne(where: Partial<Product>, options?: FindOptions): Promise<Product | null> {
-    let q = this.db.selectFrom('core.products').selectAll();
-    if (where.category) q = q.where('category', '=', where.category);
-    if (where.sku)      q = q.where('sku', '=', where.sku);
+  async findOne(
+    where: Partial<Product>,
+    options?: FindOptions,
+  ): Promise<Product | null> {
+    let q = this.db.selectFrom("core.products").selectAll();
+    if (where.category) q = q.where("category", "=", where.category);
+    if (where.sku) q = q.where("sku", "=", where.sku);
     const row = await q.executeTakeFirst();
     return row ? this.map(row) : null;
   }
 
-  async findByCategory(category: string, options?: ProductFilter): Promise<Product[]> {
+  async findByCategory(
+    category: string,
+    options?: ProductFilter,
+  ): Promise<Product[]> {
     let q = this.db
-      .selectFrom('core.products')
+      .selectFrom("core.products")
       .selectAll()
-      .where('category', '=', category)
-      .orderBy('name', 'asc');
-    if (options?.organizationId) q = q.where('organization_id', '=', options.organizationId);
+      .where("category", "=", category)
+      .orderBy("name", "asc");
+    if (options?.organizationId)
+      q = q.where("organization_id", "=", options.organizationId);
     if (options?.skip) q = q.offset(options.skip);
     if (options?.take) q = q.limit(options.take);
     const rows = await q.execute();
-    return rows.map(r => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async create(data: CreateInput<Product>): Promise<Product> {
     const row = await this.db
-      .insertInto('core.products')
+      .insertInto("core.products")
       .values({
         id: randomUUID(),
         sku: data.sku,
@@ -91,32 +107,33 @@ export class ProductRepository extends BaseRepository<Product> {
 
   async update(id: string, data: UpdateInput<Product>): Promise<Product> {
     const row = await this.db
-      .updateTable('core.products')
+      .updateTable("core.products")
       .set({
         ...(data.name !== undefined && { name: data.name }),
         ...(data.category !== undefined && { category: data.category }),
         ...(data.unitPrice !== undefined && { unit_price: data.unitPrice }),
       })
-      .where('id', '=', id)
+      .where("id", "=", id)
       .returningAll()
       .executeTakeFirstOrThrow();
     return this.map(row);
   }
 
   async delete(id: string): Promise<boolean> {
-    await this.db
-      .deleteFrom('core.products')
-      .where('id', '=', id)
-      .execute();
+    await this.db.deleteFrom("core.products").where("id", "=", id).execute();
     return true;
   }
 
-  async count(where?: { organizationId?: string; category?: string }): Promise<number> {
+  async count(where?: {
+    organizationId?: string;
+    category?: string;
+  }): Promise<number> {
     let q = this.db
-      .selectFrom('core.products')
-      .select(({ fn }) => fn.countAll<string>().as('count'));
-    if (where?.organizationId) q = q.where('organization_id', '=', where.organizationId);
-    if (where?.category) q = q.where('category', '=', where.category);
+      .selectFrom("core.products")
+      .select(({ fn }) => fn.countAll<string>().as("count"));
+    if (where?.organizationId)
+      q = q.where("organization_id", "=", where.organizationId);
+    if (where?.category) q = q.where("category", "=", where.category);
     const result = await q.executeTakeFirst();
     return Number(result?.count ?? 0);
   }
