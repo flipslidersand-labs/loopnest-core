@@ -11,11 +11,14 @@
     "type-check": "turbo run type-check",
     "migrate": "bash infra/migrations/run.sh",
     "test:integration": "bash tests/integration/run-all.sh",
-    "db:reset": "docker compose down -v && docker compose up -d"
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "eslint": "^9.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
     "prettier": "^3.3.0",
     "turbo": "^2.0.0",
     "typescript": "^5.6.0"
@@ -28,5 +31,14 @@
   "dependencies": {
     "js-yaml": "^4.1.1",
     "pg": "^8.21.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }
