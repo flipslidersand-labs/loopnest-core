@@ -242,6 +242,16 @@ export class InvoiceRepository {
     return r ? this.map(r) : null;
   }
 
+  async findByQuoteIds(quoteIds: string[]): Promise<InvoiceRecord[]> {
+    if (quoteIds.length === 0) return [];
+    const rows = await this.db
+      .selectFrom('finance.invoices')
+      .selectAll()
+      .where('quote_id', 'in', quoteIds)
+      .execute();
+    return rows.map((r: any) => this.map(r));
+  }
+
   async findWithItems(id: string): Promise<InvoiceWithItems | null> {
     const invoice = await this.findById(id);
     if (!invoice) return null;

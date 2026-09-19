@@ -65,6 +65,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
 
   router.get(
     '/export',
+    requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const filter = {
         status: req.query.status as string | undefined,

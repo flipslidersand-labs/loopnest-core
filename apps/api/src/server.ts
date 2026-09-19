@@ -214,8 +214,8 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   });
 
   // Graceful shutdown
-  process.on('SIGTERM', async () => {
-    logger.info('SIGTERM received, shutting down');
+  const shutdown = async (signal: string) => {
+    logger.info(`${signal} received, shutting down`);
     serviceContainer.eventWorker.stop();
     if (server) {
       server.close(() => {
@@ -225,5 +225,7 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
     await dbServices.close();
     await shutdownTelemetry();
     process.exit(0);
-  });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 });

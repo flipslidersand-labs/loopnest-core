@@ -94,35 +94,35 @@ export class InvoiceService {
     }
 
     const invoiceNumber = await this.generateInvoiceNumber();
-
-    const invoice = await this.repos.invoices.create({
-      quoteId,
-      invoiceNumber,
-      customerId: quote.customerId,
-      subtotal,
-      taxAmount,
-      discountAmount,
-      totalAmount,
-      status: 'issued',
-      createdBy: userId,
-    });
-
-    // Increment customer's outstanding credit usage.
-    await this.repos.customers.incrementCreditUsed(quote.customerId, totalAmount);
-
-    const invoiceId = invoice.id;
-
-    // Copy quote items to invoice_items, preserving per-item discounts.
     const quoteItems = await this.repos.quoteItems.findByQuote(quoteId);
-    await this.repos.invoices.addItems(invoiceId, quoteItems.map(qi => ({
-      productId: qi.productId,
-      quantity: qi.quantity,
-      unitPrice: qi.unitPrice,
-      discountPct: qi.discountPct,
-      discountAmt: qi.discountAmt,
-      lineTotal: qi.lineTotal,
-      notes: null,
-    })));
+
+    // Atomically create invoice, copy line items, and increment credit_used.
+    // If any step fails the entire transaction rolls back, preventing orphaned
+    // invoices or understated credit_used values.
+    const { invoice, invoiceId } = await this.repos.beginTransaction(async (txRepos) => {
+      const inv = await txRepos.invoices.create({
+        quoteId,
+        invoiceNumber,
+        customerId: quote.customerId,
+        subtotal,
+        taxAmount,
+        discountAmount,
+        totalAmount,
+        status: 'issued',
+        createdBy: userId,
+      });
+      await txRepos.customers.incrementCreditUsed(quote.customerId, totalAmount);
+      await txRepos.invoices.addItems(inv.id, quoteItems.map(qi => ({
+        productId: qi.productId,
+        quantity: qi.quantity,
+        unitPrice: qi.unitPrice,
+        discountPct: qi.discountPct,
+        discountAmt: qi.discountAmt,
+        lineTotal: qi.lineTotal,
+        notes: null,
+      })));
+      return { invoice: inv, invoiceId: inv.id };
+    });
 
     await this.repos.outbox.publish('invoice_created', quoteId, {
       invoiceId,
@@ -199,13 +199,11 @@ export class InvoiceService {
    * Get invoices by quote IDs
    */
   async findByQuoteIds(quoteIds: string[]): Promise<Array<{ quoteId: string; invoiceId: string }>> {
-    const results = await Promise.all(
-      quoteIds.map(async (quoteId) => {
-        const invoice = await this.repos.invoices.findByQuoteId(quoteId);
-        return invoice ? { quoteId, invoiceId: invoice.id } : null;
-      })
-    );
-    return results.filter((r): r is { quoteId: string; invoiceId: string } => r !== null);
+    if (quoteIds.length === 0) return [];
+    const invoices = await this.repos.invoices.findByQuoteIds(quoteIds);
+    return invoices
+      .filter((inv) => inv.quoteId !== null)
+      .map((inv) => ({ quoteId: inv.quoteId!, invoiceId: inv.id }));
   }
 
   /**
