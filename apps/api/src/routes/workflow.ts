@@ -97,7 +97,14 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       // does not strand the quote in 'invoiced' status with no actual invoice.
       await services.invoices.assertCreditAllows(req.params.id);
       const quote = await services.quotes.convertToInvoice(req.params.id, actorId);
-      const invoiceResult = await services.invoices.createFromQuote(req.params.id, actorId);
+      let invoiceResult;
+      try {
+        invoiceResult = await services.invoices.createFromQuote(req.params.id, actorId);
+      } catch (err) {
+        // Compensate: revert quote status to approved so it is not stranded.
+        await repos.quotes.transitionStatus(req.params.id, 'invoiced', 'approved').catch(() => undefined);
+        throw err;
+      }
       await services.audit.logInvoiceCreated(invoiceResult.invoiceId, req.params.id, actorId);
       wh.deliver(req.user?.orgId, 'invoice.created', { invoiceId: invoiceResult.invoiceId, quoteId: req.params.id, totalAmount: invoiceResult.totalAmount });
       res.json({ data: { quote, invoice: invoiceResult }, message: 'Invoice created from approved quote' });
@@ -208,6 +215,9 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
   router.get(
     '/approvals/user/:userId',
     asyncHandler(async (req: Request, res: Response) => {
+      if (req.user?.sub !== req.params.userId && req.user?.role !== 'admin') {
+        throw new ApiErrorResponse(403, 'FORBIDDEN', 'You can only view your own approval queue');
+      }
       const approvals = await services.approvals.getPendingApprovalsForUser(req.params.userId);
       res.json({ data: approvals, count: approvals.length });
     })

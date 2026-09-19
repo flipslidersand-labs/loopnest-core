@@ -9,6 +9,7 @@ import { EmailNotificationService } from "./EmailNotificationService.js";
 import { outboxEventLagMs } from "../observability/metrics.js";
 
 const NOTIFY_CHANNEL = 'loopnest_outbox';
+const SCAN_BATCH_SIZE = Math.max(1, Number(process.env.SCAN_BATCH_SIZE) || 500);
 
 function advanceDate(from: string, unit: string, value: number): string {
   const d = new Date(from + 'T00:00:00Z');
@@ -425,6 +426,8 @@ export class EventWorker {
                 AND e.aggregate_id = i.id::text
                 AND e.created_at AT TIME ZONE 'UTC' >= CURRENT_DATE
            )
+         ORDER BY i.payment_due_date
+         LIMIT ${sql.lit(SCAN_BATCH_SIZE)}
       `.execute(this.kyselyDb);
 
       for (const row of rows) {
@@ -649,6 +652,8 @@ export class EventWorker {
          WHERE i.status IN ('issued', 'sent')
            AND i.payment_due_date IS NOT NULL
            AND i.payment_due_date < CURRENT_DATE
+         ORDER BY i.payment_due_date
+         LIMIT ${sql.lit(SCAN_BATCH_SIZE)}
       `.execute(this.kyselyDb);
 
       let fired = 0;

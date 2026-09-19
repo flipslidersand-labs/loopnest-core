@@ -14,7 +14,7 @@ function makeQuote(overrides: Record<string, any> = {}) {
 }
 
 function makeRepos(overrides: Record<string, any> = {}) {
-  return {
+  const base: Record<string, any> = {
     quotes: {
       findWithItems: vi.fn().mockResolvedValue(makeQuote()),
     },
@@ -43,6 +43,9 @@ function makeRepos(overrides: Record<string, any> = {}) {
     },
     ...overrides,
   };
+  // beginTransaction executes callback with the same repos (no real DB in unit tests)
+  base.beginTransaction = vi.fn().mockImplementation((cb: (r: any) => Promise<any>) => cb(base));
+  return base;
 }
 
 function makeEmailNotifications() {
@@ -216,9 +219,10 @@ describe('InvoiceService — findByQuoteIds', () => {
       invoices: {
         nextSequenceValue: vi.fn(),
         create: vi.fn(),
-        findByQuoteId: vi.fn().mockImplementation((qid: string) =>
-          qid === 'q-1' ? { id: 'inv-1' } : null
-        ),
+        findByQuoteId: vi.fn(),
+        findByQuoteIds: vi.fn().mockResolvedValue([
+          { id: 'inv-1', quoteId: 'q-1' },
+        ]),
         findById: vi.fn(),
       },
     });
@@ -232,7 +236,8 @@ describe('InvoiceService — findByQuoteIds', () => {
       invoices: {
         nextSequenceValue: vi.fn(),
         create: vi.fn(),
-        findByQuoteId: vi.fn().mockResolvedValue(null),
+        findByQuoteId: vi.fn(),
+        findByQuoteIds: vi.fn().mockResolvedValue([]),
         findById: vi.fn(),
       },
     });
