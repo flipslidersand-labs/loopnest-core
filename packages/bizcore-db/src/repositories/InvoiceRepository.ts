@@ -71,6 +71,11 @@ export interface InvoiceFilter {
   take?: number;
 }
 
+// Hard cap on export result sets. Kept as a safety limit against unbounded
+// memory/streaming time for pathological filters; callers must be told when
+// it is hit so a truncated export is never mistaken for a complete one.
+const EXPORT_ROW_LIMIT = 10000;
+
 const COLS = [
   'id', 'quote_id', 'contract_id', 'invoice_number', 'customer_id',
   'subtotal_amount', 'tax_amount', 'discount_amount', 'total_amount',
@@ -163,18 +168,27 @@ export class InvoiceRepository {
     return { data, pagination: { limit, nextCursor } };
   }
 
-  async findForExport(filter: Omit<InvoiceFilter, 'skip' | 'take'> = {}): Promise<InvoiceRecord[]> {
+  /**
+   * `truncated: true` means the filter matched more than EXPORT_ROW_LIMIT
+   * rows and the result was cut off — callers must surface this rather than
+   * treat `data` as the complete match set.
+   */
+  async findForExport(filter: Omit<InvoiceFilter, 'skip' | 'take'> = {}): Promise<{ data: InvoiceRecord[]; truncated: boolean }> {
     let q = this.db
       .selectFrom('finance.invoices')
       .selectAll()
       .orderBy('created_at', 'desc')
-      .limit(10000);
+      .limit(EXPORT_ROW_LIMIT);
     if (filter.status)        q = q.where('status', '=', filter.status);
     if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
     if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
     if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     const rows = await q.execute();
-    return rows.map((r: any) => this.map(r));
+    const truncated = rows.length >= EXPORT_ROW_LIMIT;
+    if (truncated) {
+      process.stderr.write(`[InvoiceRepository] findForExport truncated at ${EXPORT_ROW_LIMIT} rows; filter=${JSON.stringify(filter)}\n`);
+    }
+    return { data: rows.map((r: any) => this.map(r)), truncated };
   }
 
   /**
@@ -184,25 +198,36 @@ export class InvoiceRepository {
    * live for the duration of a transaction, so the whole scan runs inside one
    * (query.stream() outside a transaction can silently drop rows once the
    * connection is returned to the pool).
+   *
+   * Returns `{ truncated: true }` when the row count hit EXPORT_ROW_LIMIT, so
+   * callers (e.g. the CSV export route) can warn instead of silently handing
+   * back a partial export.
    */
   async streamForExport(
     filter: Omit<InvoiceFilter, 'skip' | 'take'> = {},
     onRow: (record: InvoiceRecord) => void | Promise<void>
-  ): Promise<void> {
+  ): Promise<{ truncated: boolean }> {
+    let rowCount = 0;
     await this.db.transaction().execute(async (trx: any) => {
       let q = trx
         .selectFrom('finance.invoices')
         .selectAll()
         .orderBy('created_at', 'desc')
-        .limit(10000);
+        .limit(EXPORT_ROW_LIMIT);
       if (filter.status)        q = q.where('status', '=', filter.status);
       if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
       if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
       if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
       for await (const r of q.stream()) {
+        rowCount++;
         await onRow(this.map(r));
       }
     });
+    const truncated = rowCount >= EXPORT_ROW_LIMIT;
+    if (truncated) {
+      process.stderr.write(`[InvoiceRepository] streamForExport truncated at ${EXPORT_ROW_LIMIT} rows; filter=${JSON.stringify(filter)}\n`);
+    }
+    return { truncated };
   }
 
   async count(filter: Pick<InvoiceFilter, 'status' | 'customerId'> = {}): Promise<number> {
