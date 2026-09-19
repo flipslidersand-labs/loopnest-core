@@ -7,7 +7,7 @@ import { rateLimit } from '../middleware/rateLimit.js';
 import { signToken } from '../lib/jwt.js';
 
 const PORTAL_TOKEN_TTL = 30 * 24 * 3600; // 30 days
-// JWT_SECRET is validated at startup in auth.ts — safe to read here after boot.
+// JWT_SECRET is validated at startup in server.ts — safe to read here after boot.
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 const loginRateLimit = rateLimit({ bucket: 'portal-login', windowSeconds: 60, max: 10 });
