@@ -28,7 +28,7 @@ CUSTOMER=$(curl -sf -X POST "${BASE_URL}/api/customers" \
 PRODUCT=$(curl -sf -X POST "${BASE_URL}/api/products" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sku":"TPL-001","name":"Template Product","category":"laptop","unitPrice":10000,"stockQuantity":100}' | jq -r '.data.id')
+  -d "{\"sku\":\"TPL-$(date +%s)-$RANDOM\",\"name\":\"Template Product\",\"category\":\"laptop\",\"unitPrice\":10000,\"stockQuantity\":100}" | jq -r '.data.id')
 
 echo "  Setup: customer=$CUSTOMER product=$PRODUCT"
 
