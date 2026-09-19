@@ -173,8 +173,14 @@ jobs:
             kill -0 $SERVER_PID 2>/dev/null || { echo "server died"; cat /tmp/load-server.log; exit 1; }
             sleep 1
           done
+          # set -e (the default for run: steps) would otherwise skip the kill
+          # below on a failing load test, leaking the server process (issue #223).
+          set +e
           DURATION_S=5 CONCURRENCY=10 node tests/load/load.mjs
+          EXIT=$?
+          set -e
           kill $SERVER_PID 2>/dev/null || true
+          exit $EXIT
 
       - name: Server logs on failure
         if: failure()
@@ -182,6 +188,14 @@ jobs:
           echo "=== integration server ==="; tail -n 200 /tmp/loopnest-itest-server.log 2>/dev/null || true
           echo "=== rate-limit server ==="; tail -n 100 /tmp/rate-limit-server.log 2>/dev/null || true
           echo "=== load server ==="; tail -n 100 /tmp/load-server.log 2>/dev/null || true
+
+      - name: Free port 3000 (cleanup)
+        if: always()
+        run: |
+          # Belt-and-braces: guarantee no server process from this job survives
+          # onto the self-hosted runner's next job, even if a step above was
+          # killed abruptly (job cancellation) before its own kill ran (#223).
+          sudo fuser -k 3000/tcp 2>/dev/null || true
 
       - name: Checkout dep-policy
         uses: actions/checkout@v4
