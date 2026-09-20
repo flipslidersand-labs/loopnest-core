@@ -4,11 +4,12 @@ import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
 import { requireRole } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
+import { toCsvRow } from '../lib/csv.js';
 
 const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
 
 function invoiceToCsvRow(inv: any): string {
-  return [
+  return toCsvRow([
     inv.id,
     inv.invoiceNumber,
     inv.customerId,
@@ -18,7 +19,7 @@ function invoiceToCsvRow(inv: any): string {
     inv.createdAt instanceof Date ? inv.createdAt.toISOString() : inv.createdAt,
     inv.paymentDueDate ?? '',
     inv.paidAt instanceof Date ? inv.paidAt.toISOString() : (inv.paidAt ?? ''),
-  ].join(',');
+  ]);
 }
 
 export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceService) {
