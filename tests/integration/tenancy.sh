@@ -48,6 +48,33 @@ check "org-B list excludes org-A customer" "false" \
 R_ADMIN=$(curl -s -w "\n%{http_code}" "$BASE_URL/customers/$CUST_A")
 check "admin list includes org-A customer" "200" "$(http_code "$R_ADMIN")"
 
+# org-B cannot mutate/read org-A's customer via any of the write/credit endpoints (#243)
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d '{"name":"Pwned"}' "$BASE_URL/customers/$CUST_A")
+check "org-B PATCH org-A customer → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  "$BASE_URL/customers/$CUST_A/credit-status")
+check "org-B GET org-A credit-status → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d '{"creditLimit":999999}' "$BASE_URL/customers/$CUST_A/credit-limit")
+check "org-B PATCH org-A credit-limit → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X DELETE \
+  -H "Authorization: Bearer $TOKEN_B" \
+  "$BASE_URL/customers/$CUST_A")
+check "org-B DELETE org-A customer → 404" "404" "$(http_code "$R")"
+
+# ...and org-A can still legitimately update its own customer.
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_A" -H "Content-Type: application/json" \
+  -d '{"name":"Alpha Customer Renamed"}' "$BASE_URL/customers/$CUST_A")
+check "org-A PATCH own customer → 200" "200" "$(http_code "$R")"
+
 # ── Product isolation ─────────────────────────────────────────────────────────
 echo ""
 echo "Product isolation"
