@@ -43,6 +43,19 @@ export const requireRole = (...roles: string[]) =>
     next();
   };
 
+/**
+ * Get the authenticated user's sub for actor/createdBy fields.
+ * Throws 401 instead of silently falling back to "system" — every call site
+ * runs behind requireRole/requireCustomer, so a missing req.user here means
+ * that guard was skipped, not that the request is legitimately anonymous.
+ */
+export function getAuthenticatedUserId(req: Request): string {
+  if (!req.user?.sub) {
+    throw new ApiErrorResponse(401, 'UNAUTHORIZED', 'Authentication required');
+  }
+  return req.user.sub;
+}
+
 export const requireCustomer = (req: Request, _res: Response, next: NextFunction): void => {
   if (!req.user) {
     return next(new ApiErrorResponse(401, 'UNAUTHORIZED', 'Authentication required'));
