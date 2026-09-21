@@ -135,4 +135,47 @@ R=$(command curl -s -w "\n%{http_code}" \
   "$BASE_URL/customers/$CUST_B")
 check "org-A cannot GET org-B customer → 404" "404" "$(http_code "$R")"
 
+# ── Organization isolation (#244) ────────────────────────────────────────────
+echo ""
+echo "Organization isolation"
+
+# org-B cannot GET/PATCH/DELETE org-A's own organization record.
+R=$(command curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN_B" "$BASE_URL/organizations/$ORG_A")
+check "org-B GET org-A organization → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN_B" "$BASE_URL/organizations/$ORG_A/children")
+check "org-B GET org-A organization children → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d '{"name":"Pwned Org"}' "$BASE_URL/organizations/$ORG_A")
+check "org-B PATCH org-A organization → 404" "404" "$(http_code "$R")"
+
+# org-B's list of organizations does not include org-A.
+LIST_B=$(command curl -s -H "Authorization: Bearer $TOKEN_B" "$BASE_URL/organizations")
+check "org-B org list excludes org-A" "false" \
+  "$(echo "$LIST_B" | jq --arg id "$ORG_A" '[.data[].id] | contains([$id])')"
+
+# org-B cannot create a child org under org-A.
+R=$(command curl -s -w "\n%{http_code}" -X POST \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d "{\"name\":\"Sneaky Child\",\"type\":\"company\",\"parentId\":\"$ORG_A\"}" \
+  "$BASE_URL/organizations")
+check "org-B create org with org-A as parentId → 403" "403" "$(http_code "$R")"
+
+# org-A can still read/update its own organization.
+R=$(command curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN_A" "$BASE_URL/organizations/$ORG_A")
+check "org-A GET own organization → 200" "200" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_A" -H "Content-Type: application/json" \
+  -d '{"name":"Tenant Alpha Corp Renamed"}' "$BASE_URL/organizations/$ORG_A")
+check "org-A PATCH own organization → 200" "200" "$(http_code "$R")"
+
+# Global admin (no orgId) can still see both organizations.
+R=$(curl -s -w "\n%{http_code}" "$BASE_URL/organizations/$ORG_A")
+check "global admin GET org-A organization → 200" "200" "$(http_code "$R")"
+R=$(curl -s -w "\n%{http_code}" "$BASE_URL/organizations/$ORG_B")
+check "global admin GET org-B organization → 200" "200" "$(http_code "$R")"
+
 summary
