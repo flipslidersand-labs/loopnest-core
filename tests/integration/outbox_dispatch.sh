@@ -81,12 +81,22 @@ EVT2="SELECT status FROM events.outbox_events WHERE event_type='invoice_created'
 RETRY2="SELECT retry_count FROM events.outbox_events WHERE event_type='invoice_created' AND payload->>'invoiceId'='$INVOICE_ID2'"
 
 # While down, the event must NOT be 'processed', and retry_count must climb.
-sleep 4
+# Poll for retry_count>=1 instead of a fixed sleep — under CI runner contention
+# (self-hosted, shared with other concurrent jobs) a static 4s window can be
+# too short for the 1s outbox poll + failed-HTTP-call + DB update to land.
+RETRY_TIMEOUT=10
+waited=0
+while [ "$waited" -lt "$RETRY_TIMEOUT" ]; do
+  RETRIES_DOWN=$(db_scalar "$RETRY2")
+  [ "${RETRIES_DOWN:-0}" -ge 1 ] && break
+  sleep 1; waited=$((waited + 1))
+done
 STATUS_DOWN=$(db_scalar "$EVT2")
 RETRIES_DOWN=$(db_scalar "$RETRY2")
 if [ "$STATUS_DOWN" != "processed" ] && [ "${RETRIES_DOWN:-0}" -ge 1 ]; then
   pass "event retried while accounting API down (status=$STATUS_DOWN, retries=$RETRIES_DOWN, not lost)"
 else
+  echo "  EventWorker log tail:"; tail -30 /tmp/loopnest-itest-server.log 2>/dev/null
   fail "event not retried as expected (status=$STATUS_DOWN, retries=$RETRIES_DOWN)"
 fi
 
