@@ -1,4 +1,3 @@
-export { BaseRepository } from './BaseRepository.js';
 export type { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 export { OrganizationRepository } from './OrganizationRepository.js';
 export type { Organization } from './OrganizationRepository.js';
