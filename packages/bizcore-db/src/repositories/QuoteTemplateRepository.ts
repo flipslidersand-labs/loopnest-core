@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { sql } from 'kysely';
+import { Kysely, sql } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 
 export interface TemplateItem {
   productId: string;
@@ -28,7 +29,7 @@ export interface QuoteTemplateInput {
 }
 
 export class QuoteTemplateRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findAll(organizationId?: string): Promise<QuoteTemplate[]> {
     let q = this.db

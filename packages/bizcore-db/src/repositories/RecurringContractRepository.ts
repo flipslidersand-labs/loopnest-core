@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { toDateOnlyStr } from '../utils/date.js';
 
@@ -53,7 +55,7 @@ export interface RecurringFilter {
 }
 
 export class RecurringContractRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findAll(filter: RecurringFilter = {}): Promise<RecurringContract[]> {
     let q = this.db
@@ -198,8 +200,8 @@ export class RecurringContractRepository {
         eb('pause_until', 'is not', null),
         eb('pause_until', '<=', asOf),
       ]))
-      .execute();
-    return Number(result.numUpdatedRows ?? 0);
+      .executeTakeFirst();
+    return Number(result?.numUpdatedRows ?? 0);
   }
 
   /** Advance next_billing_at by one interval after a successful billing run. */
@@ -218,8 +220,8 @@ export class RecurringContractRepository {
       .set({ status: 'completed', updated_at: new Date() })
       .where('status', '=', 'active')
       .where('ends_at', '<=', asOf)
-      .execute();
-    return Number(result.numUpdatedRows ?? 0);
+      .executeTakeFirst();
+    return Number(result?.numUpdatedRows ?? 0);
   }
 
   private map(r: any): RecurringContract {

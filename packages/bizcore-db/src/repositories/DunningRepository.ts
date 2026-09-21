@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 
 export type DunningAction = 'reminder' | 'warning' | 'suspend' | 'collection';
@@ -30,7 +32,7 @@ export interface DunningLog {
 }
 
 export class DunningRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   // ── Rules ────────────────────────────────────────────────────────────────────
 

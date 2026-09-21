@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 
 export interface TaxRate {
@@ -21,7 +23,7 @@ export interface TaxRateInput {
 const COLS = ['id', 'name', 'rate', 'is_default', 'valid_from', 'valid_to', 'created_at'] as const;
 
 export class TaxRateRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findAll(): Promise<TaxRate[]> {
     const rows = await this.db
