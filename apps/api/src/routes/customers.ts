@@ -72,6 +72,9 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     '/:id',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
+      const existing = await repos.customers.findById(req.params.id, req.user?.orgId);
+      if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+
       const { name, address, phone } = req.body;
 
       if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
@@ -93,6 +96,9 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     '/:id',
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
+      const existing = await repos.customers.findById(req.params.id, req.user?.orgId);
+      if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+
       const success = await repos.customers.delete(req.params.id);
 
       if (!success) {
@@ -147,7 +153,10 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
 
   router.get(
     '/:id/credit-status',
+    requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
+      const existing = await repos.customers.findById(req.params.id, req.user?.orgId);
+      if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
       const status = await repos.customers.getCreditStatus(req.params.id);
       if (!status) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
       res.json({ data: status });
@@ -158,6 +167,9 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
     '/:id/credit-limit',
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
+      const existing = await repos.customers.findById(req.params.id, req.user?.orgId);
+      if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
+
       const { creditLimit } = req.body;
       if (creditLimit !== null && creditLimit !== undefined) {
         const val = Number(creditLimit);
