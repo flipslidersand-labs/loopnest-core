@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
 export interface User {
@@ -14,10 +14,8 @@ export interface User {
   updatedAt: Date;
 }
 
-export class UserRepository extends BaseRepository<User> {
-  constructor(private db: Kysely<KyselyDatabase>) {
-    super();
-  }
+export class UserRepository {
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findById(id: string): Promise<User | null> {
     const row = await this.db

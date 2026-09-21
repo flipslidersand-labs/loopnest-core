@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
 export interface Product {
@@ -18,10 +18,8 @@ export interface ProductFilter extends FindOptions {
   category?: string;
 }
 
-export class ProductRepository extends BaseRepository<Product> {
-  constructor(private db: Kysely<KyselyDatabase>) {
-    super();
-  }
+export class ProductRepository {
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findById(id: string, organizationId?: string): Promise<Product | null> {
     let q = this.db
