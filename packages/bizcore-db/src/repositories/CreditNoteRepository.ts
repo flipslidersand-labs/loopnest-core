@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 
 export type CreditNoteType = 'return' | 'pricing_error' | 'goodwill' | 'adjustment';
@@ -73,7 +75,7 @@ const CN_COLS = [
  * works for reads and within CreditNoteService transactions.
  */
 export class CreditNoteRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async nextSequenceValue(db: any = this.db): Promise<number> {
     const { sql } = await import('kysely');
