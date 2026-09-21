@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer, PaymentMethod, PaymentStatus } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import { PaymentService } from '../services/PaymentService.js';
 import { WebhookService } from '../services/WebhookService.js';
 import { AuditService } from '../services/AuditService.js';
@@ -89,7 +89,7 @@ export function invoicePaymentRoutes(
         req.user!.sub
       );
 
-      await audit.logPaymentRecorded(result.payment.id, invoiceId, result.payment.amount, req.user?.sub ?? 'system');
+      await audit.logPaymentRecorded(result.payment.id, invoiceId, result.payment.amount, getAuthenticatedUserId(req));
       // Fire-and-forget webhook fan-out, mirroring the workflow routes.
       webhooks.deliver(req.user?.orgId, 'payment.recorded', {
         invoiceId,
@@ -99,7 +99,7 @@ export function invoicePaymentRoutes(
         status: result.balance.status,
       });
       if (result.balance.status === 'paid') {
-        await audit.logInvoiceMarkedPaid(invoiceId, req.user?.sub ?? 'system', new Date());
+        await audit.logInvoiceMarkedPaid(invoiceId, getAuthenticatedUserId(req), new Date());
         webhooks.deliver(req.user?.orgId, 'invoice.paid', {
           invoiceId,
           paidTotal: result.balance.paidTotal,
@@ -162,7 +162,7 @@ export function paymentRoutes(
       const { reason } = req.body as { reason?: string };
       const result = await payments.reversePayment(id, reason ?? '', req.user!.sub);
 
-      await audit.logPaymentReversed(id, result.balance.invoiceId, reason ?? '', req.user?.sub ?? 'system');
+      await audit.logPaymentReversed(id, result.balance.invoiceId, reason ?? '', getAuthenticatedUserId(req));
       webhooks.deliver(req.user?.orgId, 'payment.reversed', {
         invoiceId: result.balance.invoiceId,
         paymentId: id,

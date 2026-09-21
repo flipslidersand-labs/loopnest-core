@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
 
 const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
@@ -36,7 +36,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       if (!Array.isArray(items) || items.length === 0) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'items must be a non-empty array');
       }
-      const userId = (req as any).user?.userId ?? 'system';
+      const userId = getAuthenticatedUserId(req);
       const result = await invoiceSvc.bulkCreate(items, userId);
       res.status(result.failed.length === 0 ? 201 : 207).json(result);
     })

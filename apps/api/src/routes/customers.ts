@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import { AuditService } from '../services/AuditService.js';
 import { StatementService } from '../services/StatementService.js';
 import { PdfService } from '../services/PdfService.js';
@@ -63,7 +63,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
         organizationId: req.user?.orgId,
       } as any);
 
-      await audit.logResourceCreated('customer', customer.id, req.user?.sub ?? 'system', { name });
+      await audit.logResourceCreated('customer', customer.id, getAuthenticatedUserId(req), { name });
       res.status(201).json({ data: customer });
     })
   );
@@ -84,7 +84,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
         phone,
       });
 
-      await audit.logResourceUpdated('customer', req.params.id, req.user?.sub ?? 'system', { name, address, phone });
+      await audit.logResourceUpdated('customer', req.params.id, getAuthenticatedUserId(req), { name, address, phone });
       res.json({ data: customer });
     })
   );
@@ -99,7 +99,7 @@ export function customerRoutes(repos: RepositoryContainer, audit: AuditService) 
         throw new ApiErrorResponse(404, 'NOT_FOUND', 'Customer not found');
       }
 
-      await audit.logResourceDeleted('customer', req.params.id, req.user?.sub ?? 'system');
+      await audit.logResourceDeleted('customer', req.params.id, getAuthenticatedUserId(req));
       res.json({ data: { success: true } });
     })
   );
