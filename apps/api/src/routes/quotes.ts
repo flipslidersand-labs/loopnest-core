@@ -162,6 +162,9 @@ export function quoteRoutes(repos: RepositoryContainer) {
       if (quantity !== undefined && quantity <= 0) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'quantity must be positive');
       }
+      if (unitPrice !== undefined && unitPrice < 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'unitPrice must be non-negative');
+      }
       const item = await repos.quoteItems.updateItem(req.params.itemId, req.params.id, { quantity, unitPrice });
       if (!item) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Item not found');
       const quote = await repos.quotes.findById(req.params.id);

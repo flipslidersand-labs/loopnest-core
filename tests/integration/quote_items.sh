@@ -56,6 +56,12 @@ check "item A lineTotal = 50000" "50000" "$(http_body "$R" | jq -r '.data.lineTo
 check "quote subtotal recalculated" "60000" "$(http_body "$R" | jq -r '.quoteTotals.subtotalAmount')"
 check "quote total recalculated" "66000" "$(http_body "$R" | jq -r '.quoteTotals.totalAmount')"
 
+R=$(curl -s -w "\n%{http_code}" -X PATCH "$BASE_URL/quotes/$QUOTE/items/$ITEM_A" \
+  -H "Content-Type: application/json" \
+  -d '{"unitPrice":-1000}')
+check "update item unitPrice negative → 400" "400" "$(http_code "$R")"
+check "item A unitPrice unchanged after rejected update" "10000" "$(curl -s "$BASE_URL/quotes/$QUOTE/items" | jq -r --arg id "$ITEM_A" '.data[] | select(.id==$id) | .unitPrice')"
+
 # ── 5. Delete item ───────────────────────────────────────────────────────────
 echo ""
 echo "Delete item"
