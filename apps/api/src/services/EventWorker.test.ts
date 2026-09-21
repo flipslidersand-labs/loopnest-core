@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EventWorker } from './EventWorker.js';
+import { EventWorker, advanceDate } from './EventWorker.js';
 
 function makeRepos(overrides: Record<string, any> = {}) {
   return {
@@ -222,21 +222,7 @@ describe('EventWorker — invoice_created / handleInvoiceCreated()', () => {
   });
 });
 
-// advanceDate is private but exported via the module — test via dispatch indirectly
-// by testing the pure function directly (it's not exported; we inline test cases)
-describe('EventWorker — advanceDate (private helper)', () => {
-  // Access via a mock that calls the same logic
-  function advanceDate(from: string, unit: string, value: number): string {
-    const d = new Date(from + 'T00:00:00Z');
-    switch (unit) {
-      case 'day':   d.setUTCDate(d.getUTCDate() + value); break;
-      case 'week':  d.setUTCDate(d.getUTCDate() + value * 7); break;
-      case 'month': d.setUTCMonth(d.getUTCMonth() + value); break;
-      case 'year':  d.setUTCFullYear(d.getUTCFullYear() + value); break;
-    }
-    return d.toISOString().slice(0, 10);
-  }
-
+describe('EventWorker — advanceDate()', () => {
   it('advances by day', () => {
     expect(advanceDate('2026-01-01', 'day', 1)).toBe('2026-01-02');
   });
@@ -245,12 +231,28 @@ describe('EventWorker — advanceDate (private helper)', () => {
     expect(advanceDate('2026-01-01', 'week', 1)).toBe('2026-01-08');
   });
 
-  it('advances by month', () => {
+  it('advances by month (no rollover)', () => {
     expect(advanceDate('2026-01-01', 'month', 1)).toBe('2026-02-01');
   });
 
-  it('advances by year', () => {
+  it('advances by year (no rollover)', () => {
     expect(advanceDate('2026-01-01', 'year', 1)).toBe('2027-01-01');
+  });
+
+  it('rolls a 31-day start over into the next month when +1 month lands on a shorter month', () => {
+    // 2026 is not a leap year: Feb has 28 days, so Jan 31 + 1 month overflows
+    // by 3 days (31 - 28) into March instead of clamping to Feb 28.
+    expect(advanceDate('2026-01-31', 'month', 1)).toBe('2026-03-03');
+  });
+
+  it('rolls a leap-day start (Feb 29) over into March when +1 year lands on a non-leap year', () => {
+    // 2024 is a leap year; 2025 is not, so Feb has 28 days and the extra day
+    // overflows into March 1 instead of clamping to Feb 28.
+    expect(advanceDate('2024-02-29', 'year', 1)).toBe('2025-03-01');
+  });
+
+  it('leaves the date unchanged for an unrecognized unit (no default branch)', () => {
+    expect(advanceDate('2026-01-15', 'decade', 1)).toBe('2026-01-15');
   });
 });
 
