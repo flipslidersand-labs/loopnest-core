@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { logger } from '../lib/logger.js';
 import type { PgPool } from '../lib/pg-pool-types.js';
 
@@ -59,8 +59,8 @@ export class AuditService {
   constructor(private readonly pgPool: PgPool) {}
 
   async log(entry: AuditLogEntry): Promise<void> {
-    const correlationId = entry.correlationId || uuidv4();
-    const id = uuidv4();
+    const correlationId = entry.correlationId || randomUUID();
+    const id = randomUUID();
 
     try {
       await this.pgPool.query(
