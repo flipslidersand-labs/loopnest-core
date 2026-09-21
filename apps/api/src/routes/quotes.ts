@@ -90,7 +90,14 @@ export function quoteRoutes(repos: RepositoryContainer) {
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { status, subtotalAmount, taxAmount, totalAmount, notes } = req.body;
-      const quote = await repos.quotes.update(req.params.id, { status, subtotalAmount, taxAmount, totalAmount, notes });
+      if (status !== undefined) {
+        throw new ApiErrorResponse(
+          400,
+          'VALIDATION_ERROR',
+          'status cannot be changed via PATCH /quotes/:id — use POST /api/workflow/quotes/:id/{submit,approve,reject,invoice}'
+        );
+      }
+      const quote = await repos.quotes.update(req.params.id, { subtotalAmount, taxAmount, totalAmount, notes });
       res.json({ data: quote });
     })
   );
