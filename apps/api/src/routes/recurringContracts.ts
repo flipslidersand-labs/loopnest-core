@@ -5,6 +5,18 @@ import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import { parsePagination } from '../lib/pagination.js';
 import { WebhookService } from '../services/WebhookService.js';
 
+/**
+ * Block a tenant-scoped caller from touching another org's recurring
+ * contract. A token without orgId (global admin) may act on any contract; a
+ * contract whose org is unknown (e.g. customer with no organizationId) is
+ * left accessible for backward compatibility. Mirrors payments.ts.
+ */
+function assertOrgAccess(req: Request, ownerOrgId: string | null): void {
+  if (req.user?.orgId && ownerOrgId && req.user.orgId !== ownerOrgId) {
+    throw new ApiErrorResponse(403, 'FORBIDDEN', 'You may only access your own organization');
+  }
+}
+
 export function recurringContractRoutes(repos: RepositoryContainer, wh?: WebhookService) {
   const router = Router();
 
@@ -14,8 +26,10 @@ export function recurringContractRoutes(repos: RepositoryContainer, wh?: Webhook
       const { skip, take } = parsePagination(req.query, { defaultTake: 20 });
       const customerId = req.query.customerId as string | undefined;
       const status = req.query.status as string | undefined;
+      // A scoped token is pinned to its own org; a global admin may filter freely.
+      const organizationId = req.user?.orgId ?? (req.query.organizationId as string | undefined);
 
-      const contracts = await repos.recurringContracts.findAll({ customerId, status: status as 'active' | 'paused' | 'cancelled' | 'completed' | undefined, skip, take });
+      const contracts = await repos.recurringContracts.findAll({ customerId, organizationId, status: status as 'active' | 'paused' | 'cancelled' | 'completed' | undefined, skip, take });
       res.json({ data: contracts, pagination: { skip, take } });
     })
   );
@@ -25,6 +39,7 @@ export function recurringContractRoutes(repos: RepositoryContainer, wh?: Webhook
     asyncHandler(async (req: Request, res: Response) => {
       const contract = await repos.recurringContracts.findById(req.params.id);
       if (!contract) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Recurring contract not found');
+      assertOrgAccess(req, await repos.recurringContracts.findOwnerOrgId(req.params.id));
       res.json({ data: contract });
     })
   );
@@ -85,6 +100,7 @@ export function recurringContractRoutes(repos: RepositoryContainer, wh?: Webhook
     asyncHandler(async (req: Request, res: Response) => {
       const contract = await repos.recurringContracts.findById(req.params.id);
       if (!contract) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Recurring contract not found');
+      assertOrgAccess(req, await repos.recurringContracts.findOwnerOrgId(req.params.id));
       if (contract.status !== 'active') {
         throw new ApiErrorResponse(409, 'CONFLICT', `Contract is ${contract.status}, cannot pause`);
       }
@@ -104,6 +120,7 @@ export function recurringContractRoutes(repos: RepositoryContainer, wh?: Webhook
     asyncHandler(async (req: Request, res: Response) => {
       const contract = await repos.recurringContracts.findById(req.params.id);
       if (!contract) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Recurring contract not found');
+      assertOrgAccess(req, await repos.recurringContracts.findOwnerOrgId(req.params.id));
       if (contract.status !== 'paused') {
         throw new ApiErrorResponse(409, 'CONFLICT', `Contract is ${contract.status}, cannot resume`);
       }
@@ -119,6 +136,7 @@ export function recurringContractRoutes(repos: RepositoryContainer, wh?: Webhook
     asyncHandler(async (req: Request, res: Response) => {
       const contract = await repos.recurringContracts.findById(req.params.id);
       if (!contract) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Recurring contract not found');
+      assertOrgAccess(req, await repos.recurringContracts.findOwnerOrgId(req.params.id));
       if (contract.status === 'cancelled' || contract.status === 'completed') {
         throw new ApiErrorResponse(409, 'INVALID_STATUS', `Contract is already ${contract.status}`);
       }
