@@ -72,13 +72,19 @@ export function webhookRoutes(webhookService: WebhookService) {
       if (status !== undefined && status !== 'success' && status !== 'failed') {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'status must be "success" or "failed"');
       }
-      const result = await webhookService.listDeliveries({
-        webhookId: webhookId as string | undefined,
-        status:    status as 'success' | 'failed' | undefined,
-        eventType: eventType as string | undefined,
-        limit:     Math.min(100, Math.max(1, limit  ? parseInt(limit as string,  10) : 20)),
-        offset:    Math.max(0,              offset ? parseInt(offset as string, 10) : 0),
-      });
+      const result = await webhookService.listDeliveries(
+        {
+          webhookId: webhookId as string | undefined,
+          status: status as "success" | "failed" | undefined,
+          eventType: eventType as string | undefined,
+          limit: Math.min(
+            100,
+            Math.max(1, limit ? parseInt(limit as string, 10) : 20),
+          ),
+          offset: Math.max(0, offset ? parseInt(offset as string, 10) : 0),
+        },
+        req.user?.orgId,
+      );
       res.json({ data: result.data, total: result.total });
     })
   );
