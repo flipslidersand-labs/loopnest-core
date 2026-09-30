@@ -78,6 +78,11 @@ export function reportRoutes(reportingService: ReportingService) {
       if (from > to) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from must be before or equal to to');
       }
+      const MAX_DAYS = 366;
+      const msPerDay = 86400000;
+      if ((new Date(to).getTime() - new Date(from).getTime()) / msPerDay > MAX_DAYS) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', `date range must not exceed ${MAX_DAYS} days`);
+      }
       const cashFlow = await reportingService.getCashFlow(from, to, req.user?.orgId);
       res.json({ data: cashFlow, from, to });
     })
