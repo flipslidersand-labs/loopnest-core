@@ -1,6 +1,6 @@
 import { createHmac } from 'crypto';
 import { describe, it, expect } from 'vitest';
-import { signToken, verifyToken, type JwtPayload } from './jwt.js';
+import { signToken, verifyToken } from './jwt.js';
 
 const SECRET = 'test-secret';
 
