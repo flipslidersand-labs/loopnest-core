@@ -61,7 +61,8 @@ apps/api/               Express API server
   src/lib/              JWT, observability, email
 packages/bizcore-db/    DB access layer (Kysely + Prisma)
   src/repositories/     Per-entity repositories
-infra/migrations/       PostgreSQL migration SQL (000–021)
+apps/mock-accounting-api/ Mock accounting API used by outbox_dispatch integration tests
+infra/migrations/       PostgreSQL migration SQL
 tests/integration/      bash curl-based integration tests (30+ suites)
 docs/                   ADR, design docs, error-codes reference
 ```
@@ -86,7 +87,7 @@ bash infra/migrations/run.sh
 pnpm dev
 ```
 
-Place environment variables in `env/.env.local` (see `env/.env.example`).
+Copy `.env.example` to `.env` and fill in your environment variables.
 
 **Working in a git worktree?** Run the setup script once after `git worktree add` to restore pnpm workspace symlinks (required for `@loopnest/*` package resolution):
 
@@ -181,7 +182,8 @@ apps/api/               Express API サーバー
   src/lib/              JWT, observability, email
 packages/bizcore-db/    DB アクセス層（Kysely + Prisma）
   src/repositories/     各エンティティ Repository
-infra/migrations/       PostgreSQL マイグレーション SQL（000〜021）
+apps/mock-accounting-api/ outbox_dispatch 統合テスト用の会計モックAPI
+infra/migrations/       PostgreSQL マイグレーション SQL
 tests/integration/      bash curl ベース統合テスト（30+ スイート）
 docs/                   ADR・設計ドキュメント・エラーコードリファレンス
 ```
@@ -202,7 +204,7 @@ bash infra/migrations/run.sh
 pnpm dev
 ```
 
-環境変数は `env/.env.local` に配置してください（`env/.env.example` 参照）。
+`.env.example` を `.env` にコピーして環境変数を設定してください。
 
 **git worktree で作業する場合** は、`git worktree add` 後に一度セットアップスクリプトを実行して pnpm workspace のシンボリックリンクを復元してください（`@loopnest/*` パッケージ解決に必要）:
 
