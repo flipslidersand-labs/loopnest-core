@@ -1,4 +1,4 @@
-import { RepositoryContainer, QuoteEntity } from '@loopnest/bizcore-db';
+import { QuoteRepository, OutboxRepository, QuoteEntity } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
 
 export interface QuoteWorkflowAction {
@@ -9,7 +9,10 @@ export interface QuoteWorkflowAction {
 }
 
 export class QuoteService {
-  constructor(private repos: RepositoryContainer) {}
+  constructor(
+    private quotes: QuoteRepository,
+    private outbox: OutboxRepository,
+  ) {}
 
   /**
    * Atomic state transition with race-safe error handling.
@@ -23,7 +26,7 @@ export class QuoteService {
     operation: string,
     extraData?: { notes?: string }
   ): Promise<QuoteEntity> {
-    const updated = await this.repos.quotes.transitionStatus(
+    const updated = await this.quotes.transitionStatus(
       quoteId,
       expectedStatus,
       newStatus,
@@ -34,7 +37,7 @@ export class QuoteService {
       return updated;
     }
 
-    const current = await this.repos.quotes.findById(quoteId);
+    const current = await this.quotes.findById(quoteId);
     if (!current) {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
     }
@@ -56,7 +59,7 @@ export class QuoteService {
       'submit'
     );
 
-    await this.repos.outbox.publish('quote_submitted', quoteId, { userId });
+    await this.outbox.publish('quote_submitted', quoteId, { userId });
 
     return updated;
   }
@@ -73,7 +76,7 @@ export class QuoteService {
       notes === undefined ? undefined : { notes }
     );
 
-    await this.repos.outbox.publish('quote_approved', quoteId, { userId, notes });
+    await this.outbox.publish('quote_approved', quoteId, { userId, notes });
 
     return updated;
   }
@@ -90,7 +93,7 @@ export class QuoteService {
       { notes: `Rejected: ${reason}` }
     );
 
-    await this.repos.outbox.publish('quote_rejected', quoteId, { userId, reason });
+    await this.outbox.publish('quote_rejected', quoteId, { userId, reason });
 
     return updated;
   }
@@ -112,7 +115,7 @@ export class QuoteService {
     canReject: boolean;
     canInvoice: boolean;
   }> {
-    const quote = await this.repos.quotes.findById(quoteId);
+    const quote = await this.quotes.findById(quoteId);
 
     if (!quote) {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
@@ -131,18 +134,18 @@ export class QuoteService {
    * Get quotes by workflow stage
    */
   async getDraftQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('draft', { take: limit });
+    return this.quotes.findByStatus('draft', { take: limit });
   }
 
   async getPendingApprovalQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('pending_approval', { take: limit });
+    return this.quotes.findByStatus('pending_approval', { take: limit });
   }
 
   async getApprovedQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('approved', { take: limit });
+    return this.quotes.findByStatus('approved', { take: limit });
   }
 
   async getInvoicedQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('invoiced', { take: limit });
+    return this.quotes.findByStatus('invoiced', { take: limit });
   }
 }

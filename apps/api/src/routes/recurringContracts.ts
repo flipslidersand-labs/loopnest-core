@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import { parsePagination } from '../lib/pagination.js';
 import { WebhookService } from '../services/WebhookService.js';
 
@@ -73,7 +73,7 @@ export function recurringContractRoutes(repos: RepositoryContainer, wh?: Webhook
         startsAt,
         endsAt,
         lineItems,
-        createdBy: req.user?.sub ?? 'system',
+        createdBy: getAuthenticatedUserId(req),
       });
       res.status(201).json({ data: contract });
     })

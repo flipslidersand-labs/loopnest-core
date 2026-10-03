@@ -48,6 +48,33 @@ check "org-B list excludes org-A customer" "false" \
 R_ADMIN=$(curl -s -w "\n%{http_code}" "$BASE_URL/customers/$CUST_A")
 check "admin list includes org-A customer" "200" "$(http_code "$R_ADMIN")"
 
+# org-B cannot mutate/read org-A's customer via any of the write/credit endpoints (#243)
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d '{"name":"Pwned"}' "$BASE_URL/customers/$CUST_A")
+check "org-B PATCH org-A customer → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  "$BASE_URL/customers/$CUST_A/credit-status")
+check "org-B GET org-A credit-status → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d '{"creditLimit":999999}' "$BASE_URL/customers/$CUST_A/credit-limit")
+check "org-B PATCH org-A credit-limit → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X DELETE \
+  -H "Authorization: Bearer $TOKEN_B" \
+  "$BASE_URL/customers/$CUST_A")
+check "org-B DELETE org-A customer → 404" "404" "$(http_code "$R")"
+
+# ...and org-A can still legitimately update its own customer.
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_A" -H "Content-Type: application/json" \
+  -d '{"name":"Alpha Customer Renamed"}' "$BASE_URL/customers/$CUST_A")
+check "org-A PATCH own customer → 200" "200" "$(http_code "$R")"
+
 # ── Product isolation ─────────────────────────────────────────────────────────
 echo ""
 echo "Product isolation"
@@ -134,5 +161,48 @@ R=$(command curl -s -w "\n%{http_code}" \
   -H "Authorization: Bearer $TOKEN_A" \
   "$BASE_URL/customers/$CUST_B")
 check "org-A cannot GET org-B customer → 404" "404" "$(http_code "$R")"
+
+# ── Organization isolation (#244) ────────────────────────────────────────────
+echo ""
+echo "Organization isolation"
+
+# org-B cannot GET/PATCH/DELETE org-A's own organization record.
+R=$(command curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN_B" "$BASE_URL/organizations/$ORG_A")
+check "org-B GET org-A organization → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN_B" "$BASE_URL/organizations/$ORG_A/children")
+check "org-B GET org-A organization children → 404" "404" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d '{"name":"Pwned Org"}' "$BASE_URL/organizations/$ORG_A")
+check "org-B PATCH org-A organization → 404" "404" "$(http_code "$R")"
+
+# org-B's list of organizations does not include org-A.
+LIST_B=$(command curl -s -H "Authorization: Bearer $TOKEN_B" "$BASE_URL/organizations")
+check "org-B org list excludes org-A" "false" \
+  "$(echo "$LIST_B" | jq --arg id "$ORG_A" '[.data[].id] | contains([$id])')"
+
+# org-B cannot create a child org under org-A.
+R=$(command curl -s -w "\n%{http_code}" -X POST \
+  -H "Authorization: Bearer $TOKEN_B" -H "Content-Type: application/json" \
+  -d "{\"name\":\"Sneaky Child\",\"type\":\"company\",\"parentId\":\"$ORG_A\"}" \
+  "$BASE_URL/organizations")
+check "org-B create org with org-A as parentId → 403" "403" "$(http_code "$R")"
+
+# org-A can still read/update its own organization.
+R=$(command curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN_A" "$BASE_URL/organizations/$ORG_A")
+check "org-A GET own organization → 200" "200" "$(http_code "$R")"
+
+R=$(command curl -s -w "\n%{http_code}" -X PATCH \
+  -H "Authorization: Bearer $TOKEN_A" -H "Content-Type: application/json" \
+  -d '{"name":"Tenant Alpha Corp Renamed"}' "$BASE_URL/organizations/$ORG_A")
+check "org-A PATCH own organization → 200" "200" "$(http_code "$R")"
+
+# Global admin (no orgId) can still see both organizations.
+R=$(curl -s -w "\n%{http_code}" "$BASE_URL/organizations/$ORG_A")
+check "global admin GET org-A organization → 200" "200" "$(http_code "$R")"
+R=$(curl -s -w "\n%{http_code}" "$BASE_URL/organizations/$ORG_B")
+check "global admin GET org-B organization → 200" "200" "$(http_code "$R")"
 
 summary
