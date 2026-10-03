@@ -66,11 +66,25 @@ export interface InvoiceInput {
 export interface InvoiceFilter {
   status?: string;
   customerId?: string;
+  /**
+   * finance.invoices has no organization_id column; when set, restricts
+   * results to invoices whose customer belongs to this org (via
+   * core.customers.organization_id) — see [[assertOrgAccess]] in
+   * apps/api/src/routes/invoices.ts for the single-record equivalent.
+   */
+  organizationId?: string;
   createdAtFrom?: string; // ISO datetime, inclusive
   createdAtTo?: string;   // ISO datetime, exclusive
   cursor?: string;        // opaque cursor from InvoicePage.pagination.nextCursor
   skip?: number;          // @deprecated use cursor instead
   take?: number;
+}
+
+function applyOrgScope(q: any, organizationId: string | undefined): any {
+  if (!organizationId) return q;
+  return q.where('customer_id', 'in', (eb: any) =>
+    eb.selectFrom('core.customers').select('id').where('organization_id', '=', organizationId)
+  );
 }
 
 const COLS = [
@@ -130,6 +144,7 @@ export class InvoiceRepository {
       .offset(filter.skip ?? 0);
     if (filter.status)        q = q.where('status', '=', filter.status);
     if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    q = applyOrgScope(q, filter.organizationId);
     if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
     if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     const rows = await q.execute();
@@ -146,6 +161,7 @@ export class InvoiceRepository {
       .limit(limit + 1);
     if (filter.status)        q = q.where('status', '=', filter.status);
     if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    q = applyOrgScope(q, filter.organizationId);
     if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
     if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     if (filter.cursor) {
@@ -173,6 +189,7 @@ export class InvoiceRepository {
       .limit(10000);
     if (filter.status)        q = q.where('status', '=', filter.status);
     if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+    q = applyOrgScope(q, filter.organizationId);
     if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
     if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     const rows = await q.execute();
@@ -199,6 +216,7 @@ export class InvoiceRepository {
         .limit(10000);
       if (filter.status)        q = q.where('status', '=', filter.status);
       if (filter.customerId)    q = q.where('customer_id', '=', filter.customerId);
+      q = applyOrgScope(q, filter.organizationId);
       if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
       if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
       for await (const r of q.stream()) {
@@ -207,12 +225,13 @@ export class InvoiceRepository {
     });
   }
 
-  async count(filter: Pick<InvoiceFilter, 'status' | 'customerId'> = {}): Promise<number> {
+  async count(filter: Pick<InvoiceFilter, 'status' | 'customerId' | 'organizationId'> = {}): Promise<number> {
     let q = this.db
       .selectFrom('finance.invoices')
       .select(eb => eb.fn.countAll().as('n'));
     if (filter.status)     q = q.where('status', '=', filter.status);
     if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
+    q = applyOrgScope(q, filter.organizationId);
     const result = await q.executeTakeFirst();
     return Number(result?.n ?? 0);
   }
