@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
 import { toDateOnlyStr } from '../utils/date.js';
@@ -93,7 +95,7 @@ const COLS = [
 ] as const;
 
 export class InvoiceRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async nextSequenceValue(): Promise<number> {
     const { sql } = await import('kysely');
@@ -226,7 +228,7 @@ export class InvoiceRepository {
   async count(filter: Pick<InvoiceFilter, 'status' | 'customerId' | 'organizationId'> = {}): Promise<number> {
     let q = this.db
       .selectFrom('finance.invoices')
-      .select((eb: any) => eb.fn.countAll().as('n'));
+      .select(eb => eb.fn.countAll().as('n'));
     if (filter.status)     q = q.where('status', '=', filter.status);
     if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
     q = applyOrgScope(q, filter.organizationId);

@@ -13,7 +13,7 @@ date: "2026-09-07"
 
 ## 原因
 
-npm workspaces の node_modules はモノレポルート (`/home/dev-nodee/projects/loopnest-core/`)
+npm workspaces の node_modules はモノレポルート (`~/projects/loopnest-core/`)
 にあるが、git worktree は別ディレクトリ (`.wt/feat-xx/`) に展開されるため
 `../../node_modules` の解決パスがずれる。
 

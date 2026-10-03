@@ -67,4 +67,15 @@ R=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/workflow/quotes/$QUOTE_ID/inv
   -H "Content-Type: application/json" -d '{"userId":"user1"}')
 check "Create invoice second time (409)" "409" "$(http_code "$R")"
 
+# 9. PATCH /quotes/:id must not accept a status change (bypasses the workflow
+# state machine, skips outbox events — issue #242). Only non-status fields
+# should ever go through this route.
+Q5=$(make_quote "$CUSTOMER_ID" 20000 2000 22000)
+R=$(curl -s -w "\n%{http_code}" -X PATCH "$BASE_URL/quotes/$Q5" \
+  -H "Content-Type: application/json" -d '{"status":"approved"}')
+check "PATCH quote status directly (400)" "400" "$(http_code "$R")"
+R=$(curl -s -w "\n%{http_code}" -X PATCH "$BASE_URL/quotes/$Q5" \
+  -H "Content-Type: application/json" -d '{"notes":"still allowed"}')
+check "PATCH quote non-status field still works" "200" "$(http_code "$R")"
+
 summary

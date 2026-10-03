@@ -16,6 +16,9 @@ export DATABASE_URL="${DATABASE_URL:-postgres://loopnest:loopnest_dev_password@l
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 export BASE_URL="${BASE_URL:-http://localhost:3000/api}"
 export JWT_SECRET="${JWT_SECRET:-loopnest_dev_secret}"
+# Allow integration tests to register webhooks pointing at the local mock receiver (localhost:3993).
+# This env var is never set in production deployments.
+export ALLOW_PRIVATE_WEBHOOK_URLS=1
 
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 

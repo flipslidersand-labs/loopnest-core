@@ -11,7 +11,7 @@ import { outboxEventLagMs } from "../observability/metrics.js";
 const NOTIFY_CHANNEL = 'loopnest_outbox';
 const SCAN_BATCH_SIZE = Math.max(1, Number(process.env.SCAN_BATCH_SIZE) || 500);
 
-function advanceDate(from: string, unit: string, value: number): string {
+export function advanceDate(from: string, unit: string, value: number): string {
   const d = new Date(from + 'T00:00:00Z');
   switch (unit) {
     case 'day':   d.setUTCDate(d.getUTCDate() + value); break;
