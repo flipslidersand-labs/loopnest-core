@@ -50,6 +50,7 @@ export interface CreateRecurringInput {
 export interface RecurringFilter {
   customerId?: string;
   status?: RecurringStatus;
+  organizationId?: string;
   skip?: number;
   take?: number;
 }
@@ -60,10 +61,15 @@ export class RecurringContractRepository {
   async findAll(filter: RecurringFilter = {}): Promise<RecurringContract[]> {
     let q = this.db
       .selectFrom('core.recurring_contracts')
-      .selectAll();
-    if (filter.customerId) q = q.where('customer_id', '=', filter.customerId);
-    if (filter.status) q = q.where('status', '=', filter.status);
-    q = q.orderBy('next_billing_at', 'asc');
+      .selectAll('core.recurring_contracts');
+    if (filter.organizationId) {
+      q = q
+        .innerJoin('core.customers', 'core.customers.id', 'core.recurring_contracts.customer_id')
+        .where('core.customers.organization_id', '=', filter.organizationId);
+    }
+    if (filter.customerId) q = q.where('core.recurring_contracts.customer_id', '=', filter.customerId);
+    if (filter.status) q = q.where('core.recurring_contracts.status', '=', filter.status);
+    q = q.orderBy('core.recurring_contracts.next_billing_at', 'asc');
     if (filter.skip != null) q = q.offset(filter.skip);
     if (filter.take != null) q = q.limit(filter.take);
     const rows = await q.execute();
@@ -77,6 +83,17 @@ export class RecurringContractRepository {
       .where('id', '=', id)
       .executeTakeFirst();
     return row ? this.map(row) : null;
+  }
+
+  /** Resolves the organization that owns a contract via its customer. */
+  async findOwnerOrgId(id: string): Promise<string | null> {
+    const row = await this.db
+      .selectFrom('core.recurring_contracts')
+      .innerJoin('core.customers', 'core.customers.id', 'core.recurring_contracts.customer_id')
+      .select('core.customers.organization_id as organizationId')
+      .where('core.recurring_contracts.id', '=', id)
+      .executeTakeFirst();
+    return row?.organizationId ?? null;
   }
 
   /**
