@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { ReportingService } from '../services/ReportingService.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
+import { requireRole } from '../middleware/auth.js';
 
 export function reportRoutes(reportingService: ReportingService) {
   const router = Router();
+
+  router.use(requireRole('viewer', 'editor', 'admin'));
 
   // Dashboard quick numbers — viewer and above
   router.get(
