@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PaymentService } from './PaymentService.js';
-import { ApiErrorResponse } from '../middleware/errorHandler.js';
 
 function makeRepos(overrides: Record<string, any> = {}) {
   return {

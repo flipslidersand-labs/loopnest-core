@@ -516,6 +516,7 @@ export class EventWorker {
         null,
         String(err),
       );
+      // eslint-disable-next-line preserve-caught-error -- target ES2020 は Error の cause 未対応
       throw new Error(`accounting API unreachable: ${err}`);
     }
 

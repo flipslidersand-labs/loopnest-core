@@ -187,7 +187,7 @@ export function webhookRoutes(webhookService: WebhookService) {
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { url, events, isActive } = req.body;
-      let { secret } = req.body;
+      const { secret } = req.body;
       if (url) {
         validateWebhookUrl(url);
       }

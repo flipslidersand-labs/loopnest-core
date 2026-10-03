@@ -72,7 +72,7 @@ function makeDb(creditNote: any, invoice: any): Kysely<KyselyDatabase> {
   } as unknown as Kysely<KyselyDatabase>;
 }
 
-function makeDbForIssue(invoice: any): Kysely<KyselyDatabase> {
+function _makeDbForIssue(invoice: any): Kysely<KyselyDatabase> {
   const trx: any = {
     selectFrom: vi.fn().mockReturnThis(),
     selectAll: vi.fn().mockReturnThis(),

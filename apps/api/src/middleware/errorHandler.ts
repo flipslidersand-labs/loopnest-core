@@ -21,7 +21,7 @@ export const errorHandler = (
   err: ApiError & { name?: string },
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   logger.error({ err }, 'request error');
 
