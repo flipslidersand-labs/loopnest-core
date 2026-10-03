@@ -47,6 +47,17 @@ const intEnv = (name: string, fallback: number): number => {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
+// Express's `trust proxy` setting controls whether `req.ip` (and therefore
+// the default rate-limit identity — see middleware/rateLimit.ts) is derived
+// from the `X-Forwarded-For` header. It defaults to `false`, so `req.ip` is
+// the raw socket address and the header is ignored entirely — a client
+// cannot spoof its rate-limit identity. Only set `TRUST_PROXY` (to the
+// number of trusted reverse-proxy hops in front of this service) when this
+// API is actually deployed behind a proxy that sets `X-Forwarded-For` itself.
+const trustProxyRaw = process.env.TRUST_PROXY;
+const trustProxyHops = trustProxyRaw ? parseInt(trustProxyRaw, 10) : NaN;
+app.set('trust proxy', Number.isFinite(trustProxyHops) ? trustProxyHops : false);
+
 // Rate limits are env-tunable so they can be relaxed for load tests and
 // hardened per environment without a code change.
 const GLOBAL_RATE_MAX = intEnv('RATE_LIMIT_GLOBAL_MAX', 300);

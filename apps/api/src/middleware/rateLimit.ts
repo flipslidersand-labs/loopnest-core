@@ -15,11 +15,19 @@ export interface RateLimitOptions {
   identify?: (req: Request) => string;
 }
 
-const defaultIdentify = (req: Request): string => {
-  const forwarded = req.header('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-  return ip || 'unknown';
-};
+/**
+ * Default rate-limit identity: the client IP as resolved by Express.
+ *
+ * `req.ip` already accounts for the app's `trust proxy` setting — when it is
+ * unset (the default), Express ignores `X-Forwarded-For` entirely and uses
+ * the raw socket address, which a client cannot spoof. Only when `trust
+ * proxy` is explicitly configured (e.g. to the number of trusted proxy hops)
+ * does Express parse `X-Forwarded-For`, and only up to that many trusted
+ * hops. We must never parse the header ourselves here, or a deployment
+ * without `trust proxy` configured would let any client bypass rate limits
+ * by sending an arbitrary `X-Forwarded-For` value.
+ */
+const defaultIdentify = (req: Request): string => req.ip || 'unknown';
 
 /**
  * Sliding-window rate limiter backed by a Redis sorted set.
