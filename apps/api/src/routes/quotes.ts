@@ -90,7 +90,14 @@ export function quoteRoutes(repos: RepositoryContainer) {
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
       const { status, subtotalAmount, taxAmount, totalAmount, notes } = req.body;
-      const quote = await repos.quotes.update(req.params.id, { status, subtotalAmount, taxAmount, totalAmount, notes });
+      if (status !== undefined) {
+        throw new ApiErrorResponse(
+          400,
+          'VALIDATION_ERROR',
+          'status cannot be changed via PATCH /quotes/:id — use POST /api/workflow/quotes/:id/{submit,approve,reject,invoice}'
+        );
+      }
+      const quote = await repos.quotes.update(req.params.id, { subtotalAmount, taxAmount, totalAmount, notes });
       res.json({ data: quote });
     })
   );
@@ -161,6 +168,9 @@ export function quoteRoutes(repos: RepositoryContainer) {
       const { quantity, unitPrice } = req.body;
       if (quantity !== undefined && quantity <= 0) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'quantity must be positive');
+      }
+      if (unitPrice !== undefined && unitPrice < 0) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'unitPrice must be non-negative');
       }
       const item = await repos.quoteItems.updateItem(req.params.itemId, req.params.id, { quantity, unitPrice });
       if (!item) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Item not found');
