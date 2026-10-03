@@ -1,7 +1,7 @@
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import type { QuoteEntity, KyselyDatabase, ApprovalStepRow, Kysely } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 export interface ApprovalStep {
   id: string;
@@ -71,11 +71,11 @@ export class ApprovalService {
       );
     }
 
-    const approvalRequestId = uuidv4();
+    const approvalRequestId = randomUUID();
     const totalAmount = quote.subtotalAmount ? Number(quote.subtotalAmount) : 0;
     const now = new Date();
     const steps: ApprovalStep[] = approverUserIds.map((userId, index) => ({
-      id: uuidv4(),
+      id: randomUUID(),
       approvalRequestId,
       stepNumber: index + 1,
       approverUserId: userId,

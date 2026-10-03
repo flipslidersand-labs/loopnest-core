@@ -37,8 +37,11 @@ export class WebhookService {
     return this.repo.delete(id, organizationId);
   }
 
-  async listDeliveries(filter: WebhookDeliveryFilter): Promise<{ data: WebhookDeliveryRecord[]; total: number }> {
-    return this.deliveryRepo.list(filter);
+  async listDeliveries(
+    filter: WebhookDeliveryFilter,
+    organizationId?: string,
+  ): Promise<{ data: WebhookDeliveryRecord[]; total: number }> {
+    return this.deliveryRepo.list({ ...filter, organizationId });
   }
 
   async findDelivery(id: string): Promise<WebhookDeliveryRecord | null> {
