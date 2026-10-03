@@ -53,6 +53,14 @@ jobs:
 
       - name: Install PostgreSQL 17, Redis, psql + jq
         run: |
+          # Skip when a previous job on this self-hosted host already installed
+          # everything: re-running apt there can trip over another package left
+          # half-configured on the shared host (e.g. openssh-server) (#277).
+          missing=0
+          for p in postgresql-17 postgresql-client-17 redis-server jq uuid-runtime; do
+            dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "install ok installed" || missing=1
+          done
+          if [ "$missing" = 0 ]; then echo "Packages already installed; skipping apt"; exit 0; fi
           # Add official PostgreSQL apt repo to get v17 (matches the postgres:17-alpine
           # Docker image used in local dev, avoiding behaviour differences with older apt versions).
           # Requires Ubuntu 22.04+ (jammy+) — focal (20.04) was removed from pgdg in 2025.
