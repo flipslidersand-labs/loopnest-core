@@ -164,6 +164,22 @@ fi
 PSQL_URL="${DATABASE_URL:-postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local}"
 db_scalar() { psql "$PSQL_URL" -tA -c "$1" 2>/dev/null || true; }
 
+# Poll a DB scalar until it is >= min (env-dependent scan tick timing/CI
+# load make a fixed sleep flaky), then hold for extra_s more so an
+# overlapping-scan regression still has room to double-bill before we assert.
+wait_then_settle() { # <sql> <min> <timeout_s> <extra_s>
+  local sql=$1 min=$2 timeout=${3:-20} extra=${4:-4} waited=0 val
+  while [ "$waited" -lt "$timeout" ]; do
+    val=$(db_scalar "$sql")
+    if [ "${val:-0}" -ge "$min" ] 2>/dev/null; then
+      sleep "$extra"
+      return 0
+    fi
+    sleep 1; waited=$((waited + 1))
+  done
+  return 1
+}
+
 BILL_CUSTOMER=$(curl -sf -X POST "${BASE_URL}/api/customers" \
   -H "Content-Type: application/json" -d '{"name":"Billing Scan Co"}' | jq -r '.data.id')
 BILL_CONTRACT=$(curl -sf -X POST "${BASE_URL}/api/recurring-contracts" \
@@ -171,11 +187,14 @@ BILL_CONTRACT=$(curl -sf -X POST "${BASE_URL}/api/recurring-contracts" \
   -d "{\"customerId\":\"$BILL_CUSTOMER\",\"name\":\"Scan Test\",\"intervalUnit\":\"month\",\"intervalValue\":1,\"amount\":1000,\"startsAt\":\"$TODAY\"}" \
   | jq -r '.data.id')
 
-# Wait for at least two scan cycles so an overlapping-scan regression has a
-# chance to double-bill before we assert.
-sleep 7
+INVOICE_SQL="SELECT count(*) FROM finance.invoices WHERE contract_id = '$BILL_CONTRACT'"
 
-INVOICE_COUNT=$(db_scalar "SELECT count(*) FROM finance.invoices WHERE contract_id = '$BILL_CONTRACT'")
+# Wait (with a generous timeout for slow/busy runners) for the scan to bill
+# the contract, then hold a bit longer so an overlapping-scan regression
+# still has a chance to double-bill before we assert the count.
+wait_then_settle "$INVOICE_SQL" 1 20 4 || true
+
+INVOICE_COUNT=$(db_scalar "$INVOICE_SQL")
 if [ "${INVOICE_COUNT:-0}" = "1" ]; then
   pass "billing scan created exactly 1 invoice for due contract (not double-billed)"
 else
