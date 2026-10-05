@@ -35,6 +35,14 @@ import { renderMetrics, dbQueryDurationMs } from './observability/metrics.js';
 import { initTelemetry, shutdownTelemetry } from './lib/telemetry.js';
 import { openapiDocument, swaggerHtml } from './openapi.js';
 
+// Fail fast on missing required config, before logger/telemetry init, so this
+// surfaces as a single clear line instead of an uncaught-exception stack trace
+// that bypasses the structured JSON logging other startup failures go through.
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET is required');
+  process.exit(1);
+}
+
 // Initialize OTel SDK before any instrumented code runs.
 initTelemetry();
 
