@@ -30,13 +30,15 @@ jobs:
       pull-requests: write
 
     env:
-      DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local
+      # Per-run database: concurrent jobs on one self-hosted host share the system
+      # Postgres instance, so each run gets its own DB (#277).
+      DATABASE_URL: postgres://loopnest:loopnest_dev_password@localhost:5432/omni_ci_${{ github.run_id }}_${{ github.run_attempt }}
       REDIS_URL: redis://localhost:6379
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
       POSTGRES_USER: loopnest
       POSTGRES_PASSWORD: loopnest_dev_password
-      POSTGRES_DB: omni_local
+      POSTGRES_DB: omni_ci_${{ github.run_id }}_${{ github.run_attempt }}
       REDIS_HOST: localhost
       REDIS_PORT: "6379"
       MANAGE_CONTAINERS: "no"
@@ -59,29 +61,40 @@ jobs:
 
       - name: Install PostgreSQL 17, Redis, psql + jq
         run: |
+          # Skip when a previous job on this self-hosted host already installed
+          # everything: re-running apt there can trip over another package left
+          # half-configured on the shared host (e.g. openssh-server) (#277).
+          missing=0
+          for p in postgresql-17 postgresql-client-17 redis-server jq uuid-runtime; do
+            dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "install ok installed" || missing=1
+          done
+          if [ "$missing" = 0 ]; then echo "Packages already installed; skipping apt"; exit 0; fi
           # Add official PostgreSQL apt repo to get v17 (matches the postgres:17-alpine
           # Docker image used in local dev, avoiding behaviour differences with older apt versions).
           # Requires Ubuntu 22.04+ (jammy+) — focal (20.04) was removed from pgdg in 2025.
-          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          # DPkg::Lock::Timeout: wait for the dpkg lock instead of failing when
+          # another job on the same host is installing packages (#277).
+          APT="sudo apt-get -o DPkg::Lock::Timeout=600"
+          $APT install -y --no-install-recommends curl ca-certificates
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
             | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/postgresql.gpg
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
             https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
+          $APT update -qq
+          $APT install -y --no-install-recommends \
             postgresql-17 postgresql-client-17 redis-server jq uuid-runtime
 
       - name: Configure and start PostgreSQL 17
         run: |
-          sudo service postgresql start
+          # Idempotent start: never restart a server another job may be using (#277).
+          pg_isready -h localhost -p 5432 -q || sudo service postgresql start
+          until pg_isready -h localhost -p 5432 -q; do sleep 1; done
           sudo -u postgres psql -c \
-            "CREATE USER loopnest WITH PASSWORD 'loopnest_dev_password';" \
+            "CREATE USER loopnest WITH PASSWORD 'loopnest_dev_password' CREATEDB;" \
             2>/dev/null || true
           sudo -u postgres psql -c \
-            "CREATE DATABASE omni_local OWNER loopnest;" \
-            2>/dev/null || true
-          until pg_isready -h localhost -p 5432 -U loopnest 2>/dev/null; do sleep 1; done
+            "CREATE DATABASE \"$POSTGRES_DB\" OWNER loopnest;"
 
       - name: Start Redis
         run: |
@@ -204,6 +217,12 @@ jobs:
           # onto the self-hosted runner's next job, even if a step above was
           # killed abruptly (job cancellation) before its own kill ran (#223).
           sudo fuser -k 3000/tcp 2>/dev/null || true
+
+      - name: Drop per-run database
+        if: always()
+        run: |
+          sudo -u postgres psql -c \
+            "DROP DATABASE IF EXISTS \"$POSTGRES_DB\" WITH (FORCE);" || true
 
       - name: Checkout dep-policy
         uses: actions/checkout@v7
