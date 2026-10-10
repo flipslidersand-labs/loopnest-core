@@ -86,3 +86,8 @@ bash tests/integration/credit_notes.sh
 | GET      | `/api/reports/ar-aging`            | AR エイジングレポート |
 | GET      | `/health`                          | ヘルスチェック        |
 | GET      | `/docs`                            | Swagger UI            |
+
+
+## 設計判断 / Architecture decisions
+
+[ADR 一覧](docs/adr/README.md) — 設計判断、根拠資料、未決定事項。
