@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "統合テストのダミー値(変数参照の Bearer ヘッダ / プレースホルダ secret)"
+targetRules = ["curl-auth-header", "generic-api-key"]
+paths = ['''^tests/integration/auth\.sh$''', '''^tests/integration/webhooks_security\.sh$''']
