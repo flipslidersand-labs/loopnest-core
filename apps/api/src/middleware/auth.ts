@@ -11,10 +11,10 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
+// JWT_SECRET presence is validated at process startup in server.ts (before logger/
+// telemetry init, via console.error + process.exit(1)), so it is guaranteed to be
+// set by the time any request reaches this middleware.
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export const authenticate = (req: Request, _res: Response, next: NextFunction): void => {
   const header = req.headers.authorization;
