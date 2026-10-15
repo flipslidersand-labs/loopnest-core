@@ -2,3 +2,8 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'infra/migrations'
+
+# express's qs range (~6.15.x) doesn't reach the fix for the query-string
+# DoS in GHSA-x5fp-wj9c-mxmx (CVE-2026-82562) — force the patched version.
+overrides:
+  qs: '^6.16.0'

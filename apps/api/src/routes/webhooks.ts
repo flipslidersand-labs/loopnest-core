@@ -25,6 +25,37 @@ export const WEBHOOK_EVENT_TYPES = [
 
 export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number];
 
+const PRIVATE_IP_RE =
+  /^(localhost|127\.|0\.0\.0\.0|::1|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.)/i;
+
+function validateWebhookUrl(raw: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new ApiErrorResponse(400, "VALIDATION_ERROR", "url must be a valid URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new ApiErrorResponse(
+      400,
+      "VALIDATION_ERROR",
+      "url must use http or https scheme",
+    );
+  }
+  // ALLOW_PRIVATE_WEBHOOK_URLS=1 disables the SSRF check in integration tests
+  // where the mock webhook receiver runs on localhost. Never set in production.
+  if (process.env.ALLOW_PRIVATE_WEBHOOK_URLS !== "1") {
+    const host = parsed.hostname;
+    if (PRIVATE_IP_RE.test(host)) {
+      throw new ApiErrorResponse(
+        400,
+        "VALIDATION_ERROR",
+        "url must not point to a private or loopback address",
+      );
+    }
+  }
+}
+
 function validateEvents(events: unknown): string[] {
   if (!Array.isArray(events) || events.length === 0) {
     throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'events must be a non-empty array');
@@ -72,13 +103,19 @@ export function webhookRoutes(webhookService: WebhookService) {
       if (status !== undefined && status !== 'success' && status !== 'failed') {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'status must be "success" or "failed"');
       }
-      const result = await webhookService.listDeliveries({
-        webhookId: webhookId as string | undefined,
-        status:    status as 'success' | 'failed' | undefined,
-        eventType: eventType as string | undefined,
-        limit:     Math.min(100, Math.max(1, limit  ? parseInt(limit as string,  10) : 20)),
-        offset:    Math.max(0,              offset ? parseInt(offset as string, 10) : 0),
-      });
+      const result = await webhookService.listDeliveries(
+        {
+          webhookId: webhookId as string | undefined,
+          status: status as "success" | "failed" | undefined,
+          eventType: eventType as string | undefined,
+          limit: Math.min(
+            100,
+            Math.max(1, limit ? parseInt(limit as string, 10) : 20),
+          ),
+          offset: Math.max(0, offset ? parseInt(offset as string, 10) : 0),
+        },
+        req.user?.orgId,
+      );
       res.json({ data: result.data, total: result.total });
     })
   );
@@ -121,9 +158,7 @@ export function webhookRoutes(webhookService: WebhookService) {
       let { secret } = req.body;
       if (!url) throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url is required');
       const validatedEvents = validateEvents(events);
-      try { new URL(url); } catch {
-        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
-      }
+      validateWebhookUrl(url);
       if (secret !== undefined) {
         if (typeof secret !== 'string' || secret.length === 0) {
           throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'secret must be a non-empty string');
@@ -154,9 +189,7 @@ export function webhookRoutes(webhookService: WebhookService) {
       const { url, events, isActive } = req.body;
       let { secret } = req.body;
       if (url) {
-        try { new URL(url); } catch {
-          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'url must be a valid URL');
-        }
+        validateWebhookUrl(url);
       }
       if (secret !== undefined) {
         if (typeof secret !== 'string' || secret.length === 0) {

@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
 
@@ -57,7 +59,7 @@ const COLS = [
  * record/reverse transactions and for plain reads.
  */
 export class PaymentRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   /** Sum of confirmed payments for an invoice. Pass a trx for read-after-write. */
   async confirmedTotal(invoiceId: string, db: any = this.db): Promise<number> {
