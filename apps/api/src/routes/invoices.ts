@@ -2,13 +2,38 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
+import { toCsvRow } from '../lib/csv.js';
+
+/**
+ * Block a tenant-scoped caller from touching another org's invoice. A token
+ * without orgId (global admin) may act on any invoice; an invoice whose org is
+ * unknown (legacy / unscoped customer) is left accessible for backward
+ * compatibility. Mirrors the pattern in payments.ts / creditNotes.ts.
+ */
+function assertOrgAccess(req: Request, ownerOrgId: string | null): void {
+  if (req.user?.orgId && ownerOrgId && req.user.orgId !== ownerOrgId) {
+    throw new ApiErrorResponse(403, 'FORBIDDEN', 'You may only access your own organization');
+  }
+}
+
+/**
+ * Resolve an invoice's owning org via its customer (finance.invoices is not
+ * org-tagged directly), 404ing if the invoice is missing.
+ */
+async function loadInvoiceOrg(
+  repos: RepositoryContainer,
+  invoice: { customerId: string }
+): Promise<string | null> {
+  const customer = await repos.customers.findById(invoice.customerId);
+  return customer?.organizationId ?? null;
+}
 
 const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
 
 function invoiceToCsvRow(inv: any): string {
-  return [
+  return toCsvRow([
     inv.id,
     inv.invoiceNumber,
     inv.customerId,
@@ -18,7 +43,7 @@ function invoiceToCsvRow(inv: any): string {
     inv.createdAt instanceof Date ? inv.createdAt.toISOString() : inv.createdAt,
     inv.paymentDueDate ?? '',
     inv.paidAt instanceof Date ? inv.paidAt.toISOString() : (inv.paidAt ?? ''),
-  ].join(',');
+  ]);
 }
 
 export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceService) {
@@ -36,7 +61,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       if (!Array.isArray(items) || items.length === 0) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'items must be a non-empty array');
       }
-      const userId = (req as any).user?.userId ?? 'system';
+      const userId = getAuthenticatedUserId(req);
       const result = await invoiceSvc.bulkCreate(items, userId);
       res.status(result.failed.length === 0 ? 201 : 207).json(result);
     })
@@ -70,6 +95,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       const filter = {
         status: req.query.status as string | undefined,
         customerId: req.query.customerId as string | undefined,
+        organizationId: req.user?.orgId,
         createdAtFrom: req.query.from as string | undefined,
         createdAtTo: req.query.to as string | undefined,
       };
@@ -90,17 +116,18 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
       const status = req.query.status as string | undefined;
       const customerId = req.query.customerId as string | undefined;
+      const organizationId = req.user?.orgId;
 
       if (cursor || req.query.limit) {
         // cursor-based pagination
-        const page = await repos.invoices.findPage({ cursor, take, status, customerId });
+        const page = await repos.invoices.findPage({ cursor, take, status, customerId, organizationId });
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
         const skip = Math.max(0, Number.parseInt(req.query.skip as string) || 0);
         const [invoices, total] = await Promise.all([
-          repos.invoices.findAll({ skip, take, status, customerId }),
-          repos.invoices.count({ status, customerId }),
+          repos.invoices.findAll({ skip, take, status, customerId, organizationId }),
+          repos.invoices.count({ status, customerId, organizationId }),
         ]);
         res.json({ data: invoices, pagination: { skip, take, total }, filter: { status, customerId } });
       }
@@ -112,6 +139,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
     asyncHandler(async (req: Request, res: Response) => {
       const invoice = await repos.invoices.findByNumber(req.params.invoiceNumber);
       if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      assertOrgAccess(req, await loadInvoiceOrg(repos, invoice));
       res.json({ data: invoice });
     })
   );
@@ -120,6 +148,10 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
   router.get(
     '/:id/pdf',
     asyncHandler(async (req: Request, res: Response) => {
+      const invoice = await repos.invoices.findById(req.params.id);
+      if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      assertOrgAccess(req, await loadInvoiceOrg(repos, invoice));
+
       const pdf = await pdfService.generateInvoicePdf(req.params.id);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="invoice-${req.params.id}.pdf"`);
@@ -133,6 +165,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
     asyncHandler(async (req: Request, res: Response) => {
       const invoice = await repos.invoices.findWithItems(req.params.id);
       if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      assertOrgAccess(req, await loadInvoiceOrg(repos, invoice));
       res.json({ data: invoice });
     })
   );
