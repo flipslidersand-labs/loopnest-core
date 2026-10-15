@@ -242,3 +242,8 @@ bash tests/integration/credit_notes.sh
 | GET | `/docs` | Swagger UI |
 
 API エラーコードの一覧（HTTP ステータス・推奨アクション付き）は **[docs/error-codes.md](docs/error-codes.md)** を参照してください。
+
+
+## 設計判断 / Architecture decisions
+
+[ADR 一覧](docs/adr/README.md) — 設計判断、根拠資料、未決定事項。
