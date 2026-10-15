@@ -30,7 +30,7 @@ CUSTOMER=$(curl -sf -X POST "${BASE_URL}/api/customers" \
 PRODUCT=$(curl -sf -X POST "${BASE_URL}/api/products" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sku":"DSC-001","name":"Discount Test Product","category":"laptop","unitPrice":10000,"stockQuantity":100}' | jq -r '.data.id')
+  -d "{\"sku\":\"DSC-$(date +%s)-$RANDOM\",\"name\":\"Discount Test Product\",\"category\":\"laptop\",\"unitPrice\":10000,\"stockQuantity\":100}" | jq -r '.data.id')
 
 QUOTE=$(curl -sf -X POST "${BASE_URL}/api/quotes" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \

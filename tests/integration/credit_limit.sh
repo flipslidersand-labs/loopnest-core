@@ -86,7 +86,7 @@ curl -sf -X PATCH "${BASE_URL}/api/customers/${CUSTOMER}/credit-limit" \
 PRODUCT=$(curl -sf -X POST "${BASE_URL}/api/products" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"sku":"CL-TEST-001","name":"Credit Limit Test","category":"laptop","unitPrice":50000,"stockQuantity":10}' | jq -r '.data.id')
+  -d "{\"sku\":\"CL-$(date +%s)-$RANDOM\",\"name\":\"Credit Limit Test\",\"category\":\"laptop\",\"unitPrice\":50000,\"stockQuantity\":10}" | jq -r '.data.id')
 
 QUOTE=$(curl -sf -X POST "${BASE_URL}/api/quotes" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \

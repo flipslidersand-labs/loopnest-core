@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 
 export function quoteTemplateRoutes(repos: RepositoryContainer) {
   const router = Router();
@@ -44,7 +44,7 @@ export function quoteTemplateRoutes(repos: RepositoryContainer) {
         description,
         items,
         organizationId: req.user?.orgId,
-        createdBy: req.user?.sub ?? 'system',
+        createdBy: getAuthenticatedUserId(req),
       });
       res.status(201).json({ data: template });
     })

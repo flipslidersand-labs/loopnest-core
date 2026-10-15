@@ -1,3 +1,6 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
+
 export interface ExchangeRate {
   currencyCode: string;
   rateToJpy: number;
@@ -14,7 +17,7 @@ export interface ExchangeRateInput {
 const COLS = ['currency_code', 'rate_to_jpy', 'effective_date', 'updated_at'] as const;
 
 export class ExchangeRateRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findAll(): Promise<ExchangeRate[]> {
     const rows = await this.db

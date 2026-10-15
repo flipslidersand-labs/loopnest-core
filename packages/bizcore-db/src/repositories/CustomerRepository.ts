@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID, scrypt, timingSafeEqual, randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
@@ -57,10 +57,8 @@ export interface CustomerFilter extends FindOptions {
   cursor?: string; // opaque cursor from CustomerPage.pagination.nextCursor
 }
 
-export class CustomerRepository extends BaseRepository<Customer> {
-  constructor(private db: Kysely<KyselyDatabase>) {
-    super();
-  }
+export class CustomerRepository {
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findById(id: string, organizationId?: string): Promise<Customer | null> {
     let q = this.db

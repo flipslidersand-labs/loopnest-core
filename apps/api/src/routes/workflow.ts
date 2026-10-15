@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ServiceContainer } from '../services/index.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { parseLimit } from '../lib/pagination.js';
 
@@ -32,7 +32,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
    */
   const resolveActor = (req: Request): string => {
     const bodyUserId = req.body?.userId as string | undefined;
-    const jwtSub = req.user?.sub ?? 'system';
+    const jwtSub = getAuthenticatedUserId(req);
     if (!bodyUserId || bodyUserId === jwtSub) return jwtSub;
     if (req.user?.role !== 'admin') {
       throw new ApiErrorResponse(403, 'FORBIDDEN', 'Cannot act as another user');
@@ -256,7 +256,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!invoice) {
         throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Invoice must be issued or sent to mark as paid');
       }
-      await services.audit.logInvoiceMarkedPaid(req.params.id, req.user?.sub ?? 'system', paidAt);
+      await services.audit.logInvoiceMarkedPaid(req.params.id, getAuthenticatedUserId(req), paidAt);
       res.json({ data: invoice, message: 'Invoice marked as paid' });
     })
   );
@@ -346,7 +346,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       if (!invoice) {
         throw new ApiErrorResponse(409, 'INVALID_STATUS', 'Only issued or sent invoices can be cancelled');
       }
-      await services.audit.logInvoiceCancelled(req.params.id, req.user?.sub ?? 'system');
+      await services.audit.logInvoiceCancelled(req.params.id, getAuthenticatedUserId(req));
       res.json({ data: invoice, message: 'Invoice cancelled' });
     })
   );
@@ -374,7 +374,7 @@ export function workflowRoutes(services: ServiceContainer, repos: RepositoryCont
       }
 
       const quoteNumber = await repos.quoteTemplates.nextQuoteNumber();
-      const userId = req.user?.sub ?? 'system';
+      const userId = getAuthenticatedUserId(req);
 
       // Compute subtotal from template items.
       const subtotal = template.items.reduce(
