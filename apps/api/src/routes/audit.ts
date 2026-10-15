@@ -3,6 +3,7 @@ import { AuditService } from '../services/AuditService.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import { parsePagination } from '../lib/pagination.js';
+import { toCsvRow } from '../lib/csv.js';
 
 export function auditRoutes(auditService: AuditService) {
   const router = Router();
@@ -66,11 +67,11 @@ export function auditRoutes(auditService: AuditService) {
       const logs = await auditService.queryLogs(filter);
 
       const csvHeader = 'id,actorId,action,resourceType,resourceId,correlationId,createdAt\n';
-      const csvRows = logs.map(r =>
-        [r.id, r.actorId, r.action, r.resourceType, r.resourceId, r.correlationId ?? '', r.createdAt.toISOString()]
-          .map(v => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      ).join('\n');
+      const csvRows = logs
+        .map(r =>
+          toCsvRow([r.id, r.actorId, r.action, r.resourceType, r.resourceId, r.correlationId ?? '', r.createdAt.toISOString()])
+        )
+        .join('\n');
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${Date.now()}.csv"`);
