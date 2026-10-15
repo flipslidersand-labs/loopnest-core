@@ -1,4 +1,4 @@
-import { Generated, Insertable, Selectable, Updateable } from 'kysely';
+import { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
@@ -27,7 +27,8 @@ export type QuoteRequestUpdate = Updateable<QuoteRequestTable>;
 // ============================================
 export interface ExchangeRateTable {
   currency_code: string;   // ISO 4217 PK (e.g. 'USD')
-  rate_to_jpy: number;     // 1 unit of this currency = N JPY
+  // NUMERIC column: pg returns it as a string; repositories .toString() on write.
+  rate_to_jpy: ColumnType<string, string | number, string | number>;
   effective_date: Date;
   updated_at: Generated<Date>;
 }
@@ -163,11 +164,14 @@ export type QuoteItemUpdate = Updateable<QuoteItemTable>;
 export interface InvoiceTable {
   id: Generated<string>;
   invoice_number: string;
-  quote_id: string;
+  quote_id: string | null; // nullable since recurring-billing invoices have no quote (M12)
+  contract_id: string | null;
   customer_id: string;
   registration_number: string;
   subtotal_amount: number;
   tax_amount: number;
+  // NUMERIC column: pg returns it as a string; InvoiceRepository .toString() on write.
+  discount_amount: ColumnType<string | null, string | number | null | undefined, string | number | null>;
   total_amount: number;
   issue_date: Date;
   payment_due_date: Date;
@@ -229,7 +233,7 @@ export interface PaymentTable {
   organization_id: string | null;
   amount: number;
   method: string; // 'bank_transfer' | 'credit_card' | 'cash' | 'offset'
-  paid_on: Date;
+  paid_on: Date | string;
   reference: string | null;
   status: string; // 'confirmed' | 'reversed'
   reversed_at: Date | null;
@@ -371,6 +375,120 @@ export type NewApprovalStep = Insertable<ApprovalStepTable>;
 export type ApprovalStepUpdate = Updateable<ApprovalStepTable>;
 
 // ============================================
+// core.tax_rates
+// ============================================
+export interface TaxRateTable {
+  id: Generated<string>;
+  name: string;
+  // NUMERIC column: pg returns it as a string; repositories .toString() on write.
+  rate: ColumnType<string, string | number, string | number>;
+  is_default: Generated<boolean>;
+  valid_from: Generated<Date>;
+  valid_to: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type TaxRateRow = Selectable<TaxRateTable>;
+export type NewTaxRate = Insertable<TaxRateTable>;
+export type TaxRateUpdate = Updateable<TaxRateTable>;
+
+// ============================================
+// core.quote_templates
+// ============================================
+export interface QuoteTemplateTable {
+  id: Generated<string>;
+  name: string;
+  description: string | null;
+  items: Generated<JsonValue>; // JSONB array of {productId, quantity, unitPrice, notes?}
+  organization_id: string | null;
+  created_by: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type QuoteTemplateRow = Selectable<QuoteTemplateTable>;
+export type NewQuoteTemplate = Insertable<QuoteTemplateTable>;
+export type QuoteTemplateUpdate = Updateable<QuoteTemplateTable>;
+
+// ============================================
+// finance.invoice_installments
+// ============================================
+export interface InstallmentTable {
+  id: Generated<string>;
+  invoice_id: string;
+  seq: number;
+  due_date: Date | string;
+  // NUMERIC column: pg returns it as a string; repositories .toString() on write.
+  amount: ColumnType<string, string | number, string | number>;
+  status: Generated<string>; // 'pending' | 'paid' | 'cancelled'
+  paid_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type InstallmentRow = Selectable<InstallmentTable>;
+export type NewInstallment = Insertable<InstallmentTable>;
+export type InstallmentUpdate = Updateable<InstallmentTable>;
+
+// ============================================
+// core.recurring_contracts
+// ============================================
+export interface RecurringContractTable {
+  id: Generated<string>;
+  customer_id: string;
+  name: string;
+  description: string | null;
+  interval_unit: string; // 'day' | 'week' | 'month' | 'year'
+  interval_value: number;
+  // NUMERIC columns: pg returns them as strings; repositories .toString() on write.
+  amount: ColumnType<string, string | number, string | number>;
+  tax_rate: ColumnType<string, string | number, string | number>;
+  status: Generated<string>; // 'active' | 'paused' | 'cancelled' | 'completed'
+  starts_at: Date | string;
+  ends_at: Date | string | null;
+  next_billing_at: Date | string;
+  line_items: Generated<JsonValue>; // JSONB array of { name, quantity, unit_price }
+  pause_reason: string | null;
+  pause_until: Date | string | null;
+  created_by: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type RecurringContractRow = Selectable<RecurringContractTable>;
+export type NewRecurringContract = Insertable<RecurringContractTable>;
+export type RecurringContractUpdate = Updateable<RecurringContractTable>;
+
+// ============================================
+// core.dunning_rules / finance.dunning_logs
+// ============================================
+export interface DunningRuleTable {
+  id: Generated<string>;
+  name: string;
+  days_overdue: number;
+  action: Generated<string>; // 'reminder' | 'warning' | 'suspend' | 'collection'
+  message_template: string | null;
+  is_active: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export type DunningRuleRow = Selectable<DunningRuleTable>;
+export type NewDunningRule = Insertable<DunningRuleTable>;
+export type DunningRuleUpdate = Updateable<DunningRuleTable>;
+
+export interface DunningLogTable {
+  id: Generated<string>;
+  invoice_id: string;
+  rule_id: string;
+  days_overdue: number;
+  action: string;
+  sent_at: Generated<Date>;
+}
+
+export type DunningLogRow = Selectable<DunningLogTable>;
+export type NewDunningLog = Insertable<DunningLogTable>;
+
+// ============================================
 // Database Schema
 // ============================================
 export interface KyselyDatabase {
@@ -382,12 +500,18 @@ export interface KyselyDatabase {
   'core.users': UserTable;
   'core.quotes': QuoteTable;
   'core.quote_items': QuoteItemTable;
+  'core.tax_rates': TaxRateTable;
+  'core.quote_templates': QuoteTemplateTable;
+  'core.recurring_contracts': RecurringContractTable;
+  'core.dunning_rules': DunningRuleTable;
   'finance.invoices': InvoiceTable;
   'finance.invoice_items': InvoiceItemTable;
+  'finance.invoice_installments': InstallmentTable;
   'finance.accounting_exports': AccountingExportTable;
   'finance.payments': PaymentTable;
   'finance.credit_notes': CreditNoteTable;
   'finance.credit_note_applications': CreditNoteApplicationTable;
+  'finance.dunning_logs': DunningLogTable;
   'events.outbox_events': OutboxEventTable;
   'events.webhooks': WebhookTable;
   'events.webhook_deliveries': WebhookDeliveryTable;
