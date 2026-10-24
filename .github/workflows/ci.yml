@@ -205,24 +205,13 @@ jobs:
           # killed abruptly (job cancellation) before its own kill ran (#223).
           sudo fuser -k 3000/tcp 2>/dev/null || true
 
-      - name: Checkout dep-policy
-        uses: actions/checkout@v7
-        with:
-          repository: flipslidersand/dev-infrastructure
-          path: .dep-policy
-          sparse-checkout: |
-            dependency-policy
-            scripts/dep-policy-check.py
-          sparse-checkout-cone-mode: false
-        continue-on-error: true
-
-      - name: Dependency policy drift check
-        if: hashFiles('.dep-policy/scripts/dep-policy-check.py') != ''
-        run: |
-          pip install pyyaml --quiet --disable-pip-version-check
-          python3 .dep-policy/scripts/dep-policy-check.py \
-            --policy-dir .dep-policy/dependency-policy || echo "::warning::dependency drift detected"
-        continue-on-error: true
+  # 依存ポリシーの drift 検知（助言のみ。qa-workflows の reusable。dev-infrastructure#1134）。
+  # 旧ステップは private の dev-infrastructure を既定の GITHUB_TOKEN で checkout して Not Found になり、
+  # hashFiles ガードで黙ってスキップされていた。
+  dep-policy:
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/dep-policy.yml@cf282c05fdb69ccca3f029b9b33f8c1c1e9a10cb
+    with:
+      policy-ref: cf282c05fdb69ccca3f029b9b33f8c1c1e9a10cb
 
   # ---------------------------------------------------------------------------
   # AI Review — local LLM only:
