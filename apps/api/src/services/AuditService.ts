@@ -34,6 +34,8 @@ export interface RequestLogRecord {
 }
 
 export interface AuditLogFilter {
+  /** Tenant scope; undefined = global admin (no org restriction). */
+  organizationId?: string;
   actorId?: string;
   resourceType?: string;
   resourceId?: string;
@@ -45,6 +47,8 @@ export interface AuditLogFilter {
 }
 
 export interface RequestLogFilter {
+  /** Tenant scope; undefined = global admin (no org restriction). */
+  organizationId?: string;
   actorId?: string;
   statusCode?: number;
   method?: string;
@@ -65,8 +69,9 @@ export class AuditService {
     try {
       await this.pgPool.query(
         `INSERT INTO audit.audit_logs
-           (id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+           (id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at, organization_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(),
+                 (SELECT organization_id FROM core.users WHERE id::text = $2))`,
         [
           id,
           entry.actorId,
@@ -114,13 +119,16 @@ export class AuditService {
     return Number.parseInt(result.rows[0].count as string, 10);
   }
 
-  async getResourceHistory(resourceType: string, resourceId: string): Promise<AuditLogRecord[]> {
+  async getResourceHistory(resourceType: string, resourceId: string, organizationId?: string): Promise<AuditLogRecord[]> {
+    const params: unknown[] = [resourceType, resourceId];
+    let orgClause = '';
+    if (organizationId) { params.push(organizationId); orgClause = ' AND organization_id = $3'; }
     const result = await this.pgPool.query(
       `SELECT id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at
        FROM audit.audit_logs
-       WHERE resource_type = $1 AND resource_id = $2
+       WHERE resource_type = $1 AND resource_id = $2${orgClause}
        ORDER BY created_at ASC`,
-      [resourceType, resourceId]
+      params
     );
     return result.rows.map(this.mapLogRow);
   }
@@ -215,6 +223,7 @@ export class AuditService {
     const params: unknown[] = [];
     const p = () => `$${params.length}`;
 
+    if (f.organizationId) { params.push(f.organizationId); conditions.push(`organization_id = ${p()}`); }
     if (f.actorId)       { params.push(f.actorId);       conditions.push(`actor_id = ${p()}`); }
     if (f.resourceType)  { params.push(f.resourceType);  conditions.push(`resource_type = ${p()}`); }
     if (f.resourceId)    { params.push(f.resourceId);    conditions.push(`resource_id = ${p()}`); }
@@ -230,6 +239,7 @@ export class AuditService {
     const params: unknown[] = [];
     const p = () => `$${params.length}`;
 
+    if (f.organizationId) { params.push(f.organizationId); conditions.push(`organization_id = ${p()}`); }
     if (f.actorId)    { params.push(f.actorId);    conditions.push(`actor_id = ${p()}`); }
     if (f.statusCode) { params.push(f.statusCode); conditions.push(`status_code = ${p()}`); }
     if (f.method)     { params.push(f.method.toUpperCase()); conditions.push(`method = ${p()}`); }
