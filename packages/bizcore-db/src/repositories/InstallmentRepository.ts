@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { KyselyDatabase, InstallmentRow } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { toDateOnlyStr } from '../utils/date.js';
 
@@ -33,7 +33,7 @@ export class InstallmentRepository {
       .where('invoice_id', '=', invoiceId)
       .orderBy('seq', 'asc')
       .execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async findById(id: string): Promise<Installment | null> {
@@ -61,7 +61,7 @@ export class InstallmentRepository {
       .where('invoice_id', '=', invoiceId)
       .execute();
 
-    const hasPaid = existing.some((r: any) => r.status === 'paid');
+    const hasPaid = existing.some((r) => r.status === 'paid');
     if (hasPaid) {
       throw new Error('Cannot replace schedule: invoice already has paid installments');
     }
@@ -91,7 +91,7 @@ export class InstallmentRepository {
       .returningAll()
       .execute();
 
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   /** Mark a single installment as paid. */
@@ -122,14 +122,14 @@ export class InstallmentRepository {
   async pendingCount(invoiceId: string): Promise<number> {
     const result = await this.db
       .selectFrom('finance.invoice_installments')
-      .select((eb: any) => [eb.fn.countAll().as('count')])
+      .select((eb) => [eb.fn.countAll().as('count')])
       .where('invoice_id', '=', invoiceId)
       .where('status', '=', 'pending')
       .executeTakeFirst();
     return Number(result?.count ?? 0);
   }
 
-  private map(r: any): Installment {
+  private map(r: InstallmentRow): Installment {
     return {
       id: r.id,
       invoiceId: r.invoice_id,
