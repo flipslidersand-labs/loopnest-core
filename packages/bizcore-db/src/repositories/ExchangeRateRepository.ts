@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { ExchangeRateRow, KyselyDatabase } from '../types/kysely-database.js';
 
 export interface ExchangeRate {
   currencyCode: string;
@@ -25,7 +25,7 @@ export class ExchangeRateRepository {
       .select(COLS)
       .orderBy('currency_code', 'asc')
       .execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async findByCode(code: string): Promise<ExchangeRate | null> {
@@ -46,7 +46,7 @@ export class ExchangeRateRepository {
         effective_date: data.effectiveDate,
         updated_at: new Date(),
       })
-      .onConflict((oc: any) =>
+      .onConflict((oc) =>
         oc.column('currency_code').doUpdateSet({
           rate_to_jpy: data.rateToJpy.toString(),
           effective_date: data.effectiveDate,
@@ -54,11 +54,11 @@ export class ExchangeRateRepository {
         })
       )
       .returning(COLS)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
     return this.map(r);
   }
 
-  private map(r: any): ExchangeRate {
+  private map(r: ExchangeRateRow): ExchangeRate {
     return {
       currencyCode: r.currency_code,
       rateToJpy: parseFloat(r.rate_to_jpy.toString()),
