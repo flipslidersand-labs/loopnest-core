@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { KyselyDatabase, RecurringContractRow } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { toDateOnlyStr } from '../utils/date.js';
 
@@ -73,7 +73,7 @@ export class RecurringContractRepository {
     if (filter.skip != null) q = q.offset(filter.skip);
     if (filter.take != null) q = q.limit(filter.take);
     const rows = await q.execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async findById(id: string): Promise<RecurringContract | null> {
@@ -111,7 +111,7 @@ export class RecurringContractRepository {
       .where('next_billing_at', '<=', asOf)
       .orderBy('next_billing_at', 'asc')
       .execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   /**
@@ -125,7 +125,7 @@ export class RecurringContractRepository {
    * is held until that transaction commits/rolls back — so callers must
    * also call `advanceNextBilling` in the same transaction before committing.
    */
-  async lockDue(id: string, asOf: string, db: any = this.db): Promise<RecurringContract | null> {
+  async lockDue(id: string, asOf: string, db: Kysely<KyselyDatabase> = this.db): Promise<RecurringContract | null> {
     const row = await db
       .selectFrom('core.recurring_contracts')
       .selectAll()
@@ -213,7 +213,7 @@ export class RecurringContractRepository {
       .updateTable('core.recurring_contracts')
       .set({ status: 'active', pause_reason: null, pause_until: null, updated_at: new Date() })
       .where('status', '=', 'paused')
-      .where((eb: any) => eb.and([
+      .where((eb) => eb.and([
         eb('pause_until', 'is not', null),
         eb('pause_until', '<=', asOf),
       ]))
@@ -222,7 +222,7 @@ export class RecurringContractRepository {
   }
 
   /** Advance next_billing_at by one interval after a successful billing run. */
-  async advanceNextBilling(id: string, nextBillingAt: string, db: any = this.db): Promise<void> {
+  async advanceNextBilling(id: string, nextBillingAt: string, db: Kysely<KyselyDatabase> = this.db): Promise<void> {
     await db
       .updateTable('core.recurring_contracts')
       .set({ next_billing_at: nextBillingAt, updated_at: new Date() })
@@ -241,8 +241,8 @@ export class RecurringContractRepository {
     return Number(result?.numUpdatedRows ?? 0);
   }
 
-  private map(r: any): RecurringContract {
-    const toDateStr = (v: any): string =>
+  private map(r: RecurringContractRow): RecurringContract {
+    const toDateStr = (v: unknown): string =>
       v instanceof Date ? toDateOnlyStr(v) : String(v);
 
     return {
