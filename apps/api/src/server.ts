@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import type { Server } from 'node:http';
 import { logger } from './lib/logger.js';
+import { fatalExit } from './lib/fatalExit.js';
 import cors from 'cors';
 import { initializeDatabaseServices, redis, setKyselyQueryObserver } from '@loopnest/bizcore-db';
 import type { DatabaseServices } from '@loopnest/bizcore-db';
@@ -231,6 +232,8 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   server = app.listen(PORT, () => {
     logger.info({ port: PORT }, 'API server started');
   });
+  // EADDRINUSE / invalid PORT surface as an 'error' event; without a listener it is thrown.
+  server.on('error', fatalExit(logger, 'server listen error'));
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
@@ -247,4 +250,4 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-});
+}).catch(fatalExit(logger, 'failed to start API server'));
