@@ -101,7 +101,7 @@ export class QuoteService {
   /**
    * Convert approved quote to invoice (approved → invoiced)
    */
-  async convertToInvoice(quoteId: string, userId: string): Promise<QuoteEntity> {
+  async convertToInvoice(quoteId: string, _userId: string): Promise<QuoteEntity> {
     return await this.atomicTransition(quoteId, 'approved', 'invoiced', 'invoice');
   }
 
