@@ -11,10 +11,10 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
+// JWT_SECRET presence is validated at process startup in server.ts (before logger/
+// telemetry init, via console.error + process.exit(1)), so it is guaranteed to be
+// set by the time any request reaches this middleware.
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export const authenticate = (req: Request, _res: Response, next: NextFunction): void => {
   const header = req.headers.authorization;
@@ -42,6 +42,19 @@ export const requireRole = (...roles: string[]) =>
     }
     next();
   };
+
+/**
+ * Get the authenticated user's sub for actor/createdBy fields.
+ * Throws 401 instead of silently falling back to "system" — every call site
+ * runs behind requireRole/requireCustomer, so a missing req.user here means
+ * that guard was skipped, not that the request is legitimately anonymous.
+ */
+export function getAuthenticatedUserId(req: Request): string {
+  if (!req.user?.sub) {
+    throw new ApiErrorResponse(401, 'UNAUTHORIZED', 'Authentication required');
+  }
+  return req.user.sub;
+}
 
 export const requireCustomer = (req: Request, _res: Response, next: NextFunction): void => {
   if (!req.user) {

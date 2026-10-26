@@ -2,13 +2,40 @@ import { Router, Request, Response } from 'express';
 import { RepositoryContainer } from '@loopnest/bizcore-db';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
 import { PdfService } from '../services/PdfService.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
+import { toCsvRow } from '../lib/csv.js';
+import { writeWithBackpressure, ClientDisconnectedError } from '../lib/writeWithBackpressure.js';
+import { logger } from '../lib/logger.js';
+
+/**
+ * Block a tenant-scoped caller from touching another org's invoice. A token
+ * without orgId (global admin) may act on any invoice; an invoice whose org is
+ * unknown (legacy / unscoped customer) is left accessible for backward
+ * compatibility. Mirrors the pattern in payments.ts / creditNotes.ts.
+ */
+function assertOrgAccess(req: Request, ownerOrgId: string | null): void {
+  if (req.user?.orgId && ownerOrgId && req.user.orgId !== ownerOrgId) {
+    throw new ApiErrorResponse(403, 'FORBIDDEN', 'You may only access your own organization');
+  }
+}
+
+/**
+ * Resolve an invoice's owning org via its customer (finance.invoices is not
+ * org-tagged directly), 404ing if the invoice is missing.
+ */
+async function loadInvoiceOrg(
+  repos: RepositoryContainer,
+  invoice: { customerId: string }
+): Promise<string | null> {
+  const customer = await repos.customers.findById(invoice.customerId);
+  return customer?.organizationId ?? null;
+}
 
 const CSV_HEADER = 'id,number,customer_id,amount,currency,status,created_at,due_date,paid_at';
 
 function invoiceToCsvRow(inv: any): string {
-  return [
+  return toCsvRow([
     inv.id,
     inv.invoiceNumber,
     inv.customerId,
@@ -18,7 +45,7 @@ function invoiceToCsvRow(inv: any): string {
     inv.createdAt instanceof Date ? inv.createdAt.toISOString() : inv.createdAt,
     inv.paymentDueDate ?? '',
     inv.paidAt instanceof Date ? inv.paidAt.toISOString() : (inv.paidAt ?? ''),
-  ].join(',');
+  ]);
 }
 
 export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceService) {
@@ -36,7 +63,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       if (!Array.isArray(items) || items.length === 0) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'items must be a non-empty array');
       }
-      const userId = (req as any).user?.userId ?? 'system';
+      const userId = getAuthenticatedUserId(req);
       const result = await invoiceSvc.bulkCreate(items, userId);
       res.status(result.failed.length === 0 ? 201 : 207).json(result);
     })
@@ -70,24 +97,45 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       const filter = {
         status: req.query.status as string | undefined,
         customerId: req.query.customerId as string | undefined,
+        organizationId: req.user?.orgId,
         createdAtFrom: req.query.from as string | undefined,
         createdAtTo: req.query.to as string | undefined,
       };
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
       res.setHeader('Trailer', 'X-Export-Truncated');
-      res.write(CSV_HEADER + '\n');
-      const { truncated } = await repos.invoices.streamForExport(filter, (invoice) => {
-        res.write(invoiceToCsvRow(invoice) + '\n');
-      });
-      if (truncated) {
-        // Headers are already flushed by the time streaming starts, so the
-        // truncation flag can't ride on a response header — surface it as a
-        // trailer and a log line instead so callers/ops can detect it.
-        res.addTrailers({ 'X-Export-Truncated': 'true' });
-        console.warn(`[invoices/export] result truncated at row limit; filter=${JSON.stringify(filter)}`);
+      try {
+        await writeWithBackpressure(res, CSV_HEADER + '\n');
+        const { truncated } = await repos.invoices.streamForExport(filter, async (invoice) => {
+          await writeWithBackpressure(res, invoiceToCsvRow(invoice) + '\n');
+        });
+        if (truncated) {
+          // Headers are already flushed by the time streaming starts, so the
+          // truncation flag can't ride on a response header — surface it as a
+          // trailer and a log line instead so callers/ops can detect it.
+          res.addTrailers({ 'X-Export-Truncated': 'true' });
+          logger.warn({ filter }, 'invoice CSV export truncated at row limit');
+        }
+        res.end();
+      } catch (err) {
+        if (err instanceof ClientDisconnectedError) {
+          // Client went away mid-export. The rejection already unwound
+          // streamForExport (transaction rolled back, connection released);
+          // there is nobody left to answer, so don't hand it to errorHandler.
+          logger.warn({ orgId: filter.organizationId }, 'invoice CSV export aborted: client disconnected');
+          res.destroy(); // idempotent; makes sure a half-open response (error-triggered abort) is torn down
+          return;
+        }
+        if (res.headersSent) {
+          // Headers (and part of the CSV) are already out, so errorHandler can't
+          // send a JSON error. Destroy the socket so the client sees an aborted
+          // transfer instead of a truncated file that looks complete.
+          logger.error({ err }, 'invoice CSV export failed mid-stream');
+          res.destroy();
+          return;
+        }
+        throw err;
       }
-      res.end();
     })
   );
 
@@ -98,17 +146,18 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       const take = Math.min(100, Math.max(1, Number.parseInt((req.query.limit ?? req.query.take) as string) || 20));
       const status = req.query.status as string | undefined;
       const customerId = req.query.customerId as string | undefined;
+      const organizationId = req.user?.orgId;
 
       if (cursor || req.query.limit) {
         // cursor-based pagination
-        const page = await repos.invoices.findPage({ cursor, take, status, customerId });
+        const page = await repos.invoices.findPage({ cursor, take, status, customerId, organizationId });
         res.json(page);
       } else {
         // legacy offset pagination (deprecated)
         const skip = Math.max(0, Number.parseInt(req.query.skip as string) || 0);
         const [invoices, total] = await Promise.all([
-          repos.invoices.findAll({ skip, take, status, customerId }),
-          repos.invoices.count({ status, customerId }),
+          repos.invoices.findAll({ skip, take, status, customerId, organizationId }),
+          repos.invoices.count({ status, customerId, organizationId }),
         ]);
         res.json({ data: invoices, pagination: { skip, take, total }, filter: { status, customerId } });
       }
@@ -120,6 +169,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
     asyncHandler(async (req: Request, res: Response) => {
       const invoice = await repos.invoices.findByNumber(req.params.invoiceNumber);
       if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      assertOrgAccess(req, await loadInvoiceOrg(repos, invoice));
       res.json({ data: invoice });
     })
   );
@@ -128,6 +178,10 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
   router.get(
     '/:id/pdf',
     asyncHandler(async (req: Request, res: Response) => {
+      const invoice = await repos.invoices.findById(req.params.id);
+      if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      assertOrgAccess(req, await loadInvoiceOrg(repos, invoice));
+
       const pdf = await pdfService.generateInvoicePdf(req.params.id);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="invoice-${req.params.id}.pdf"`);
@@ -141,6 +195,7 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
     asyncHandler(async (req: Request, res: Response) => {
       const invoice = await repos.invoices.findWithItems(req.params.id);
       if (!invoice) throw new ApiErrorResponse(404, 'NOT_FOUND', 'Invoice not found');
+      assertOrgAccess(req, await loadInvoiceOrg(repos, invoice));
       res.json({ data: invoice });
     })
   );

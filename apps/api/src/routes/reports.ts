@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { ReportingService } from '../services/ReportingService.js';
 import { asyncHandler, ApiErrorResponse } from '../middleware/errorHandler.js';
+import { requireRole } from '../middleware/auth.js';
 
 export function reportRoutes(reportingService: ReportingService) {
   const router = Router();
+
+  router.use(requireRole('viewer', 'editor', 'admin'));
 
   // Dashboard quick numbers — viewer and above
   router.get(
@@ -77,6 +80,11 @@ export function reportRoutes(reportingService: ReportingService) {
       }
       if (from > to) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'from must be before or equal to to');
+      }
+      const MAX_DAYS = 366;
+      const msPerDay = 86400000;
+      if ((new Date(to).getTime() - new Date(from).getTime()) / msPerDay > MAX_DAYS) {
+        throw new ApiErrorResponse(400, 'VALIDATION_ERROR', `date range must not exceed ${MAX_DAYS} days`);
       }
       const cashFlow = await reportingService.getCashFlow(from, to, req.user?.orgId);
       res.json({ data: cashFlow, from, to });
