@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Kysely, sql } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { KyselyDatabase, QuoteTemplateRow } from '../types/kysely-database.js';
 
 export interface TemplateItem {
   productId: string;
@@ -40,7 +40,7 @@ export class QuoteTemplateRepository {
       q = q.where('organization_id', '=', organizationId);
     }
     const rows = await q.execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map(r => this.map(r));
   }
 
   async findById(id: string, organizationId?: string): Promise<QuoteTemplate | null> {
@@ -71,7 +71,7 @@ export class QuoteTemplateRepository {
         updated_at: now,
       })
       .returningAll()
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
     return this.map(row);
   }
 
@@ -93,9 +93,9 @@ export class QuoteTemplateRepository {
     return `QUO-${ym}-${String(seq).padStart(6, '0')}`;
   }
 
-  private map(r: any): QuoteTemplate {
+  private map(r: QuoteTemplateRow): QuoteTemplate {
     const items: TemplateItem[] =
-      typeof r.items === 'string' ? JSON.parse(r.items) : (r.items ?? []);
+      typeof r.items === 'string' ? JSON.parse(r.items) : ((r.items ?? []) as unknown as TemplateItem[]);
     return {
       id: r.id,
       name: r.name,
