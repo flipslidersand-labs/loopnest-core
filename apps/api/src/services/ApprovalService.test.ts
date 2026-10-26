@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ApprovalService } from './ApprovalService.js';
-import { ApiErrorResponse } from '../middleware/errorHandler.js';
 
 // ---------------------------------------------------------------------------
 // Minimal in-memory Kysely-shaped fake. Supports exactly the query shapes
