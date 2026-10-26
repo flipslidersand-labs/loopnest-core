@@ -1,5 +1,5 @@
-import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { Kysely, SelectQueryBuilder } from 'kysely';
+import { KyselyDatabase, Invoice, NewInvoice } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
 import { toDateOnlyStr } from '../utils/date.js';
@@ -85,9 +85,12 @@ export interface InvoiceFilter {
 // it is hit so a truncated export is never mistaken for a complete one.
 const EXPORT_ROW_LIMIT = 10000;
 
-function applyOrgScope(q: any, organizationId: string | undefined): any {
+function applyOrgScope<O>(
+  q: SelectQueryBuilder<KyselyDatabase, 'finance.invoices', O>,
+  organizationId: string | undefined,
+): SelectQueryBuilder<KyselyDatabase, 'finance.invoices', O> {
   if (!organizationId) return q;
-  return q.where('customer_id', 'in', (eb: any) =>
+  return q.where('customer_id', 'in', (eb) =>
     eb.selectFrom('core.customers').select('id').where('organization_id', '=', organizationId)
   );
 }
@@ -98,6 +101,8 @@ const COLS = [
   'status', 'paid_at', 'payment_due_date', 'created_by', 'created_at',
   'currency', 'exchange_rate',
 ] as const;
+
+type InvoiceRow = Pick<Invoice, (typeof COLS)[number]>;
 
 export class InvoiceRepository {
   constructor(private db: Kysely<KyselyDatabase>) {}
@@ -110,10 +115,13 @@ export class InvoiceRepository {
     return Number(result.rows[0].nextval);
   }
 
-  async create(data: InvoiceInput, db: any = this.db): Promise<InvoiceRecord> {
+  async create(data: InvoiceInput, db: Kysely<KyselyDatabase> = this.db): Promise<InvoiceRecord> {
     const id = randomUUID();
     const result = await db
       .insertInto('finance.invoices')
+      // InvoiceTable column types diverge from what the DB/driver actually take
+      // (money columns as strings, payment_due_date as ISO string, registration_number
+      // defaulted in DB). Cast kept explicit instead of `any`; see PR body.
       .values({
         id,
         quote_id: data.quoteId ?? null,
@@ -130,10 +138,10 @@ export class InvoiceRepository {
         created_at: new Date(),
         currency: data.currency ?? 'JPY',
         exchange_rate: (data.exchangeRate ?? 1.0).toString(),
-      })
+      } as unknown as NewInvoice)
       .returning(COLS)
       .executeTakeFirst();
-    return this.map(result);
+    return this.map(result as InvoiceRow);
   }
 
   async findAll(filter: InvoiceFilter = {}): Promise<InvoiceRecord[]> {
@@ -153,7 +161,7 @@ export class InvoiceRepository {
     if (filter.createdAtFrom) q = q.where('created_at', '>=', new Date(filter.createdAtFrom));
     if (filter.createdAtTo)   q = q.where('created_at', '<', new Date(filter.createdAtTo));
     const rows = await q.execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async findPage(filter: InvoiceFilter = {}): Promise<InvoicePage> {
@@ -173,7 +181,7 @@ export class InvoiceRepository {
       const c = decodeCursor(filter.cursor);
       if (c) {
         const ts = new Date(c.createdAt);
-        q = q.where((eb: any) => eb.or([
+        q = q.where((eb) => eb.or([
           eb('created_at', '<', ts),
           eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
         ]));
@@ -181,7 +189,7 @@ export class InvoiceRepository {
     }
     const rows = await q.execute();
     const hasMore = rows.length > limit;
-    const data = rows.slice(0, limit).map((r: any) => this.map(r));
+    const data = rows.slice(0, limit).map((r) => this.map(r));
     const nextCursor = hasMore ? makeCursor(data[data.length - 1]) : null;
     return { data, pagination: { limit, nextCursor } };
   }
@@ -207,7 +215,7 @@ export class InvoiceRepository {
     if (truncated) {
       process.stderr.write(`[InvoiceRepository] findForExport truncated at ${EXPORT_ROW_LIMIT} rows; filter=${JSON.stringify(filter)}\n`);
     }
-    return { data: rows.map((r: any) => this.map(r)), truncated };
+    return { data: rows.map((r) => this.map(r)), truncated };
   }
 
   /**
@@ -227,7 +235,7 @@ export class InvoiceRepository {
     onRow: (record: InvoiceRecord) => void | Promise<void>
   ): Promise<{ truncated: boolean }> {
     let rowCount = 0;
-    await this.db.transaction().execute(async (trx: any) => {
+    await this.db.transaction().execute(async (trx) => {
       let q = trx
         .selectFrom('finance.invoices')
         .selectAll()
@@ -295,7 +303,7 @@ export class InvoiceRepository {
       .selectAll()
       .where('quote_id', 'in', quoteIds)
       .execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async findWithItems(id: string): Promise<InvoiceWithItems | null> {
@@ -320,7 +328,7 @@ export class InvoiceRepository {
       .execute();
     return {
       ...invoice,
-      items: items.map((r: any) => ({
+      items: items.map((r) => ({
         id: r.id,
         productId: r.product_id,
         productName: r.product_name,
@@ -403,7 +411,7 @@ export class InvoiceRepository {
     await this.db.updateTable('finance.invoices').set({ status }).where('id', '=', id).execute();
   }
 
-  private map(r: any): InvoiceRecord {
+  private map(r: InvoiceRow): InvoiceRecord {
     return {
       id: r.id,
       quoteId: r.quote_id ?? null,
@@ -414,7 +422,7 @@ export class InvoiceRepository {
       taxAmount: parseFloat(r.tax_amount.toString()),
       discountAmount: r.discount_amount ? parseFloat(r.discount_amount.toString()) : 0,
       totalAmount: parseFloat(r.total_amount.toString()),
-      status: r.status,
+      status: r.status as InvoiceStatus,
       paidAt: r.paid_at ?? null,
       paymentDueDate: r.payment_due_date
         ? (r.payment_due_date instanceof Date

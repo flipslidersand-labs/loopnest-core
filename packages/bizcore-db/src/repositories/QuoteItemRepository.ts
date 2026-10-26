@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { KyselyDatabase, QuoteItem } from '../types/kysely-database.js';
 import { randomUUID } from 'node:crypto';
 
 export interface QuoteItemEntity {
@@ -26,7 +26,7 @@ export interface QuoteItemInput {
 export class QuoteItemRepository {
   constructor(private db: Kysely<KyselyDatabase>) {}
 
-  private map(r: any): QuoteItemEntity {
+  private map(r: QuoteItem): QuoteItemEntity {
     return {
       id: r.id,
       quoteId: r.quote_id,
