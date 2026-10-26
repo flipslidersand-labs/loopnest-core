@@ -86,6 +86,12 @@ R=$(curl -s "$BASE_URL/reports/revenue?dateFrom=${PAST}&dateTo=${NOW}")
 check "revenue dateFrom/dateTo filter → has data" "true" \
   "$(echo "$R" | jq '.data | length >= 1')"
 
+# invalid date format → 400 (not a 500 from the timestamptz cast)
+R=$(curl -s -w "\n%{http_code}" "$BASE_URL/reports/revenue?dateFrom=invalid-date")
+check "invalid dateFrom → 400" "400" "$(http_code "$R")"
+R=$(curl -s -w "\n%{http_code}" "$BASE_URL/reports/revenue?dateTo=foobar")
+check "invalid dateTo → 400" "400" "$(http_code "$R")"
+
 # ── 3. GET /api/reports/quotes ────────────────────────────────────────────────
 echo ""
 echo "Quote pipeline"
