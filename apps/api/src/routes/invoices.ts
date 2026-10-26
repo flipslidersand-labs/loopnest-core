@@ -5,6 +5,8 @@ import { PdfService } from '../services/PdfService.js';
 import { requireRole, getAuthenticatedUserId } from '../middleware/auth.js';
 import type { InvoiceService } from '../services/InvoiceService.js';
 import { toCsvRow } from '../lib/csv.js';
+import { writeWithBackpressure, ClientDisconnectedError } from '../lib/writeWithBackpressure.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * Block a tenant-scoped caller from touching another org's invoice. A token
@@ -101,11 +103,31 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       };
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
-      res.write(CSV_HEADER + '\n');
-      await repos.invoices.streamForExport(filter, (invoice) => {
-        res.write(invoiceToCsvRow(invoice) + '\n');
-      });
-      res.end();
+      try {
+        await writeWithBackpressure(res, CSV_HEADER + '\n');
+        await repos.invoices.streamForExport(filter, async (invoice) => {
+          await writeWithBackpressure(res, invoiceToCsvRow(invoice) + '\n');
+        });
+        res.end();
+      } catch (err) {
+        if (err instanceof ClientDisconnectedError) {
+          // Client went away mid-export. The rejection already unwound
+          // streamForExport (transaction rolled back, connection released);
+          // there is nobody left to answer, so don't hand it to errorHandler.
+          logger.warn({ orgId: filter.organizationId }, 'invoice CSV export aborted: client disconnected');
+          res.destroy(); // idempotent; makes sure a half-open response (error-triggered abort) is torn down
+          return;
+        }
+        if (res.headersSent) {
+          // Headers (and part of the CSV) are already out, so errorHandler can't
+          // send a JSON error. Destroy the socket so the client sees an aborted
+          // transfer instead of a truncated file that looks complete.
+          logger.error({ err }, 'invoice CSV export failed mid-stream');
+          res.destroy();
+          return;
+        }
+        throw err;
+      }
     })
   );
 

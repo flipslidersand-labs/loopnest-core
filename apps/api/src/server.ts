@@ -82,11 +82,11 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize database services
-let services: DatabaseServices | undefined;
+let _services: DatabaseServices | undefined;
 let server: Server | undefined;
 
 initializeDatabaseServices().then((dbServices: DatabaseServices) => {
-  services = dbServices;
+  _services = dbServices;
 
   // Wire Kysely timing into the metrics histogram.
   setKyselyQueryObserver((kind: string, ms: number) => dbQueryDurationMs.observe(ms, { kind }));
