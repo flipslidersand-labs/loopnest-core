@@ -10,6 +10,22 @@ source "$(dirname "$0")/lib.sh"
 PSQL_URL="${DATABASE_URL:-postgres://loopnest:loopnest_dev_password@localhost:5432/omni_local}"
 db_scalar() { psql "$PSQL_URL" -tA -c "$1" 2>/dev/null; }
 
+# Poll a DB scalar until it is >= min (env-dependent scan tick timing/CI
+# load make a fixed sleep flaky), then hold for extra_s more so an
+# overlapping-scan regression still has room to double-fire before we assert.
+wait_then_settle() { # <sql> <min> <timeout_s> <extra_s>
+  local sql=$1 min=$2 timeout=${3:-20} extra=${4:-4} waited=0 val
+  while [ "$waited" -lt "$timeout" ]; do
+    val=$(db_scalar "$sql")
+    if [ "${val:-0}" -ge "$min" ] 2>/dev/null; then
+      sleep "$extra"
+      return 0
+    fi
+    sleep 1; waited=$((waited + 1))
+  done
+  return 1
+}
+
 echo "=== Overdue Scan Dedup (issue #118) ==="
 echo ""
 
@@ -35,11 +51,15 @@ pass "setup: invoice created ($INVOICE_ID)"
 # pick up on its next tick.
 db_scalar "UPDATE finance.invoices SET payment_due_date = CURRENT_DATE - INTERVAL '5 days' WHERE id = '$INVOICE_ID'" > /dev/null
 
-# Wait across at least two scan ticks so an unpatched check-then-insert race
-# (or any regression reintroducing it) has a chance to double-fire.
-sleep 7
+OVERDUE_SQL="SELECT count(*) FROM events.outbox_events WHERE event_type = 'payment_overdue' AND aggregate_id = '$INVOICE_ID'"
 
-OVERDUE_COUNT=$(db_scalar "SELECT count(*) FROM events.outbox_events WHERE event_type = 'payment_overdue' AND aggregate_id = '$INVOICE_ID'")
+# Wait (with a generous timeout for slow/busy runners) for the scan to flag
+# the invoice, then hold a bit longer so an unpatched check-then-insert race
+# (or any regression reintroducing it) still has a chance to double-fire
+# across overlapping ticks before we assert the count.
+wait_then_settle "$OVERDUE_SQL" 1 20 4
+
+OVERDUE_COUNT=$(db_scalar "$OVERDUE_SQL")
 if [ "${OVERDUE_COUNT:-0}" = "1" ]; then
   pass "exactly 1 payment_overdue outbox event for the invoice (not double-flagged)"
 else

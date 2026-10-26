@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
 export type DiscountType = 'percentage' | 'fixed';
@@ -43,10 +43,8 @@ export interface QuoteFilter extends FindOptions {
   customerId?: string;
 }
 
-export class QuoteRepository extends BaseRepository<QuoteEntity> {
-  constructor(private db: Kysely<KyselyDatabase>) {
-    super();
-  }
+export class QuoteRepository {
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findById(id: string, organizationId?: string): Promise<QuoteEntity | null> {
     let q = this.db
@@ -223,9 +221,10 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
     expectedStatus: QuoteEntity['status'],
     newStatus: QuoteEntity['status'],
     extraData?: { notes?: string },
-    organizationId?: string
+    organizationId?: string,
+    db: any = this.db
   ): Promise<QuoteEntity | null> {
-    let q = this.db
+    let q = db
       .updateTable('core.quotes')
       .set({
         status: newStatus,
@@ -239,7 +238,7 @@ export class QuoteRepository extends BaseRepository<QuoteEntity> {
 
     if (!result || result.numUpdatedRows === 0n) return null;
 
-    const updated = await this.db
+    const updated = await db
       .selectFrom('core.quotes')
       .selectAll()
       .where('id', '=', id)

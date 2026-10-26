@@ -1,3 +1,5 @@
+import { Kysely } from 'kysely';
+import { KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { toDateOnlyStr } from '../utils/date.js';
 
@@ -22,7 +24,7 @@ export interface CreateInstallmentInput {
 }
 
 export class InstallmentRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findByInvoice(invoiceId: string): Promise<Installment[]> {
     const rows = await this.db

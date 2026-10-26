@@ -1,4 +1,5 @@
-import { RepositoryContainer, QuoteEntity } from '@loopnest/bizcore-db';
+import type { Kysely } from 'kysely';
+import { QuoteRepository, OutboxRepository, QuoteEntity, type KyselyDatabase } from '@loopnest/bizcore-db';
 import { ApiErrorResponse } from '../middleware/errorHandler.js';
 
 export interface QuoteWorkflowAction {
@@ -9,32 +10,41 @@ export interface QuoteWorkflowAction {
 }
 
 export class QuoteService {
-  constructor(private repos: RepositoryContainer) {}
+  constructor(
+    private quotes: QuoteRepository,
+    private outbox: OutboxRepository,
+    private db: Kysely<KyselyDatabase>,
+  ) {}
 
   /**
    * Atomic state transition with race-safe error handling.
    * Uses conditional UPDATE (WHERE id=? AND status=?) so that exactly one
    * concurrent caller wins; losers see the current status and get a precise error.
+   * Runs inside the given trx so the caller can publish the corresponding
+   * outbox event atomically with the status change (#208).
    */
   private async atomicTransition(
+    trx: Kysely<KyselyDatabase>,
     quoteId: string,
     expectedStatus: QuoteEntity['status'],
     newStatus: QuoteEntity['status'],
     operation: string,
     extraData?: { notes?: string }
   ): Promise<QuoteEntity> {
-    const updated = await this.repos.quotes.transitionStatus(
+    const updated = await this.quotes.transitionStatus(
       quoteId,
       expectedStatus,
       newStatus,
-      extraData
+      extraData,
+      undefined,
+      trx
     );
 
     if (updated) {
       return updated;
     }
 
-    const current = await this.repos.quotes.findById(quoteId);
+    const current = await this.quotes.findById(quoteId);
     if (!current) {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
     }
@@ -49,57 +59,66 @@ export class QuoteService {
    * Submit quote for approval (draft → pending_approval)
    */
   async submitForApproval(quoteId: string, userId: string): Promise<QuoteEntity> {
-    const updated = await this.atomicTransition(
-      quoteId,
-      'draft',
-      'pending_approval',
-      'submit'
-    );
+    return this.db.transaction().execute(async (trx) => {
+      const updated = await this.atomicTransition(
+        trx,
+        quoteId,
+        'draft',
+        'pending_approval',
+        'submit'
+      );
 
-    await this.repos.outbox.publish('quote_submitted', quoteId, { userId });
+      await this.outbox.publish('quote_submitted', quoteId, { userId }, trx);
 
-    return updated;
+      return updated;
+    });
   }
 
   /**
    * Approve quote (pending_approval → approved)
    */
   async approve(quoteId: string, userId: string, notes?: string): Promise<QuoteEntity> {
-    const updated = await this.atomicTransition(
-      quoteId,
-      'pending_approval',
-      'approved',
-      'approve',
-      notes === undefined ? undefined : { notes }
-    );
+    return this.db.transaction().execute(async (trx) => {
+      const updated = await this.atomicTransition(
+        trx,
+        quoteId,
+        'pending_approval',
+        'approved',
+        'approve',
+        notes === undefined ? undefined : { notes }
+      );
 
-    await this.repos.outbox.publish('quote_approved', quoteId, { userId, notes });
+      await this.outbox.publish('quote_approved', quoteId, { userId, notes }, trx);
 
-    return updated;
+      return updated;
+    });
   }
 
   /**
    * Reject quote (pending_approval → rejected)
    */
   async reject(quoteId: string, userId: string, reason: string): Promise<QuoteEntity> {
-    const updated = await this.atomicTransition(
-      quoteId,
-      'pending_approval',
-      'rejected',
-      'reject',
-      { notes: `Rejected: ${reason}` }
-    );
+    return this.db.transaction().execute(async (trx) => {
+      const updated = await this.atomicTransition(
+        trx,
+        quoteId,
+        'pending_approval',
+        'rejected',
+        'reject',
+        { notes: `Rejected: ${reason}` }
+      );
 
-    await this.repos.outbox.publish('quote_rejected', quoteId, { userId, reason });
+      await this.outbox.publish('quote_rejected', quoteId, { userId, reason }, trx);
 
-    return updated;
+      return updated;
+    });
   }
 
   /**
    * Convert approved quote to invoice (approved → invoiced)
    */
-  async convertToInvoice(quoteId: string, userId: string): Promise<QuoteEntity> {
-    return await this.atomicTransition(quoteId, 'approved', 'invoiced', 'invoice');
+  async convertToInvoice(quoteId: string, _userId: string): Promise<QuoteEntity> {
+    return await this.atomicTransition(this.db, quoteId, 'approved', 'invoiced', 'invoice');
   }
 
   /**
@@ -112,7 +131,7 @@ export class QuoteService {
     canReject: boolean;
     canInvoice: boolean;
   }> {
-    const quote = await this.repos.quotes.findById(quoteId);
+    const quote = await this.quotes.findById(quoteId);
 
     if (!quote) {
       throw new ApiErrorResponse(404, 'NOT_FOUND', 'Quote not found');
@@ -131,18 +150,18 @@ export class QuoteService {
    * Get quotes by workflow stage
    */
   async getDraftQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('draft', { take: limit });
+    return this.quotes.findByStatus('draft', { take: limit });
   }
 
   async getPendingApprovalQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('pending_approval', { take: limit });
+    return this.quotes.findByStatus('pending_approval', { take: limit });
   }
 
   async getApprovedQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('approved', { take: limit });
+    return this.quotes.findByStatus('approved', { take: limit });
   }
 
   async getInvoicedQuotes(limit: number = 10): Promise<QuoteEntity[]> {
-    return this.repos.quotes.findByStatus('invoiced', { take: limit });
+    return this.quotes.findByStatus('invoiced', { take: limit });
   }
 }

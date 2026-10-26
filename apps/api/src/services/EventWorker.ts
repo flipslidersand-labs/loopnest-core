@@ -11,7 +11,7 @@ import { outboxEventLagMs } from "../observability/metrics.js";
 const NOTIFY_CHANNEL = 'loopnest_outbox';
 const SCAN_BATCH_SIZE = Math.max(1, Number(process.env.SCAN_BATCH_SIZE) || 500);
 
-function advanceDate(from: string, unit: string, value: number): string {
+export function advanceDate(from: string, unit: string, value: number): string {
   const d = new Date(from + 'T00:00:00Z');
   switch (unit) {
     case 'day':   d.setUTCDate(d.getUTCDate() + value); break;
@@ -150,6 +150,7 @@ export class EventWorker {
         logger.error({ err }, `[EventWorker] LISTEN client error, reconnecting in 5s`);
         void this.stopListening();
         if (this.stopped) return;
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
           void this.startListening();
@@ -161,6 +162,7 @@ export class EventWorker {
       logger.error({ err }, '[EventWorker] Failed to connect LISTEN client, retrying in 5s');
       await client.end().catch(() => undefined);
       if (this.stopped) return;
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
         void this.startListening();
@@ -516,6 +518,7 @@ export class EventWorker {
         null,
         String(err),
       );
+      // eslint-disable-next-line preserve-caught-error -- target ES2020 は Error の cause 未対応
       throw new Error(`accounting API unreachable: ${err}`);
     }
 
