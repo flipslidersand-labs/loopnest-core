@@ -103,11 +103,19 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       };
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
+      res.setHeader('Trailer', 'X-Export-Truncated');
       try {
         await writeWithBackpressure(res, CSV_HEADER + '\n');
-        await repos.invoices.streamForExport(filter, async (invoice) => {
+        const { truncated } = await repos.invoices.streamForExport(filter, async (invoice) => {
           await writeWithBackpressure(res, invoiceToCsvRow(invoice) + '\n');
         });
+        if (truncated) {
+          // Headers are already flushed by the time streaming starts, so the
+          // truncation flag can't ride on a response header — surface it as a
+          // trailer and a log line instead so callers/ops can detect it.
+          res.addTrailers({ 'X-Export-Truncated': 'true' });
+          logger.warn({ filter }, 'invoice CSV export truncated at row limit');
+        }
         res.end();
       } catch (err) {
         if (err instanceof ClientDisconnectedError) {

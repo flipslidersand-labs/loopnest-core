@@ -39,7 +39,7 @@ describe('GET /invoices/export', () => {
     srv = undefined;
   });
 
-  async function start(streamForExport: (f: unknown, onRow: (r: any) => Promise<void>) => Promise<void>) {
+  async function start(streamForExport: (f: unknown, onRow: (r: any) => Promise<void>) => Promise<{ truncated: boolean } | void>) {
     const repos: any = { invoices: { streamForExport }, customers: {}, installments: {} };
     const handlerErrors: unknown[] = [];
     const app = express();
@@ -59,6 +59,7 @@ describe('GET /invoices/export', () => {
   it('streams all rows to a normal client and ends cleanly', async () => {
     const { port } = await start(async (_f, onRow) => {
       for (let i = 0; i < 50; i++) await onRow(fakeInvoice(i));
+      return { truncated: false };
     });
     const body = await new Promise<string>((resolve, reject) => {
       http
@@ -71,6 +72,23 @@ describe('GET /invoices/export', () => {
         .on('error', reject);
     });
     expect(body.trim().split('\n')).toHaveLength(51); // header + 50 rows
+  });
+
+  it('truncated export (#206) announces X-Export-Truncated as a trailer', async () => {
+    const { port } = await start(async (_f, onRow) => {
+      await onRow(fakeInvoice(0));
+      return { truncated: true };
+    });
+    const trailers = await new Promise<Record<string, string | undefined>>((resolve, reject) => {
+      http
+        .get({ port, path: '/invoices/export' }, (r) => {
+          r.resume();
+          r.on('end', () => resolve({ ...r.trailers }));
+          r.on('error', reject);
+        })
+        .on('error', reject);
+    });
+    expect(trailers['x-export-truncated']).toBe('true');
   });
 
   it('client disconnect mid-export: streamForExport scope unwinds (tx/connection released) and the error handler is not hit', async () => {
