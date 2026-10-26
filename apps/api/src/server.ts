@@ -35,6 +35,14 @@ import { renderMetrics, dbQueryDurationMs } from './observability/metrics.js';
 import { initTelemetry, shutdownTelemetry } from './lib/telemetry.js';
 import { openapiDocument, swaggerHtml } from './openapi.js';
 
+// Fail fast on missing required config, before logger/telemetry init, so this
+// surfaces as a single clear line instead of an uncaught-exception stack trace
+// that bypasses the structured JSON logging other startup failures go through.
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET is required');
+  process.exit(1);
+}
+
 // Initialize OTel SDK before any instrumented code runs.
 initTelemetry();
 
@@ -46,6 +54,17 @@ const intEnv = (name: string, fallback: number): number => {
   const n = v ? parseInt(v, 10) : NaN;
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
+
+// Express's `trust proxy` setting controls whether `req.ip` (and therefore
+// the default rate-limit identity — see middleware/rateLimit.ts) is derived
+// from the `X-Forwarded-For` header. It defaults to `false`, so `req.ip` is
+// the raw socket address and the header is ignored entirely — a client
+// cannot spoof its rate-limit identity. Only set `TRUST_PROXY` (to the
+// number of trusted reverse-proxy hops in front of this service) when this
+// API is actually deployed behind a proxy that sets `X-Forwarded-For` itself.
+const trustProxyRaw = process.env.TRUST_PROXY;
+const trustProxyHops = trustProxyRaw ? parseInt(trustProxyRaw, 10) : NaN;
+app.set('trust proxy', Number.isFinite(trustProxyHops) ? trustProxyHops : false);
 
 // Rate limits are env-tunable so they can be relaxed for load tests and
 // hardened per environment without a code change.
@@ -71,11 +90,11 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize database services
-let services: DatabaseServices | undefined;
+let _services: DatabaseServices | undefined;
 let server: Server | undefined;
 
 initializeDatabaseServices().then((dbServices: DatabaseServices) => {
-  services = dbServices;
+  _services = dbServices;
 
   // Wire Kysely timing into the metrics histogram.
   setKyselyQueryObserver((kind: string, ms: number) => dbQueryDurationMs.observe(ms, { kind }));

@@ -80,8 +80,8 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
         pgPool
           .query(
             `INSERT INTO audit.request_logs
-               (id, method, path, status_code, duration_ms, correlation_id, actor_id, created_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`,
+               (id, method, path, status_code, duration_ms, correlation_id, actor_id, created_at, organization_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8)`,
             [
               randomUUID(),
               req.method,
@@ -90,6 +90,7 @@ export const requestMetrics = (options: RequestLoggerOptions) => {
               Math.round(durationMs),
               correlationId,
               actorId,
+              (req as Request & { user?: { orgId?: string } }).user?.orgId ?? null,
             ]
           )
           .catch((err) => logger.error({ err }, 'request_logs insert failed'));

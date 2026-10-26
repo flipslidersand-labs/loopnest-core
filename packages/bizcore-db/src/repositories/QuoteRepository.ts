@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { KyselyDatabase } from '../types/kysely-database.js';
-import { BaseRepository, FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
+import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
 export type DiscountType = 'percentage' | 'fixed';
@@ -43,10 +43,8 @@ export interface QuoteFilter extends FindOptions {
   customerId?: string;
 }
 
-export class QuoteRepository extends BaseRepository<QuoteEntity> {
-  constructor(private db: Kysely<KyselyDatabase>) {
-    super();
-  }
+export class QuoteRepository {
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async findById(id: string, organizationId?: string): Promise<QuoteEntity | null> {
     let q = this.db

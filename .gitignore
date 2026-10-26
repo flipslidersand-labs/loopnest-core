@@ -28,5 +28,11 @@ coverage/
 *.tsbuildinfo
 .turbo/
 
+# This repo is pnpm-only (see packageManager in package.json) — pnpm-lock.yaml
+# is the only lockfile that should exist. An npm-generated package-lock.json
+# can silently resolve different (potentially vulnerable) versions than what
+# pnpm installs, and `npm ci` run by mistake would install from it (#238).
+package-lock.json
+
 # Worktrees (git worktree add .wt/<branch>)
 .wt/
