@@ -45,6 +45,6 @@ describe('AuditService tenant isolation (#286)', () => {
   it('log() records the actor\'s organization', async () => {
     const pool = makePool();
     await new AuditService(pool).log({ actorId: 'u1', action: 'X', resourceType: 'quote', resourceId: 'q1' });
-    expect(pool.query.mock.calls[0][0]).toContain('FROM core.users WHERE id::text = $2');
+    expect(pool.query.mock.calls[0][0]).toContain('FROM core.users WHERE id::text = $2::text');
   });
 });

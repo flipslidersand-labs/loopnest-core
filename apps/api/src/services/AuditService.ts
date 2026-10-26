@@ -70,8 +70,8 @@ export class AuditService {
       await this.pgPool.query(
         `INSERT INTO audit.audit_logs
            (id, actor_id, action, resource_type, resource_id, metadata, correlation_id, created_at, organization_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(),
-                 (SELECT organization_id FROM core.users WHERE id::text = $2))`,
+         VALUES ($1, $2::text, $3, $4, $5, $6, $7, NOW(),
+                 (SELECT organization_id FROM core.users WHERE id::text = $2::text))`,
         [
           id,
           entry.actorId,
