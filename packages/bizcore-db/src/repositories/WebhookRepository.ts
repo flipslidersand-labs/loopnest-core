@@ -1,5 +1,5 @@
 import { Kysely, sql } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { KyselyDatabase, WebhookRow, WebhookUpdate } from '../types/kysely-database.js';
 
 export interface WebhookRecord {
   id: string;
@@ -40,7 +40,7 @@ export class WebhookRepository {
       .values({
         organization_id: input.organizationId ?? null,
         url: input.url,
-        events: input.events as any,
+        events: input.events,
         secret: input.secret ?? null,
         is_active: true,
       })
@@ -68,7 +68,7 @@ export class WebhookRepository {
   }
 
   async update(id: string, input: UpdateWebhookInput, organizationId?: string): Promise<WebhookRecord | null> {
-    const data: Record<string, unknown> = { updated_at: new Date() };
+    const data: WebhookUpdate = { updated_at: new Date() };
     if (input.url      !== undefined) data.url       = input.url;
     if (input.events   !== undefined) data.events    = input.events;
     if (input.secret   !== undefined) data.secret    = input.secret;
@@ -76,7 +76,7 @@ export class WebhookRepository {
 
     let q = this.db
       .updateTable('events.webhooks')
-      .set(data as any)
+      .set(data)
       .where('id', '=', id)
       .returning(COLS);
     if (organizationId) {
@@ -112,7 +112,7 @@ export class WebhookRepository {
     return rows.map(r => this.map(r));
   }
 
-  private map(row: any): WebhookRecord {
+  private map(row: Pick<WebhookRow, (typeof COLS)[number]>): WebhookRecord {
     return {
       id:             row.id,
       organizationId: row.organization_id,

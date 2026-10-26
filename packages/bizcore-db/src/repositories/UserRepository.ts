@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { KyselyDatabase, UserRow } from '../types/kysely-database.js';
 import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
@@ -43,7 +43,7 @@ export class UserRepository {
     return rows.map(r => this.map(r));
   }
 
-  async findOne(where: Partial<User>, options?: FindOptions): Promise<User | null> {
+  async findOne(where: Partial<User>, _options?: FindOptions): Promise<User | null> {
     let q = this.db.selectFrom('core.users').selectAll();
     if (where.email) q = q.where('email', '=', where.email);
     if (where.role)  q = q.where('role', '=', where.role);
@@ -125,7 +125,7 @@ export class UserRepository {
     return Number(result?.count ?? 0);
   }
 
-  private map(row: any): User {
+  private map(row: UserRow): User {
     return {
       id: row.id,
       name: row.name,
