@@ -96,3 +96,7 @@ Full test coverage required before merge; run `tests/integration/` on each PR.
 - `AuditService`: multi-row INSERT for request logs (high throughput, no ORM benefit)
 - `ReportingService`: aggregation queries with CTEs (complex enough that raw SQL is clearer)
 - Migration scripts in `infra/migrations/` (always raw SQL by design)
+
+## 実装照合（2026-10-11）
+
+決定時の ORM 棚卸し・移行計画は上記の履歴として維持する。現在の実行時 factory は Kysely と raw `pg` を提供し、Repository は Kysely を使用する。Prisma の開発用依存・スクリプトは残るため、ツール撤去まで完了したとは記録しない。根拠: [factory.ts](../../packages/bizcore-db/src/factory.ts)、[DB exports](../../packages/bizcore-db/src/index.ts)、[package.json](../../packages/bizcore-db/package.json)。正式な移行完了日・承認は NEEDS_CONFIRMATION。

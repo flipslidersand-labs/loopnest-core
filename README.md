@@ -43,7 +43,7 @@ A personal OS for building business systems. Constructs an integrated business p
 | --- | --- |
 | Runtime | Node.js 24 / TypeScript |
 | Framework | Express |
-| Database | PostgreSQL 17 (Kysely + Prisma) |
+| Database | PostgreSQL 17 (Kysely + raw pg) |
 | Cache / Queue | Redis / Valkey |
 | Observability | OpenTelemetry + Prometheus metrics |
 | PDF | pdfkit |
@@ -59,7 +59,7 @@ apps/api/               Express API server
   src/routes/           REST endpoints (20 route files)
   src/services/         Business logic (PaymentService, CreditNoteService, etc.)
   src/lib/              JWT, observability, email
-packages/bizcore-db/    DB access layer (Kysely + Prisma)
+packages/bizcore-db/    DB access layer (Kysely + raw pg)
   src/repositories/     Per-entity repositories
 apps/mock-accounting-api/ Mock accounting API used by outbox_dispatch integration tests
 infra/migrations/       PostgreSQL migration SQL
@@ -164,7 +164,7 @@ For a complete list of API error codes with HTTP status and recommended client a
 | --- | --- |
 | Runtime | Node.js 24 / TypeScript |
 | Framework | Express |
-| DB | PostgreSQL 17（Kysely + Prisma 併用） |
+| DB | PostgreSQL 17（Kysely + raw pg） |
 | Cache / Queue | Redis / Valkey |
 | オブザーバビリティ | OpenTelemetry + Prometheus メトリクス |
 | PDF | pdfkit |
@@ -180,7 +180,7 @@ apps/api/               Express API サーバー
   src/routes/           REST エンドポイント（20 ルートファイル）
   src/services/         ビジネスロジック（PaymentService, CreditNoteService 等）
   src/lib/              JWT, observability, email
-packages/bizcore-db/    DB アクセス層（Kysely + Prisma）
+packages/bizcore-db/    DB アクセス層（Kysely + raw pg）
   src/repositories/     各エンティティ Repository
 apps/mock-accounting-api/ outbox_dispatch 統合テスト用の会計モックAPI
 infra/migrations/       PostgreSQL マイグレーション SQL
@@ -247,3 +247,7 @@ API エラーコードの一覧（HTTP ステータス・推奨アクション�
 ## 設計判断 / Architecture decisions
 
 [ADR 一覧](docs/adr/README.md) — 設計判断、根拠資料、未決定事項。
+
+## 実装照合（2026-10-11）
+
+Runtime DB access uses Kysely and the raw `pg` pool. Prisma remains in development dependencies and tooling scripts; it is not exported by the runtime DB factory. / 実行時の DB アクセスは Kysely と raw `pg` に統合されています。Prisma の開発用依存・スクリプトは残っています。根拠: [factory.ts](packages/bizcore-db/src/factory.ts)、[index.ts](packages/bizcore-db/src/index.ts)、[package.json](packages/bizcore-db/package.json)。
