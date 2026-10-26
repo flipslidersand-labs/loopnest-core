@@ -77,7 +77,7 @@ export class QuoteRepository {
     return rows.map(r => this.map(r));
   }
 
-  async findOne(where: Partial<QuoteEntity>, options?: FindOptions): Promise<QuoteEntity | null> {
+  async findOne(where: Partial<QuoteEntity>, _options?: FindOptions): Promise<QuoteEntity | null> {
     let q = this.db.selectFrom('core.quotes').selectAll();
     if (where.status) q = q.where('status', '=', where.status);
     if (where.customerId) q = q.where('customer_id', '=', where.customerId);

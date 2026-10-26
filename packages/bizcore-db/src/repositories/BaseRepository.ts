@@ -4,10 +4,10 @@ export interface FindOptions {
   orderBy?: Record<string, 'asc' | 'desc'>;
 }
 
-export interface CreateInput<T> {
+export interface CreateInput<_T> {
   [key: string]: any;
 }
 
-export interface UpdateInput<T> {
+export interface UpdateInput<_T> {
   [key: string]: any;
 }

@@ -50,7 +50,7 @@ export class ProductRepository {
     return rows.map(r => this.map(r));
   }
 
-  async findOne(where: Partial<Product>, options?: FindOptions): Promise<Product | null> {
+  async findOne(where: Partial<Product>, _options?: FindOptions): Promise<Product | null> {
     let q = this.db.selectFrom('core.products').selectAll();
     if (where.category) q = q.where('category', '=', where.category);
     if (where.sku)      q = q.where('sku', '=', where.sku);

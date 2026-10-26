@@ -43,7 +43,7 @@ export class UserRepository {
     return rows.map(r => this.map(r));
   }
 
-  async findOne(where: Partial<User>, options?: FindOptions): Promise<User | null> {
+  async findOne(where: Partial<User>, _options?: FindOptions): Promise<User | null> {
     let q = this.db.selectFrom('core.users').selectAll();
     if (where.email) q = q.where('email', '=', where.email);
     if (where.role)  q = q.where('role', '=', where.role);

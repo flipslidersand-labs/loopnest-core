@@ -1,6 +1,6 @@
 import { kyselyDb } from './clients/kysely-client.js';
 import { pgPool, closePgPool } from './clients/pg-client.js';
-import { redis, closeRedis } from './clients/redis-client.js';
+import { closeRedis } from './clients/redis-client.js';
 import { RepositoryContainer } from './repositories/RepositoryContainer.js';
 import type { Pool } from 'pg';
 import type { Kysely } from 'kysely';

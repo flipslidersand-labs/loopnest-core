@@ -108,7 +108,7 @@ export class CustomerRepository {
     return { data, pagination: { limit, nextCursor } };
   }
 
-  async findOne(where: Partial<Customer>, options?: FindOptions): Promise<Customer | null> {
+  async findOne(where: Partial<Customer>, _options?: FindOptions): Promise<Customer | null> {
     let q = this.db.selectFrom('core.customers').selectAll();
     if (where.name) q = q.where('name', '=', where.name);
     const row = await q.executeTakeFirst();

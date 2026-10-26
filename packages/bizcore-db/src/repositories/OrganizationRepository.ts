@@ -31,7 +31,7 @@ export class OrganizationRepository {
     return rows.map(r => this.map(r));
   }
 
-  async findOne(where: Partial<Organization>, options?: FindOptions): Promise<Organization | null> {
+  async findOne(where: Partial<Organization>, _options?: FindOptions): Promise<Organization | null> {
     let q = this.db.selectFrom('core.organizations').selectAll();
     if (where.name) q = q.where('name', '=', where.name);
     if (where.type) q = q.where('type', '=', where.type);
@@ -86,7 +86,7 @@ export class OrganizationRepository {
     return true;
   }
 
-  async count(where?: Partial<Organization>): Promise<number> {
+  async count(_where?: Partial<Organization>): Promise<number> {
     const result = await this.db
       .selectFrom('core.organizations')
       .select(({ fn }) => fn.countAll<string>().as('count'))
