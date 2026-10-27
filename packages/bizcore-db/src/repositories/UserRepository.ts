@@ -75,7 +75,7 @@ export class UserRepository {
     return rows.map(r => this.map(r));
   }
 
-  async create(data: CreateInput<User>): Promise<User> {
+  async create(data: CreateInput<User, 'name' | 'email' | 'role'>): Promise<User> {
     const row = await this.db
       .insertInto('core.users')
       .values({

@@ -71,7 +71,7 @@ export class ProductRepository {
     return rows.map(r => this.map(r));
   }
 
-  async create(data: CreateInput<Product>): Promise<Product> {
+  async create(data: CreateInput<Product, 'sku' | 'name' | 'category' | 'unitPrice'>): Promise<Product> {
     const row = await this.db
       .insertInto('core.products')
       .values({

@@ -138,7 +138,7 @@ export class QuoteRepository {
     };
   }
 
-  async create(data: CreateInput<QuoteEntity>): Promise<QuoteEntity> {
+  async create(data: CreateInput<QuoteEntity, 'quoteNumber' | 'customerId' | 'createdBy'>): Promise<QuoteEntity> {
     const row = await this.db
       .insertInto('core.quotes')
       .values({

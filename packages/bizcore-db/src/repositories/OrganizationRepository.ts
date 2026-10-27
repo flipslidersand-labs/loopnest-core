@@ -49,7 +49,7 @@ export class OrganizationRepository {
     return rows.map(r => this.map(r));
   }
 
-  async create(data: CreateInput<Organization>): Promise<Organization> {
+  async create(data: CreateInput<Organization, 'name' | 'type'>): Promise<Organization> {
     const row = await this.db
       .insertInto('core.organizations')
       .values({

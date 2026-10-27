@@ -115,7 +115,7 @@ export class CustomerRepository {
     return row ? this.map(row) : null;
   }
 
-  async create(data: CreateInput<Customer>): Promise<Customer> {
+  async create(data: CreateInput<Customer, 'name'>): Promise<Customer> {
     const row = await this.db
       .insertInto('core.customers')
       .values({
