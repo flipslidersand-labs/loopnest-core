@@ -4,10 +4,11 @@ export interface FindOptions {
   orderBy?: Record<string, 'asc' | 'desc'>;
 }
 
-export interface CreateInput<_T> {
-  [key: string]: any;
-}
+/**
+ * Input for create(): any subset of the entity's fields (repositories apply
+ * defaults) plus the fields K that the repository requires.
+ */
+export type CreateInput<T, K extends keyof T = never> = Partial<T> & Required<Pick<T, K>>;
 
-export interface UpdateInput<_T> {
-  [key: string]: any;
-}
+/** Input for update(): any subset of the entity's fields. */
+export type UpdateInput<T> = Partial<T>;

@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { KyselyDatabase, TaxRateRow } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 
 export interface TaxRate {
@@ -31,7 +31,7 @@ export class TaxRateRepository {
       .select(COLS)
       .orderBy('valid_from', 'desc')
       .execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map(r => this.map(r));
   }
 
   async findById(id: string): Promise<TaxRate | null> {
@@ -66,7 +66,7 @@ export class TaxRateRepository {
         created_at: new Date(),
       })
       .returning(COLS)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
     return this.map(r);
   }
 
@@ -95,7 +95,7 @@ export class TaxRateRepository {
     return Number(result?.numDeletedRows ?? 0) > 0;
   }
 
-  private map(r: any): TaxRate {
+  private map(r: Pick<TaxRateRow, (typeof COLS)[number]>): TaxRate {
     return {
       id: r.id,
       name: r.name,

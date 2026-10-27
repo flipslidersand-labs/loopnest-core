@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { CustomerRow, KyselyDatabase } from '../types/kysely-database.js';
 import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID, scrypt, timingSafeEqual, randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -95,7 +95,7 @@ export class CustomerRepository {
       const c = decodeCursor(options.cursor);
       if (c) {
         const ts = new Date(c.createdAt);
-        q = q.where((eb: any) => eb.or([
+        q = q.where((eb) => eb.or([
           eb('created_at', '<', ts),
           eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
         ]));
@@ -115,13 +115,13 @@ export class CustomerRepository {
     return row ? this.map(row) : null;
   }
 
-  async create(data: CreateInput<Customer>): Promise<Customer> {
+  async create(data: CreateInput<Customer, 'name'>): Promise<Customer> {
     const row = await this.db
       .insertInto('core.customers')
       .values({
         id: randomUUID(),
         name: data.name,
-        contact_email: (data as any).email ?? null,
+        contact_email: data.email ?? null,
         address: data.address ?? null,
         phone: data.phone ?? null,
         organization_id: data.organizationId ?? null,
@@ -230,19 +230,19 @@ export class CustomerRepository {
       .select('portal_password_hash')
       .where('id', '=', id)
       .executeTakeFirst();
-    return (row as any)?.portal_password_hash ?? null;
+    return row?.portal_password_hash ?? null;
   }
 
   async setPortalPasswordHash(id: string, hash: string): Promise<boolean> {
     const result = await this.db
       .updateTable('core.customers')
-      .set({ portal_password_hash: hash } as any)
+      .set({ portal_password_hash: hash })
       .where('id', '=', id)
       .executeTakeFirst();
     return (result?.numUpdatedRows ?? 0n) > 0n;
   }
 
-  private map(row: any): Customer {
+  private map(row: CustomerRow): Customer {
     return {
       id: row.id,
       name: row.name,

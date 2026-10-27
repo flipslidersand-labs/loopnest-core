@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { KyselyDatabase, Quote } from '../types/kysely-database.js';
 import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
@@ -138,7 +138,7 @@ export class QuoteRepository {
     };
   }
 
-  async create(data: CreateInput<QuoteEntity>): Promise<QuoteEntity> {
+  async create(data: CreateInput<QuoteEntity, 'quoteNumber' | 'customerId' | 'createdBy'>): Promise<QuoteEntity> {
     const row = await this.db
       .insertInto('core.quotes')
       .values({
@@ -221,9 +221,10 @@ export class QuoteRepository {
     expectedStatus: QuoteEntity['status'],
     newStatus: QuoteEntity['status'],
     extraData?: { notes?: string },
-    organizationId?: string
+    organizationId?: string,
+    db: Kysely<KyselyDatabase> = this.db
   ): Promise<QuoteEntity | null> {
-    let q = this.db
+    let q = db
       .updateTable('core.quotes')
       .set({
         status: newStatus,
@@ -237,7 +238,7 @@ export class QuoteRepository {
 
     if (!result || result.numUpdatedRows === 0n) return null;
 
-    const updated = await this.db
+    const updated = await db
       .selectFrom('core.quotes')
       .selectAll()
       .where('id', '=', id)
@@ -303,7 +304,7 @@ export class QuoteRepository {
     return row ? this.map(row) : null;
   }
 
-  private map(row: any): QuoteEntity {
+  private map(row: Quote): QuoteEntity {
     return {
       id: row.id,
       quoteNumber: row.quote_number,
@@ -316,7 +317,7 @@ export class QuoteRepository {
       discountValue: row.discount_value ? Number(row.discount_value) : null,
       discountAmount: row.discount_amount ? Number(row.discount_amount) : null,
       expiresAt: row.expires_at ?? null,
-      status: row.status,
+      status: row.status as QuoteEntity['status'],
       notes: row.notes ?? undefined,
       organizationId: row.organization_id ?? undefined,
       currency: row.currency ?? 'JPY',

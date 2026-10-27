@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { KyselyDatabase, ProductRow } from '../types/kysely-database.js';
 import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
@@ -71,7 +71,7 @@ export class ProductRepository {
     return rows.map(r => this.map(r));
   }
 
-  async create(data: CreateInput<Product>): Promise<Product> {
+  async create(data: CreateInput<Product, 'sku' | 'name' | 'category' | 'unitPrice'>): Promise<Product> {
     const row = await this.db
       .insertInto('core.products')
       .values({
@@ -119,7 +119,7 @@ export class ProductRepository {
     return Number(result?.count ?? 0);
   }
 
-  private map(row: any): Product {
+  private map(row: ProductRow): Product {
     return {
       id: row.id,
       sku: row.sku,

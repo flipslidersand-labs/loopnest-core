@@ -26,6 +26,13 @@ export function reportRoutes(reportingService: ReportingService) {
       if (!VALID.has(period)) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'period must be day, week, month, quarter, or year');
       }
+      const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z)?$/;
+      for (const key of ['dateFrom', 'dateTo'] as const) {
+        const v = req.query[key];
+        if (v !== undefined && (typeof v !== 'string' || !ISO_DATE_RE.test(v))) {
+          throw new ApiErrorResponse(400, 'VALIDATION_ERROR', `${key} must be an ISO date (YYYY-MM-DD or RFC3339)`);
+        }
+      }
       const revenue = await reportingService.getRevenue(
         period as 'day' | 'week' | 'month' | 'quarter' | 'year',
         req.query.dateFrom as string | undefined,

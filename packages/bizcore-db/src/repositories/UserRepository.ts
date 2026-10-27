@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { KyselyDatabase, UserRow } from '../types/kysely-database.js';
 import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
@@ -75,7 +75,7 @@ export class UserRepository {
     return rows.map(r => this.map(r));
   }
 
-  async create(data: CreateInput<User>): Promise<User> {
+  async create(data: CreateInput<User, 'name' | 'email' | 'role'>): Promise<User> {
     const row = await this.db
       .insertInto('core.users')
       .values({
@@ -125,7 +125,7 @@ export class UserRepository {
     return Number(result?.count ?? 0);
   }
 
-  private map(row: any): User {
+  private map(row: UserRow): User {
     return {
       id: row.id,
       name: row.name,

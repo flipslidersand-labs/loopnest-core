@@ -103,11 +103,19 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       };
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
+      res.setHeader('Trailer', 'X-Export-Truncated');
       try {
         await writeWithBackpressure(res, CSV_HEADER + '\n');
-        await repos.invoices.streamForExport(filter, async (invoice) => {
+        const { truncated } = await repos.invoices.streamForExport(filter, async (invoice) => {
           await writeWithBackpressure(res, invoiceToCsvRow(invoice) + '\n');
         });
+        if (truncated) {
+          // Headers are already flushed by the time streaming starts, so the
+          // truncation flag can't ride on a response header — surface it as a
+          // trailer and a log line instead so callers/ops can detect it.
+          res.addTrailers({ 'X-Export-Truncated': 'true' });
+          logger.warn({ filter }, 'invoice CSV export truncated at row limit');
+        }
         res.end();
       } catch (err) {
         if (err instanceof ClientDisconnectedError) {
@@ -140,19 +148,8 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       const customerId = req.query.customerId as string | undefined;
       const organizationId = req.user?.orgId;
 
-      if (cursor || req.query.limit) {
-        // cursor-based pagination
-        const page = await repos.invoices.findPage({ cursor, take, status, customerId, organizationId });
-        res.json(page);
-      } else {
-        // legacy offset pagination (deprecated)
-        const skip = Math.max(0, Number.parseInt(req.query.skip as string) || 0);
-        const [invoices, total] = await Promise.all([
-          repos.invoices.findAll({ skip, take, status, customerId, organizationId }),
-          repos.invoices.count({ status, customerId, organizationId }),
-        ]);
-        res.json({ data: invoices, pagination: { skip, take, total }, filter: { status, customerId } });
-      }
+      const page = await repos.invoices.findPage({ cursor, take, status, customerId, organizationId });
+      res.json(page);
     })
   );
 

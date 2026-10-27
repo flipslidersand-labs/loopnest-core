@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { KyselyDatabase } from '../types/kysely-database.js';
+import type { KyselyDatabase, OrganizationRow } from '../types/kysely-database.js';
 import { FindOptions, CreateInput, UpdateInput } from './BaseRepository.js';
 import { randomUUID } from 'node:crypto';
 
@@ -49,7 +49,7 @@ export class OrganizationRepository {
     return rows.map(r => this.map(r));
   }
 
-  async create(data: CreateInput<Organization>): Promise<Organization> {
+  async create(data: CreateInput<Organization, 'name' | 'type'>): Promise<Organization> {
     const row = await this.db
       .insertInto('core.organizations')
       .values({
@@ -94,7 +94,7 @@ export class OrganizationRepository {
     return Number(result?.count ?? 0);
   }
 
-  private map(row: any): Organization {
+  private map(row: OrganizationRow): Organization {
     return {
       id: row.id,
       name: row.name,
