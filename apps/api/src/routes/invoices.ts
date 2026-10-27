@@ -148,19 +148,8 @@ export function invoiceRoutes(repos: RepositoryContainer, invoiceSvc?: InvoiceSe
       const customerId = req.query.customerId as string | undefined;
       const organizationId = req.user?.orgId;
 
-      if (cursor || req.query.limit) {
-        // cursor-based pagination
-        const page = await repos.invoices.findPage({ cursor, take, status, customerId, organizationId });
-        res.json(page);
-      } else {
-        // legacy offset pagination (deprecated)
-        const skip = Math.max(0, Number.parseInt(req.query.skip as string) || 0);
-        const [invoices, total] = await Promise.all([
-          repos.invoices.findAll({ skip, take, status, customerId, organizationId }),
-          repos.invoices.count({ status, customerId, organizationId }),
-        ]);
-        res.json({ data: invoices, pagination: { skip, take, total }, filter: { status, customerId } });
-      }
+      const page = await repos.invoices.findPage({ cursor, take, status, customerId, organizationId });
+      res.json(page);
     })
   );
 

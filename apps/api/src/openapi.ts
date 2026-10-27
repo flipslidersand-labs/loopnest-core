@@ -45,6 +45,12 @@ const pageParams = [
   { name: 'take', in: 'query', schema: { type: 'integer', default: 10 }, description: 'Page size' },
 ];
 
+// Cursor pagination (#233): /customers, /invoices, /payments. `take` is accepted as an alias of `limit`.
+const cursorParams = [
+  { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 }, description: 'Page size' },
+  { name: 'cursor', in: 'query', schema: { type: 'string' }, description: 'Opaque cursor from pagination.nextCursor' },
+];
+
 const idempotencyHeader = {
   name: 'Idempotency-Key',
   in: 'header',
@@ -227,7 +233,8 @@ export const openapiDocument: Json = {
       '/api/customers',
       'Customer',
       obj({ name: str(), address: str({ nullable: true }), phone: str({ nullable: true }) }, ['name']),
-      obj({ name: str(), address: str({ nullable: true }), phone: str({ nullable: true }) })
+      obj({ name: str(), address: str({ nullable: true }), phone: str({ nullable: true }) }),
+      cursorParams
     ),
 
     ...crud(
@@ -439,7 +446,7 @@ export const openapiDocument: Json = {
         tags: ['Payments'],
         summary: 'List payments (org-scoped)',
         parameters: [
-          ...pageParams,
+          ...cursorParams,
           { name: 'invoiceId', in: 'query', schema: str({ format: 'uuid' }) },
           { name: 'status', in: 'query', schema: str({ enum: ['confirmed', 'reversed'] }) },
           { name: 'method', in: 'query', schema: str({ enum: ['bank_transfer', 'credit_card', 'cash', 'offset'] }) },
@@ -490,7 +497,7 @@ export const openapiDocument: Json = {
       get: {
         tags: ['Invoices'],
         summary: 'List invoices (paginated)',
-        parameters: [...pageParams, { name: 'customerId', in: 'query', schema: str({ format: 'uuid' }) }, { name: 'status', in: 'query', schema: str() }],
+        parameters: [...cursorParams, { name: 'customerId', in: 'query', schema: str({ format: 'uuid' }) }, { name: 'status', in: 'query', schema: str() }],
         responses: { '200': dataResp('Array of invoices', { type: 'array', items: { type: 'object' } }) },
       },
     },
