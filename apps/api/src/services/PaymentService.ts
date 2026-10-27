@@ -3,7 +3,6 @@ import {
   RepositoryContainer,
   PaymentRecord,
   PaymentMethod,
-  PaymentFilter,
 } from "@loopnest/bizcore-db";
 import type { KyselyDatabase } from "@loopnest/bizcore-db";
 import { ApiErrorResponse } from "../middleware/errorHandler.js";
@@ -358,7 +357,4 @@ export class PaymentService {
     return { payments, balance };
   }
 
-  async listPayments(filter: PaymentFilter) {
-    return this.repos.payments.list(filter);
-  }
 }

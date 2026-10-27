@@ -81,13 +81,13 @@ export function userRoutes(repos: RepositoryContainer) {
     '/',
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { name, nameEn, email, organizationId, role, profile } = req.body;
+      const { name, nameEn, email, organizationId, role } = req.body;
       if (!name || !email || !organizationId || !role) {
         throw new ApiErrorResponse(400, 'VALIDATION_ERROR', 'name, email, organizationId, and role are required');
       }
       // Tenant-scoped admin may only create users in their own org
       resolveOrgId(req, organizationId);
-      const user = await repos.users.create({ name, nameEn, email, organizationId, role, profile });
+      const user = await repos.users.create({ name, nameEn, email, organizationId, role });
       res.status(201).json({ data: user });
     })
   );
@@ -96,7 +96,7 @@ export function userRoutes(repos: RepositoryContainer) {
     '/:id',
     requireRole('admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { name, email, organizationId, role, profile } = req.body;
+      const { name, email, organizationId, role } = req.body;
       // Verify target user belongs to the caller's org before updating
       const existing = await repos.users.findById(req.params.id);
       if (!existing) throw new ApiErrorResponse(404, 'NOT_FOUND', 'User not found');
@@ -104,7 +104,7 @@ export function userRoutes(repos: RepositoryContainer) {
       if (tokenOrgId && existing.organizationId !== tokenOrgId) {
         throw new ApiErrorResponse(403, 'FORBIDDEN', 'You may only modify users in your organization');
       }
-      const user = await repos.users.update(req.params.id, { name, email, organizationId, role, profile });
+      const user = await repos.users.update(req.params.id, { name, email, organizationId, role });
       res.json({ data: user });
     })
   );
