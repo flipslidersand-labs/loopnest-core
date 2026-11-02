@@ -136,16 +136,8 @@ export function paymentRoutes(
       const from = req.query.from as string | undefined;
       const to = req.query.to as string | undefined;
 
-      if (cursor || req.query.limit) {
-        // cursor-based pagination
-        const page = await repos.payments.listPage({ cursor, take, organizationId, invoiceId, status, method, from, to });
-        res.json(page);
-      } else {
-        // legacy offset pagination (deprecated)
-        const skip = Math.max(0, Number.parseInt((req.query.skip as string) || '0', 10));
-        const data = await payments.listPayments({ skip, take, organizationId, invoiceId, status, method, from, to });
-        res.json({ data, pagination: { skip, take } });
-      }
+      const page = await repos.payments.listPage({ cursor, take, organizationId, invoiceId, status, method, from, to });
+      res.json(page);
     })
   );
 

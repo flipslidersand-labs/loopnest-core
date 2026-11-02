@@ -60,8 +60,8 @@ export function productRoutes(repos: RepositoryContainer) {
     '/:id',
     requireRole('editor', 'admin'),
     asyncHandler(async (req: Request, res: Response) => {
-      const { name, category, unitPrice, stockQuantity } = req.body;
-      const product = await repos.products.update(req.params.id, { name, category, unitPrice, stockQuantity });
+      const { name, category, unitPrice } = req.body;
+      const product = await repos.products.update(req.params.id, { name, category, unitPrice });
       res.json({ data: product });
     })
   );

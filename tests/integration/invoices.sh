@@ -35,7 +35,7 @@ echo ""
 echo "List invoices"
 R=$(curl -s "$BASE_URL/invoices")
 check "GET /invoices returns data array" "true" "$(echo "$R" | jq 'has("data")')"
-COUNT=$(echo "$R" | jq '.pagination.total')
+COUNT=$(echo "$R" | jq '.data | length')
 check "at least 2 invoices total" "true" "$([ "${COUNT:-0}" -ge 2 ] && echo true || echo false)"
 
 # ── 2. Get by ID ─────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ check "invoice number matches" "$INV_NUM" "$(http_body "$R" | jq -r '.data.invoi
 echo ""
 echo "Filter"
 R=$(curl -s "$BASE_URL/invoices?status=issued")
-ISSUED_COUNT=$(echo "$R" | jq '.pagination.total')
+ISSUED_COUNT=$(echo "$R" | jq '.data | length')
 check "filter status=issued returns >0" "true" "$([ "${ISSUED_COUNT:-0}" -ge 2 ] && echo true || echo false)"
 
 # ── 5. Status lifecycle: issued → sent → paid ────────────────────────────────
@@ -102,9 +102,9 @@ check "re-cancel → 409" "409" "$(http_code "$R")"
 # ── 8. Filter reflects state changes ────────────────────────────────────────
 echo ""
 echo "Filter after transitions"
-PAID_COUNT=$(curl -s "$BASE_URL/invoices?status=paid" | jq '.pagination.total')
+PAID_COUNT=$(curl -s "$BASE_URL/invoices?status=paid" | jq '.data | length')
 check "filter status=paid ≥1" "true" "$([ "${PAID_COUNT:-0}" -ge 1 ] && echo true || echo false)"
-CANCELLED_COUNT=$(curl -s "$BASE_URL/invoices?status=cancelled" | jq '.pagination.total')
+CANCELLED_COUNT=$(curl -s "$BASE_URL/invoices?status=cancelled" | jq '.data | length')
 check "filter status=cancelled ≥1" "true" "$([ "${CANCELLED_COUNT:-0}" -ge 1 ] && echo true || echo false)"
 
 # ── 9. RBAC: viewer cannot perform transitions ───────────────────────────────

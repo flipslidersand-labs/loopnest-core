@@ -1,5 +1,5 @@
-import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { Kysely, sql } from 'kysely';
+import type { KyselyDatabase, CreditNote as CreditNoteRow, CreditNoteApplication as CreditNoteApplicationRow, CreditNoteUpdate } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 
 export type CreditNoteType = 'return' | 'pricing_error' | 'goodwill' | 'adjustment';
@@ -69,6 +69,15 @@ const CN_COLS = [
   'issued_at', 'created_by', 'created_at',
 ] as const;
 
+type CreditNoteSelectRow = Pick<CreditNoteRow, (typeof CN_COLS)[number]>;
+
+/**
+ * NUMERIC columns are declared `number` in KyselyDatabase but are written as
+ * strings (pg returns/accepts NUMERIC as string). Kept as-is to preserve the
+ * on-the-wire behavior; the cast is confined here.
+ */
+const numericParam = (n: number): number => n.toString() as unknown as number;
+
 /**
  * Kysely-backed access to finance.credit_notes and credit_note_applications.
  * The `db` parameter may be the pool or an open transaction — same repository
@@ -77,15 +86,14 @@ const CN_COLS = [
 export class CreditNoteRepository {
   constructor(private db: Kysely<KyselyDatabase>) {}
 
-  async nextSequenceValue(db: any = this.db): Promise<number> {
-    const { sql } = await import('kysely');
+  async nextSequenceValue(db: Kysely<KyselyDatabase> = this.db): Promise<number> {
     const r = await sql<{ nextval: string }>`
       SELECT nextval('finance.credit_note_seq') AS nextval
     `.execute(db);
     return Number(r.rows[0].nextval);
   }
 
-  async insert(data: CreditNoteInput, db: any = this.db): Promise<CreditNoteRecord> {
+  async insert(data: CreditNoteInput, db: Kysely<KyselyDatabase> = this.db): Promise<CreditNoteRecord> {
     const id = randomUUID();
     const r = await db
       .insertInto('finance.credit_notes')
@@ -94,21 +102,21 @@ export class CreditNoteRepository {
         organization_id: data.organizationId ?? null,
         invoice_id: data.invoiceId ?? null,
         credit_number: data.creditNumber,
-        amount: data.amount.toString(),
+        amount: numericParam(data.amount),
         reason: data.reason,
         cn_type: data.cnType,
         status: 'issued',
-        applied_amount: '0',
-        refunded_amount: '0',
+        applied_amount: numericParam(0),
+        refunded_amount: numericParam(0),
         created_by: data.createdBy ?? null,
         created_at: new Date(),
       })
       .returning(CN_COLS)
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
     return this.map(r);
   }
 
-  async findById(id: string, db: any = this.db): Promise<CreditNoteRecord | null> {
+  async findById(id: string, db: Kysely<KyselyDatabase> = this.db): Promise<CreditNoteRecord | null> {
     const r = await db
       .selectFrom('finance.credit_notes')
       .select(CN_COLS)
@@ -138,26 +146,24 @@ export class CreditNoteRepository {
     if (filter.status)         q = q.where('status', '=', filter.status);
     if (filter.cnType)         q = q.where('cn_type', '=', filter.cnType);
     const rows = await q.execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   /** Sum of all application amounts for a credit note. */
-  async appliedTotal(creditNoteId: string, db: any = this.db): Promise<number> {
-    const { sql } = await import('kysely');
+  async appliedTotal(creditNoteId: string, db: Kysely<KyselyDatabase> = this.db): Promise<number> {
     const r = await db
       .selectFrom('finance.credit_note_applications')
-      .select((eb: any) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
+      .select((eb) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
       .where('credit_note_id', '=', creditNoteId)
       .executeTakeFirst();
     return Number(r?.total ?? 0);
   }
 
   /** Sum of all credit note application amounts applied TO a specific invoice (across all CNs). */
-  async creditAppliedToInvoice(invoiceId: string, db: any = this.db): Promise<number> {
-    const { sql } = await import('kysely');
+  async creditAppliedToInvoice(invoiceId: string, db: Kysely<KyselyDatabase> = this.db): Promise<number> {
     const r = await db
       .selectFrom('finance.credit_note_applications')
-      .select((eb: any) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
+      .select((eb) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
       .where('invoice_id', '=', invoiceId)
       .executeTakeFirst();
     return Number(r?.total ?? 0);
@@ -165,7 +171,7 @@ export class CreditNoteRepository {
 
   async insertApplication(
     data: CreditNoteApplicationInput,
-    db: any = this.db
+    db: Kysely<KyselyDatabase> = this.db
   ): Promise<CreditNoteApplicationRecord> {
     const id = randomUUID();
     const r = await db
@@ -174,13 +180,13 @@ export class CreditNoteRepository {
         id,
         credit_note_id: data.creditNoteId,
         invoice_id: data.invoiceId,
-        amount: data.amount.toString(),
+        amount: numericParam(data.amount),
         applied_by: data.appliedBy ?? null,
         notes: data.notes ?? null,
         applied_at: new Date(),
       })
       .returning(['id', 'credit_note_id', 'invoice_id', 'amount', 'applied_at', 'applied_by', 'notes'])
-      .executeTakeFirst();
+      .executeTakeFirstOrThrow();
     return this.mapApplication(r);
   }
 
@@ -191,20 +197,20 @@ export class CreditNoteRepository {
       .where('credit_note_id', '=', creditNoteId)
       .orderBy('applied_at', 'asc')
       .execute();
-    return rows.map((r: any) => this.mapApplication(r));
+    return rows.map((r) => this.mapApplication(r));
   }
 
   async updateStatus(
     id: string,
     status: CreditNoteStatus,
     amounts: { appliedAmount?: number; refundedAmount?: number },
-    db: any = this.db
+    db: Kysely<KyselyDatabase> = this.db
   ): Promise<CreditNoteRecord | null> {
-    const updates: Record<string, any> = { status };
+    const updates: CreditNoteUpdate = { status };
     if (amounts.appliedAmount !== undefined)
-      updates.applied_amount = amounts.appliedAmount.toString();
+      updates.applied_amount = numericParam(amounts.appliedAmount);
     if (amounts.refundedAmount !== undefined)
-      updates.refunded_amount = amounts.refundedAmount.toString();
+      updates.refunded_amount = numericParam(amounts.refundedAmount);
 
     const r = await db
       .updateTable('finance.credit_notes')
@@ -215,7 +221,7 @@ export class CreditNoteRepository {
     return r ? this.map(r) : null;
   }
 
-  async markVoid(id: string, db: any = this.db): Promise<CreditNoteRecord | null> {
+  async markVoid(id: string, db: Kysely<KyselyDatabase> = this.db): Promise<CreditNoteRecord | null> {
     const r = await db
       .updateTable('finance.credit_notes')
       .set({ status: 'void' })
@@ -226,7 +232,7 @@ export class CreditNoteRepository {
     return r ? this.map(r) : null;
   }
 
-  private map(r: any): CreditNoteRecord {
+  private map(r: CreditNoteSelectRow): CreditNoteRecord {
     return {
       id: r.id,
       organizationId: r.organization_id ?? null,
@@ -234,8 +240,8 @@ export class CreditNoteRepository {
       creditNumber: r.credit_number,
       amount: parseFloat(r.amount.toString()),
       reason: r.reason,
-      cnType: r.cn_type,
-      status: r.status,
+      cnType: r.cn_type as CreditNoteType,
+      status: r.status as CreditNoteStatus,
       appliedAmount: parseFloat(r.applied_amount.toString()),
       refundedAmount: parseFloat(r.refunded_amount.toString()),
       issuedAt: r.issued_at instanceof Date ? r.issued_at : new Date(r.issued_at),
@@ -244,7 +250,7 @@ export class CreditNoteRepository {
     };
   }
 
-  private mapApplication(r: any): CreditNoteApplicationRecord {
+  private mapApplication(r: CreditNoteApplicationRow): CreditNoteApplicationRecord {
     return {
       id: r.id,
       creditNoteId: r.credit_note_id,

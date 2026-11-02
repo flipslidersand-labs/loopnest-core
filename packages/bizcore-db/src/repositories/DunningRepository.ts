@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { DunningLogRow, DunningRuleRow, KyselyDatabase } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 
 export type DunningAction = 'reminder' | 'warning' | 'suspend' | 'collection';
@@ -43,7 +43,7 @@ export class DunningRepository {
       .orderBy('days_overdue', 'asc');
     if (activeOnly) q = q.where('is_active', '=', true);
     const rows = await q.execute();
-    return rows.map((r: any) => this.mapRule(r));
+    return rows.map((r) => this.mapRule(r));
   }
 
   async findRuleById(id: string): Promise<DunningRule | null> {
@@ -105,7 +105,7 @@ export class DunningRepository {
       .where('invoice_id', '=', invoiceId)
       .orderBy('sent_at', 'asc')
       .execute();
-    return rows.map((r: any) => this.mapLog(r));
+    return rows.map((r) => this.mapLog(r));
   }
 
   /** Returns rules whose days_overdue <= daysOverdue and have NOT been logged yet for this invoice. */
@@ -115,7 +115,7 @@ export class DunningRepository {
       .selectAll('r')
       .where('r.is_active', '=', true)
       .where('r.days_overdue', '<=', daysOverdue)
-      .where((eb: any) =>
+      .where((eb) =>
         eb.not(
           eb.exists(
             eb.selectFrom('finance.dunning_logs as l')
@@ -127,7 +127,7 @@ export class DunningRepository {
       )
       .orderBy('r.days_overdue', 'asc')
       .execute();
-    return rows.map((r: any) => this.mapRule(r));
+    return rows.map((r) => this.mapRule(r));
   }
 
   async recordLog(invoiceId: string, rule: DunningRule, daysOverdue: number): Promise<DunningLog> {
@@ -146,7 +146,7 @@ export class DunningRepository {
     return this.mapLog(r);
   }
 
-  private mapRule(r: any): DunningRule {
+  private mapRule(r: DunningRuleRow): DunningRule {
     return {
       id: r.id,
       name: r.name,
@@ -159,7 +159,7 @@ export class DunningRepository {
     };
   }
 
-  private mapLog(r: any): DunningLog {
+  private mapLog(r: DunningLogRow): DunningLog {
     return {
       id: r.id,
       invoiceId: r.invoice_id,

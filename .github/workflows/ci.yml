@@ -21,10 +21,10 @@ concurrency:
 jobs:
   integration:
     if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    # Runs on ARC self-hosted runners (GATE_RUNNER org variable) with fallback
-    # to GitHub-hosted ubuntu-latest. PostgreSQL and Redis are started via apt
-    # rather than Docker services: so the job works without a Docker socket.
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    # Runner comes from the GATE_RUNNER repository variable (required, no default:
+    # ADR-010 for public repos). PostgreSQL and Redis are started via apt rather
+    # than Docker services, so the job works without a Docker socket.
+    runs-on: ${{ vars.GATE_RUNNER }}
     permissions:
       contents: read
       pull-requests: write
@@ -224,24 +224,33 @@ jobs:
           sudo -u postgres psql -c \
             "DROP DATABASE IF EXISTS \"$POSTGRES_DB\" WITH (FORCE);" || true
 
-      - name: Checkout dep-policy
-        uses: actions/checkout@v7
-        with:
-          repository: flipslidersand/dev-infrastructure
-          path: .dep-policy
-          sparse-checkout: |
-            dependency-policy
-            scripts/dep-policy-check.py
-          sparse-checkout-cone-mode: false
-        continue-on-error: true
+  # Lint（助言: required check には入れない）。ESLint は型情報を使わないため、
+  # ルートの devDependencies だけで動く（#273）。repositories 配下の any は error。
+  lint:
+    if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: Dependency policy drift check
-        if: hashFiles('.dep-policy/scripts/dep-policy-check.py') != ''
-        run: |
-          pip install pyyaml --quiet --disable-pip-version-check
-          python3 .dep-policy/scripts/dep-policy-check.py \
-            --policy-dir .dep-policy/dependency-policy || echo "::warning::dependency drift detected"
-        continue-on-error: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install root dev tooling (eslint)
+        run: npm install --no-audit --no-fund
+
+      - name: ESLint (errors fail; warnings are tracked, not blocking)
+        run: npx eslint packages/bizcore-db/src apps/api/src --quiet
+
+  # 依存ポリシーの drift 検知（助言のみ。qa-workflows の reusable。dev-infrastructure#1134）。
+  # 旧ステップは private の dev-infrastructure を既定の GITHUB_TOKEN で checkout して Not Found になり、
+  # hashFiles ガードで黙ってスキップされていた。
+  dep-policy:
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/dep-policy.yml@cf282c05fdb69ccca3f029b9b33f8c1c1e9a10cb
+    with:
+      policy-ref: cf282c05fdb69ccca3f029b9b33f8c1c1e9a10cb
 
   # ---------------------------------------------------------------------------
   # AI Review — local LLM only:
@@ -254,7 +263,7 @@ jobs:
       github.event.pull_request.draft == false &&
       github.actor != 'github-actions[bot]' &&
       vars.OLLAMA_URL != ''
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     permissions:
       pull-requests: write
 

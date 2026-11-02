@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import type { Server } from 'node:http';
 import { logger } from './lib/logger.js';
+import { fatalExit } from './lib/fatalExit.js';
 import cors from 'cors';
 import { initializeDatabaseServices, redis, setKyselyQueryObserver } from '@loopnest/bizcore-db';
 import type { DatabaseServices } from '@loopnest/bizcore-db';
@@ -34,6 +35,14 @@ import { requestMetrics } from './middleware/requestMetrics.js';
 import { renderMetrics, dbQueryDurationMs } from './observability/metrics.js';
 import { initTelemetry, shutdownTelemetry } from './lib/telemetry.js';
 import { openapiDocument, swaggerHtml } from './openapi.js';
+
+// Fail fast on missing required config, before logger/telemetry init, so this
+// surfaces as a single clear line instead of an uncaught-exception stack trace
+// that bypasses the structured JSON logging other startup failures go through.
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET is required');
+  process.exit(1);
+}
 
 // Initialize OTel SDK before any instrumented code runs.
 initTelemetry();
@@ -82,11 +91,11 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize database services
-let services: DatabaseServices | undefined;
+let _services: DatabaseServices | undefined;
 let server: Server | undefined;
 
 initializeDatabaseServices().then((dbServices: DatabaseServices) => {
-  services = dbServices;
+  _services = dbServices;
 
   // Wire Kysely timing into the metrics histogram.
   setKyselyQueryObserver((kind: string, ms: number) => dbQueryDurationMs.observe(ms, { kind }));
@@ -223,6 +232,8 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   server = app.listen(PORT, () => {
     logger.info({ port: PORT }, 'API server started');
   });
+  // EADDRINUSE / invalid PORT surface as an 'error' event; without a listener it is thrown.
+  server.on('error', fatalExit(logger, 'server listen error'));
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
@@ -239,4 +250,4 @@ initializeDatabaseServices().then((dbServices: DatabaseServices) => {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-});
+}).catch(fatalExit(logger, 'failed to start API server'));

@@ -1,24 +1,37 @@
+import { Kysely, sql } from 'kysely';
 import { randomUUID } from 'crypto';
+import { KyselyDatabase } from '../types/kysely-database.js';
 
 export interface OutboxEvent {
   id: string;
   eventType: string;
   aggregateId: string;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   status: 'pending' | 'processed' | 'failed';
   createdAt: Date;
   processedAt: Date | null;
   retryCount: number;
 }
 
+interface OutboxRow {
+  id: string;
+  event_type: string;
+  aggregate_id: string;
+  payload: Record<string, unknown>;
+  status: OutboxEvent['status'];
+  created_at: Date;
+  processed_at: Date | null;
+  retry_count: number;
+}
+
 export class OutboxRepository {
-  constructor(private db: any) {}
+  constructor(private db: Kysely<KyselyDatabase>) {}
 
   async publish(
     eventType: string,
     aggregateId: string,
-    payload: Record<string, any>,
-    db: any = this.db
+    payload: Record<string, unknown>,
+    db: Kysely<KyselyDatabase> = this.db
   ): Promise<void> {
     const id = randomUUID();
     await db
@@ -45,8 +58,7 @@ export class OutboxRepository {
    * an external, non-idempotent accounting API) the same event.
    */
   async claimPending(limit: number = 50): Promise<OutboxEvent[]> {
-    const { sql } = await import('kysely');
-    const result = await sql<any>`
+    const result = await sql<OutboxRow>`
       UPDATE events.outbox_events
       SET status = 'processing'
       WHERE id IN (
@@ -69,7 +81,7 @@ export class OutboxRepository {
 
     const events = result.rows;
 
-    return events.map((e: any) => ({
+    return events.map((e): OutboxEvent => ({
       id: e.id,
       eventType: e.event_type,
       aggregateId: e.aggregate_id,
@@ -85,7 +97,7 @@ export class OutboxRepository {
     await this.db
       .updateTable('events.outbox_events')
       .set({ status: 'processed', processed_at: new Date() })
-      .where((eb: any) => eb('id', '=', id))
+      .where((eb) => eb('id', '=', id))
       .execute();
   }
 
@@ -99,7 +111,6 @@ export class OutboxRepository {
    * retry_count.
    */
   async markFailed(id: string, maxRetries: number = 5): Promise<void> {
-    const { sql } = await import('kysely');
     await sql`
       UPDATE events.outbox_events
       SET retry_count = retry_count + 1,

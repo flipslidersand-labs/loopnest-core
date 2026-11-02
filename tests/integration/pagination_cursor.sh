@@ -82,16 +82,22 @@ else
   pass "payments: only one page"
 fi
 
-# ── Backward compat — legacy skip/take still returns old shape ────────────────
+# ── skip is no longer supported (#233): default and skip/take both use the cursor shape ──
 
 echo ""
-echo "GET /api/invoices?skip=0&take=5 (legacy)"
+echo "GET /api/invoices?skip=0&take=5 (skip ignored, cursor shape)"
 
 RL=$(curl -s "$BASE_URL/invoices?skip=0&take=5")
-check "legacy skip/take returns data array" \
+check "skip/take request returns data array" \
   "$(jq_val "$RL" '.data | type')" "array"
-check "legacy response has total field (old shape)" \
-  "$(jq_val "$RL" '.pagination | has("total")')" "true"
+check "response has cursor pagination (limit, no total)" \
+  "$(jq_val "$RL" '.pagination | has("limit") and (has("total") | not)')" "true"
+check "take=5 is honoured as the page size" \
+  "$(jq_val "$RL" '.pagination.limit')" "5"
+
+RD=$(curl -s "$BASE_URL/customers")
+check "customers default list uses cursor shape" \
+  "$(jq_val "$RD" '.pagination | has("nextCursor")')" "true"
 
 echo ""
 summary

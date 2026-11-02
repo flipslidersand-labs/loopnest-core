@@ -96,9 +96,10 @@ export class InvoiceService {
     const invoiceNumber = await this.generateInvoiceNumber();
     const quoteItems = await this.repos.quoteItems.findByQuote(quoteId);
 
-    // Atomically create invoice, copy line items, and increment credit_used.
-    // If any step fails the entire transaction rolls back, preventing orphaned
-    // invoices or understated credit_used values.
+    // Atomically create invoice, copy line items, increment credit_used, and
+    // publish the invoice_created outbox event. All in one transaction so a
+    // crash right after commit can never leave the invoice/credit change
+    // committed with no outbox event to drive the accounting export.
     const { invoice, invoiceId } = await this.repos.beginTransaction(async (txRepos) => {
       const inv = await txRepos.invoices.create({
         quoteId,
@@ -121,15 +122,14 @@ export class InvoiceService {
         lineTotal: qi.lineTotal,
         notes: null,
       })));
+      await txRepos.outbox.publish('invoice_created', quoteId, {
+        invoiceId: inv.id,
+        invoiceNumber,
+        quoteId,
+        customerId: quote.customerId,
+        totalAmount,
+      });
       return { invoice: inv, invoiceId: inv.id };
-    });
-
-    await this.repos.outbox.publish('invoice_created', quoteId, {
-      invoiceId,
-      invoiceNumber,
-      quoteId,
-      customerId: quote.customerId,
-      totalAmount,
     });
 
     // Fire-and-forget: failure should not block the invoice creation response.
@@ -239,23 +239,30 @@ export class InvoiceService {
         const totalAmount = subtotal + taxAmount;
         const invoiceNumber = await this.generateInvoiceNumber();
 
-        const invoice = await this.repos.invoices.create({
-          invoiceNumber,
-          customerId: item.customerId,
-          subtotal,
-          taxAmount,
-          totalAmount,
-          status: 'issued',
-          createdBy: userId,
-          paymentDueDate: item.dueDate ?? null,
-          currency: item.currency ?? 'JPY',
-        });
+        // Invoice creation and its outbox publish must commit together: a
+        // crash between separate awaits here would leave an invoice with no
+        // outbox event to drive the accounting export.
+        const invoice = await this.repos.beginTransaction(async (txRepos) => {
+          const inv = await txRepos.invoices.create({
+            invoiceNumber,
+            customerId: item.customerId,
+            subtotal,
+            taxAmount,
+            totalAmount,
+            status: 'issued',
+            createdBy: userId,
+            paymentDueDate: item.dueDate ?? null,
+            currency: item.currency ?? 'JPY',
+          });
 
-        await this.repos.outbox.publish('invoice_created', invoice.id, {
-          invoiceId: invoice.id,
-          invoiceNumber,
-          customerId: item.customerId,
-          totalAmount,
+          await txRepos.outbox.publish('invoice_created', inv.id, {
+            invoiceId: inv.id,
+            invoiceNumber,
+            customerId: item.customerId,
+            totalAmount,
+          });
+
+          return inv;
         });
 
         created.push(invoice);

@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { KyselyDatabase, WebhookDeliveryRow } from '../types/kysely-database.js';
 
 export type DeliveryStatus = 'success' | 'failed';
 
@@ -46,7 +46,7 @@ export class WebhookDeliveryRepository {
       .values({
         webhook_id:    input.webhookId,
         event_type:    input.eventType,
-        payload:       input.payload as any,
+        payload:       input.payload,
         status:        input.status,
         http_status:   input.httpStatus ?? null,
         error_message: input.errorMessage ?? null,
@@ -77,7 +77,7 @@ export class WebhookDeliveryRepository {
       // Restrict to deliveries whose webhook belongs to this org
       const orgId = filter.organizationId;
       q = q.where("webhook_id", "in", (eb) =>
-        (eb as any)
+        eb
           .selectFrom("events.webhooks")
           .select("id")
           .where("organization_id", "=", orgId),
@@ -93,7 +93,7 @@ export class WebhookDeliveryRepository {
     if (filter.organizationId) {
       const orgId = filter.organizationId;
       cq = cq.where("webhook_id", "in", (eb) =>
-        (eb as any)
+        eb
           .selectFrom("events.webhooks")
           .select("id")
           .where("organization_id", "=", orgId),
@@ -111,12 +111,12 @@ export class WebhookDeliveryRepository {
     };
   }
 
-  private map(row: any): WebhookDeliveryRecord {
+  private map(row: Pick<WebhookDeliveryRow, (typeof COLS)[number]>): WebhookDeliveryRecord {
     return {
       id:           row.id,
       webhookId:    row.webhook_id,
       eventType:    row.event_type,
-      payload:      row.payload,
+      payload:      row.payload as Record<string, unknown>,
       status:       row.status,
       httpStatus:   row.http_status ?? null,
       errorMessage: row.error_message ?? null,

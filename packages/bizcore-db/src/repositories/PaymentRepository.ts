@@ -1,5 +1,5 @@
-import { Kysely } from 'kysely';
-import { KyselyDatabase } from '../types/kysely-database.js';
+import { Kysely, sql } from 'kysely';
+import { KyselyDatabase, Payment } from '../types/kysely-database.js';
 import { randomUUID } from 'crypto';
 import { decodeCursor, makeCursor } from '../utils/cursor.js';
 
@@ -62,11 +62,10 @@ export class PaymentRepository {
   constructor(private db: Kysely<KyselyDatabase>) {}
 
   /** Sum of confirmed payments for an invoice. Pass a trx for read-after-write. */
-  async confirmedTotal(invoiceId: string, db: any = this.db): Promise<number> {
-    const { sql } = await import('kysely');
+  async confirmedTotal(invoiceId: string, db: Kysely<KyselyDatabase> = this.db): Promise<number> {
     const r = await db
       .selectFrom('finance.payments')
-      .select((eb: any) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
+      .select((eb) => eb.fn.coalesce(eb.fn.sum('amount'), sql`0`).as('total'))
       .where('invoice_id', '=', invoiceId)
       .where('status', '=', 'confirmed')
       .executeTakeFirst();
@@ -74,17 +73,17 @@ export class PaymentRepository {
   }
 
   /** Latest paid_on among confirmed payments (used to stamp invoice.paid_at). */
-  async lastConfirmedPaidOn(invoiceId: string, db: any = this.db): Promise<Date | null> {
+  async lastConfirmedPaidOn(invoiceId: string, db: Kysely<KyselyDatabase> = this.db): Promise<Date | null> {
     const r = await db
       .selectFrom('finance.payments')
-      .select((eb: any) => eb.fn.max('paid_on').as('last'))
+      .select((eb) => eb.fn.max('paid_on').as('last'))
       .where('invoice_id', '=', invoiceId)
       .where('status', '=', 'confirmed')
       .executeTakeFirst();
     return r?.last ? new Date(r.last) : null;
   }
 
-  async insert(data: PaymentInput, db: any = this.db): Promise<PaymentRecord> {
+  async insert(data: PaymentInput, db: Kysely<KyselyDatabase> = this.db): Promise<PaymentRecord> {
     const id = randomUUID();
     const r = await db
       .insertInto('finance.payments')
@@ -92,7 +91,8 @@ export class PaymentRepository {
         id,
         invoice_id: data.invoiceId,
         organization_id: data.organizationId ?? null,
-        amount: data.amount.toString(),
+        // PaymentTable.amount is typed number but the string form is what was always sent (NUMERIC precision); kept as-is.
+        amount: data.amount.toString() as unknown as number,
         method: data.method,
         paid_on: typeof data.paidOn === 'string' ? data.paidOn : data.paidOn.toISOString().slice(0, 10),
         reference: data.reference ?? null,
@@ -102,10 +102,10 @@ export class PaymentRepository {
       })
       .returning(COLS)
       .executeTakeFirst();
-    return this.map(r);
+    return this.map(r!); // undefined would throw inside map, same as before
   }
 
-  async findById(id: string, db: any = this.db): Promise<PaymentRecord | null> {
+  async findById(id: string, db: Kysely<KyselyDatabase> = this.db): Promise<PaymentRecord | null> {
     const r = await db
       .selectFrom('finance.payments')
       .selectAll()
@@ -114,7 +114,7 @@ export class PaymentRepository {
     return r ? this.map(r) : null;
   }
 
-  async markReversed(id: string, reason: string, db: any = this.db): Promise<PaymentRecord | null> {
+  async markReversed(id: string, reason: string, db: Kysely<KyselyDatabase> = this.db): Promise<PaymentRecord | null> {
     const r = await db
       .updateTable('finance.payments')
       .set({ status: 'reversed', reversed_at: new Date(), reversal_reason: reason })
@@ -133,7 +133,7 @@ export class PaymentRepository {
       .orderBy('paid_on', 'asc')
       .orderBy('created_at', 'asc')
       .execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async list(filter: PaymentFilter = {}): Promise<PaymentRecord[]> {
@@ -154,7 +154,7 @@ export class PaymentRepository {
     if (filter.from)           q = q.where('paid_on', '>=', filter.from);
     if (filter.to)             q = q.where('paid_on', '<=', filter.to);
     const rows = await q.execute();
-    return rows.map((r: any) => this.map(r));
+    return rows.map((r) => this.map(r));
   }
 
   async listPage(filter: PaymentFilter = {}): Promise<PaymentPage> {
@@ -175,7 +175,7 @@ export class PaymentRepository {
       const c = decodeCursor(filter.cursor);
       if (c) {
         const ts = new Date(c.createdAt);
-        q = q.where((eb: any) => eb.or([
+        q = q.where((eb) => eb.or([
           eb('created_at', '<', ts),
           eb.and([eb('created_at', '=', ts), eb('id', '>', c.id)]),
         ]));
@@ -183,21 +183,21 @@ export class PaymentRepository {
     }
     const rows = await q.execute();
     const hasMore = rows.length > limit;
-    const data = rows.slice(0, limit).map((r: any) => this.map(r));
+    const data = rows.slice(0, limit).map((r) => this.map(r));
     const nextCursor = hasMore ? makeCursor(data[data.length - 1]) : null;
     return { data, pagination: { limit, nextCursor } };
   }
 
-  private map(r: any): PaymentRecord {
+  private map(r: Pick<Payment, (typeof COLS)[number]>): PaymentRecord {
     return {
       id: r.id,
       invoiceId: r.invoice_id,
       organizationId: r.organization_id ?? null,
       amount: parseFloat(r.amount.toString()),
-      method: r.method,
+      method: r.method as PaymentMethod,
       paidOn: r.paid_on instanceof Date ? r.paid_on : new Date(r.paid_on),
       reference: r.reference ?? null,
-      status: r.status,
+      status: r.status as PaymentStatus,
       reversedAt: r.reversed_at ?? null,
       reversalReason: r.reversal_reason ?? null,
       createdBy: r.created_by ?? null,
