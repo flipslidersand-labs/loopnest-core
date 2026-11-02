@@ -28,10 +28,15 @@ export class StatementService {
 
     // Fetch every invoice for the customer (not just those within [from, to])
     // so pre-period activity can be folded into a real opening balance.
-    const invoices = await this.repos.invoices.findAll({
-      customerId,
-      take: 1000,
-    });
+    // Walk every cursor page: a fixed `take` would silently drop invoices for
+    // customers with more than that many, corrupting the opening balance.
+    const invoices = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.repos.invoices.findPage({ customerId, take: 100, cursor });
+      invoices.push(...page.data);
+      cursor = page.pagination.nextCursor ?? undefined;
+    } while (cursor);
 
     const allPayments = await Promise.all(
       invoices.map(inv => this.repos.payments.listByInvoice(inv.id))
