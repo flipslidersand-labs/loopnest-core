@@ -11,6 +11,10 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'lcov'],
+      // vitest 4 removed `coverage.all`: specifying `include` makes untested
+      // files count in the denominator (issue #207).
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.d.ts'],
       thresholds: coverageThresholds,
     },
   },
