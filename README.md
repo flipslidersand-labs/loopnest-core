@@ -244,6 +244,13 @@ bash tests/integration/credit_notes.sh
 API エラーコードの一覧（HTTP ステータス・推奨アクション付き）は **[docs/error-codes.md](docs/error-codes.md)** を参照してください。
 
 
+## CI runner setup / CI の runner 設定
+
+CI requires the repository variable `GATE_RUNNER` (no default; the workflow fails fast if it is unset).
+Example: `ubuntu-latest`. Jobs need `apt`/`sudo` (PostgreSQL 17, Redis) and Node.js 24. If you point it at a self-hosted runner, keep fork-PR approval on "all external contributors".
+/ CI にはリポジトリ変数 `GATE_RUNNER` が必須です(既定値なし。未設定ならワークフローは即エラーで止まります)。
+例: `ubuntu-latest`。ジョブは `apt`/`sudo`(PostgreSQL 17・Redis)と Node.js 24 を使います。self-hosted runner を指定する場合は、fork PR の承認設定を「すべての外部コントリビューター」のままにしてください。
+
 ## 設計判断 / Architecture decisions
 
 [ADR 一覧](docs/adr/README.md) — 設計判断、根拠資料、未決定事項。
