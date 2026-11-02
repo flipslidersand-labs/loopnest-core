@@ -21,10 +21,10 @@ concurrency:
 jobs:
   integration:
     if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
-    # Runs on ARC self-hosted runners (GATE_RUNNER org variable) with fallback
-    # to GitHub-hosted ubuntu-latest. PostgreSQL and Redis are started via apt
-    # rather than Docker services: so the job works without a Docker socket.
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    # Runner comes from the GATE_RUNNER repository variable (required, no default:
+    # ADR-010 for public repos). PostgreSQL and Redis are started via apt rather
+    # than Docker services, so the job works without a Docker socket.
+    runs-on: ${{ vars.GATE_RUNNER }}
     permissions:
       contents: read
       pull-requests: write
@@ -224,7 +224,7 @@ jobs:
       github.event.pull_request.draft == false &&
       github.actor != 'github-actions[bot]' &&
       vars.OLLAMA_URL != ''
-    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.GATE_RUNNER }}
     permissions:
       pull-requests: write
 
