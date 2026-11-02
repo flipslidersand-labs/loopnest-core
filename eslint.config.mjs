@@ -17,4 +17,9 @@ export default tseslint.config(
       '@typescript-eslint/no-namespace': ['error', { allowDeclarations: true }],
     },
   },
+  // #273: repositories 配下は any 禁止(error)。
+  {
+    files: ['packages/bizcore-db/src/repositories/**/*.ts'],
+    rules: { '@typescript-eslint/no-explicit-any': 'error' },
+  },
 );
