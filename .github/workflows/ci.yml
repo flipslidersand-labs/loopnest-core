@@ -205,6 +205,26 @@ jobs:
           # killed abruptly (job cancellation) before its own kill ran (#223).
           sudo fuser -k 3000/tcp 2>/dev/null || true
 
+  # Lint（助言: required check には入れない）。ESLint は型情報を使わないため、
+  # ルートの devDependencies だけで動く（#273）。repositories 配下の any は error。
+  lint:
+    if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
+    runs-on: ${{ vars.GATE_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install root dev tooling (eslint)
+        run: npm install --no-audit --no-fund
+
+      - name: ESLint (errors fail; warnings are tracked, not blocking)
+        run: npx eslint packages/bizcore-db/src apps/api/src --quiet
+
   # 依存ポリシーの drift 検知（助言のみ。qa-workflows の reusable。dev-infrastructure#1134）。
   # 旧ステップは private の dev-infrastructure を既定の GITHUB_TOKEN で checkout して Not Found になり、
   # hashFiles ガードで黙ってスキップされていた。
