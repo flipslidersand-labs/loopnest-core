@@ -48,7 +48,15 @@ function makeRepos({
 } = {}) {
   return {
     customers: { findById: vi.fn().mockResolvedValue(customer) },
-    invoices: { findAll: vi.fn().mockResolvedValue(invoices) },
+    invoices: {
+      // Serve in pages of 100 via opaque numeric cursors, like the real findPage.
+      findPage: vi.fn(({ cursor }: { cursor?: string } = {}) => {
+        const start = cursor ? Number(cursor) : 0;
+        const data = invoices.slice(start, start + 100);
+        const next = start + 100 < invoices.length ? String(start + 100) : null;
+        return Promise.resolve({ data, pagination: { limit: 100, nextCursor: next } });
+      }),
+    },
     payments: {
       listByInvoice: vi.fn((invoiceId: string) => Promise.resolve(paymentsByInvoice[invoiceId] ?? [])),
     },
@@ -97,6 +105,18 @@ describe('StatementService.generate', () => {
     expect(stmt.transactions.map(t => t.ref)).toEqual(['INV-1', 'INV-1']); // onFrom, onTo (same invoiceNumber fixture)
     expect(stmt.transactions).toHaveLength(2);
     expect(stmt.openingBalance).toBe(50); // only beforeFrom
+  });
+
+  it('includes every invoice when a customer has more than one page (1001 invoices)', async () => {
+    const invoices = Array.from({ length: 1001 }, (_, i) =>
+      invoice({ id: `inv-${i}`, invoiceNumber: `INV-${i}`, createdAt: new Date('2025-12-01'), totalAmount: 10 }),
+    );
+    const svc = new StatementService(makeRepos({ invoices }));
+
+    const stmt = await svc.generate('cust-1', new Date('2026-01-01'), new Date('2026-01-31'));
+
+    // All 1001 pre-period invoices fold into the opening balance: 1001 * 10.
+    expect(stmt.openingBalance).toBe(10010);
   });
 
   it('excludes reversed payments', async () => {
