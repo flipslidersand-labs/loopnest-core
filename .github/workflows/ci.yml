@@ -248,9 +248,9 @@ jobs:
   # 旧ステップは private の dev-infrastructure を既定の GITHUB_TOKEN で checkout して Not Found になり、
   # hashFiles ガードで黙ってスキップされていた。
   dep-policy:
-    uses: flipslidersand-labs/qa-workflows/.github/workflows/dep-policy.yml@cf282c05fdb69ccca3f029b9b33f8c1c1e9a10cb
+    uses: flipslidersand-labs/qa-workflows/.github/workflows/dep-policy.yml@27b40bcc092153b321962d04a0293e17b9d668b0
     with:
-      policy-ref: cf282c05fdb69ccca3f029b9b33f8c1c1e9a10cb
+      policy-ref: 27b40bcc092153b321962d04a0293e17b9d668b0
 
   # ---------------------------------------------------------------------------
   # AI Review — local LLM only:
