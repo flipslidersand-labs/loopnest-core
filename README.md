@@ -5,6 +5,8 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![coverage floor (apps/api)](https://img.shields.io/badge/coverage%20floor-35%25-blue)
 
+Release type: `service`
+
 ---
 
 ## English
